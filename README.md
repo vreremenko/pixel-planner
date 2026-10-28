@@ -92,6 +92,13 @@ jobs:
 ```
 В настройках репозитория: Settings → Pages → Source: **GitHub Actions**.
 
+#### Текущая схема: сайт на GitHub Pages, push-API на Cloudflare
+Сайт: https://vreremenko.github.io/pixel-planner/ — собирается workflow `.github/workflows/deploy.yml`
+при каждом push в `main` (lint → тесты → сборка → Pages). Адрес push-API передаётся сборке через
+переменную репозитория `API_BASE` (→ `VITE_API_BASE`), а воркер разрешает запросы с этого домена
+через `ALLOWED_ORIGINS` в `wrangler.jsonc`. Так сайт открывается там, где Cloudflare недоступен
+(push-запросы маленькие и проходят), а сами уведомления доставляют серверы Apple/Google.
+
 ### Vercel
 Импортируйте репозиторий: Framework — Vite, Build — `npm run build`, Output — `dist`. `BASE_PATH` не нужен.
 
