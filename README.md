@@ -1,0 +1,120 @@
+# PIXEL PLANNER — 8-битный ежедневник
+
+Офлайн-PWA в стиле NES/аркадных автоматов: план дня, повторяющиеся задачи, бэклог («Инвентарь»),
+привычки («Квесты»), статистика («Таблица рекордов»), XP/уровни/достижения и напоминания.
+Все данные хранятся локально в IndexedDB.
+
+## Стек
+Vite 8 · React 19 · TypeScript (strict) · Zustand · Dexie 4 · CSS Modules + дизайн-токены ·
+@dnd-kit · vite-plugin-pwa (свой service worker) · Vitest.
+
+## Запуск
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run lint
+npm test
+npm run build      # результат в dist/
+npm run preview    # проверить собранную версию (service worker, офлайн)
+```
+Нужен Node.js 20+.
+
+## Структура
+```
+src/
+  domain/     чистая логика без React/БД: даты и DST, повторения, стрики, статистика,
+              расчёт напоминаний, XP и достижения (+ тесты *.test.ts)
+  data/       Dexie-схема, репозитории (единственная точка доступа к хранилищу),
+              live-хуки, бэкап JSON, действия из уведомлений
+  services/   сценарии: задачи/серии, привычки, начисление XP, 8-битный звук (WebAudio)
+  stores/     Zustand: настройки, UI-состояние, игровые события
+  features/   экраны: day, recurring, backlog, habits, stats, game, notifications, settings, pwa
+  ui/         пиксельные примитивы и иконки 8×8 (битмапы → SVG)
+  charts/     собственные SVG-графики с crispEdges
+  styles/     tokens.css — вся палитра, base.css, crt.css
+  sw/         service worker: precache + кнопки «Выполнено» / «Отложить» в уведомлениях
+```
+
+### Ключевые решения
+- **Даты** хранятся как локальные `YYYY-MM-DD`, время — как «настенное» `HH:mm`. Календарная арифметика
+  идёт через UTC-полночь, поэтому переход на летнее время и смена пояса не сдвигают повторы.
+  Абсолютный момент считается только для уведомлений (`toInstant`): несуществующее время сдвигается
+  вперёд, двойное — берётся первое.
+- **Повторения**: хранится правило (`RecurringSeries`), экземпляры генерируются на лету; выполнение и правки
+  конкретного дня — в `OccurrenceOverride`. «Эта и все следующие» делит серию на две.
+  Прошедшие невыполненные экземпляры помечаются «пропущено» и не переносятся.
+- **Синхронизация в будущем**: у каждой записи есть `updatedAt` и мягкое удаление `deletedAt`;
+  UI работает только через репозитории (`src/data/repo.ts`) — бэкенд добавляется заменой реализации.
+- **Палитра** — только в `src/styles/tokens.css`: один смысловой цвет на сущность
+  (задачи — циан, привычки — зелёный, XP — жёлтый, предупреждения — маджента).
+
+### Горячие клавиши
+`N` — новая задача/квест · `←/→` — день (месяц в квестах) · `T` — сегодня · `/` — поиск в инвентаре · `Esc` — закрыть.
+
+### Уведомления (этап А)
+Разрешение запрашивается только по кнопке в Настройках. Напоминания приходят, **пока приложение открыто
+или живо в фоне**; сработавшие без вас показываются блоком «Пропущенные» при следующем открытии.
+Для доставки при закрытом приложении нужен push-сервер (этап Б).
+
+### Иконки PWA
+Генерируются скриптом без зависимостей: `python3 scripts/make-icons.py`.
+
+## Деплой
+
+### GitHub Pages
+Роутинг на hash-адресах, поэтому дополнительная настройка 404 не нужна. Сборка с базовым путём репозитория:
+```bash
+BASE_PATH=/<имя-репозитория>/ npm run build
+```
+Пример workflow `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy
+on: { push: { branches: [main] } }
+permissions: { contents: read, pages: write, id-token: write }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npm run lint && npm test
+      - run: npm run build
+        env: { BASE_PATH: "/${{ github.event.repository.name }}/" }
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages }
+    steps:
+      - uses: actions/deploy-pages@v4
+```
+В настройках репозитория: Settings → Pages → Source: **GitHub Actions**.
+
+### Vercel
+Импортируйте репозиторий: Framework — Vite, Build — `npm run build`, Output — `dist`. `BASE_PATH` не нужен.
+
+### Cloudflare Workers + Web Push (этап Б, текущий деплой)
+Один бесплатный Cloudflare Worker раздаёт фронтенд (static assets), принимает API `/api/*`
+и раз в минуту (Cron Trigger) рассылает наступившие напоминания через Web Push. Подписки и расписание
+лежат в D1. Код — `server/src/index.ts`, схема — `server/migrations/`, конфиг — `wrangler.jsonc`.
+
+Первый деплой:
+```bash
+npx wrangler login                         # вход в аккаунт Cloudflare (email должен быть подтверждён)
+npx wrangler d1 create pixel-planner-push  # database_id → wrangler.jsonc
+npm run vapid                              # пара ключей VAPID
+# публичный ключ → wrangler.jsonc: vars.VAPID_PUBLIC_KEY
+npx wrangler secret put VAPID_PRIVATE_KEY  # приватный ключ — только в секретах, не в коде
+npm run deploy                             # сборка + миграции D1 + wrangler deploy
+```
+Повторные деплои — просто `npm run deploy`.
+
+Локально с push-API: `npm run dev:api` (worker на :8787, ключи — в `.dev.vars`, он в .gitignore)
+и параллельно `npm run dev` — Vite проксирует `/api` на воркер.
+
+API: `GET /api/config`, `PUT|DELETE /api/devices/:id` (подписка), `PUT /api/devices/:id/schedule`
+(расписание на 7 дней), `POST /api/devices/:id/snooze`. id устройства — случайный UUID, известный только ему.
+
+Без сервера (GitHub Pages / Vercel) приложение работает полностью, но push-переключатель будет недоступен.

@@ -1,0 +1,218 @@
+import { useMemo, useState } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import s from './Day.module.css';
+import { Button, Panel, PixelIcon, toast } from '../../ui';
+import { useUi } from '../../stores/ui';
+import { useToday } from '../../app/useToday';
+import { useHotkeys } from '../../app/hotkeys';
+import { useDay } from '../../data/hooks';
+import { diffDays, formatDateLong } from '../../domain/dates';
+import { ProgressBar } from '../../charts/ProgressBar';
+import {
+  createTask,
+  moveUnfinishedToTomorrow,
+  reorderDay,
+  scheduleTask,
+  toggleOccurrence,
+  toggleTask,
+  type DayItem,
+} from '../../services/tasks';
+import { TaskItem } from './TaskItem';
+import { CalendarPicker } from './CalendarPicker';
+
+const itemId = (it: DayItem) => (it.kind === 'task' ? it.task.id : it.occ.key);
+const itemOrder = (it: DayItem) => (it.kind === 'task' ? it.task.order : it.occ.order);
+const itemTime = (it: DayItem) => (it.kind === 'task' ? it.task.time : it.occ.time) ?? '99:99';
+const isDone = (it: DayItem) => (it.kind === 'task' ? it.task.done : it.occ.status === 'done');
+
+function relativeLabel(diff: number): string {
+  if (diff === 0) return 'СЕГОДНЯ';
+  if (diff === 1) return 'ЗАВТРА';
+  if (diff === -1) return 'ВЧЕРА';
+  return diff > 0 ? `ЧЕРЕЗ ${diff} ДН.` : `${-diff} ДН. НАЗАД`;
+}
+
+export function DayScreen() {
+  const todayDate = useToday();
+  const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen } = useUi();
+  const data = useDay(date, todayDate);
+  const [quick, setQuick] = useState('');
+
+  const sorted = useMemo<DayItem[]>(() => {
+    if (!data) return [];
+    const items: DayItem[] = [
+      ...data.tasks.map((task) => ({ kind: 'task' as const, task })),
+      ...data.occurrences.map((occ) => ({ kind: 'occ' as const, occ })),
+    ];
+    return items.sort((a, b) => itemOrder(a) - itemOrder(b) || itemTime(a).localeCompare(itemTime(b)));
+  }, [data]);
+
+  // Локальный порядок для мгновенного отклика при перетаскивании
+  const [items, setItems] = useState<DayItem[]>(sorted);
+  const [prevSorted, setPrevSorted] = useState(sorted);
+  if (prevSorted !== sorted) {
+    setPrevSorted(sorted);
+    setItems(sorted);
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = items.findIndex((x) => itemId(x) === active.id);
+    const to = items.findIndex((x) => itemId(x) === over.id);
+    const next = arrayMove(items, from, to);
+    setItems(next);
+    void reorderDay(next);
+  };
+
+  useHotkeys(
+    useMemo(
+      () => ({
+        n: () => openEditor({ kind: 'new', date }),
+        ArrowLeft: () => shiftDate(-1),
+        ArrowRight: () => shiftDate(1),
+        t: goToday,
+      }),
+      [date, openEditor, shiftDate, goToday],
+    ),
+  );
+
+  const doneCount = items.filter(isDone).length;
+  const pendingTasks = items.filter((x) => x.kind === 'task' && !x.task.done).length;
+  const diff = diffDays(date, todayDate);
+
+  const addQuick = async () => {
+    const title = quick.trim();
+    if (!title) return;
+    await createTask({ title, date, priority: 'medium', tags: [] });
+    setQuick('');
+  };
+
+  return (
+    <>
+      <div className={s.header}>
+        <Button icon="left" label="Предыдущий день (←)" onClick={() => shiftDate(-1)} />
+        <div className={s.dateBlock}>
+          <div className={s.stage}>{relativeLabel(diff)}</div>
+          <h1 className={`${s.dateTitle} glow`}>{formatDateLong(date)}</h1>
+        </div>
+        <Button icon="right" label="Следующий день (→)" onClick={() => shiftDate(1)} />
+        <Button icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />
+        {diff !== 0 && (
+          <Button small onClick={goToday}>
+            Сегодня
+          </Button>
+        )}
+      </div>
+
+      <Panel
+        title="Уровень дня"
+        icon="sword"
+        accent="var(--c-task)"
+        actions={
+          pendingTasks > 0 && (
+            <Button
+              small
+              icon="skip"
+              onClick={() =>
+                void moveUnfinishedToTomorrow(date).then((n) => toast(`Перенесено на завтра: ${n}`, 'skip', 'var(--c-task)'))
+              }
+            >
+              Перенести на завтра
+            </Button>
+          )
+        }
+      >
+        {items.length > 0 && (
+          <div className={s.progressRow}>
+            <span>
+              {doneCount}/{items.length}
+            </span>
+            <div>
+              <ProgressBar value={doneCount / items.length} color="var(--c-task)" label="Выполнено за день" />
+            </div>
+          </div>
+        )}
+        {data && items.length === 0 && (
+          <div className="empty" style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '24px 0' }}>
+            <PixelIcon name="flag" size={48} />
+            <p>Уровень пуст. Нажмите N, чтобы добавить задачу.</p>
+          </div>
+        )}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={items.map(itemId)} strategy={verticalListSortingStrategy}>
+            <ul className={s.list} aria-label="Задачи дня">
+              {items.map((it) =>
+                it.kind === 'task' ? (
+                  <TaskItem
+                    key={it.task.id}
+                    id={it.task.id}
+                    item={it}
+                    onToggle={(d) => void toggleTask(it.task, d)}
+                    onEdit={() => openEditor({ kind: 'task', task: it.task })}
+                    onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в инвентарь', 'bag', 'var(--c-backlog)'))}
+                    extraIcon="bag"
+                    extraLabel="Убрать в инвентарь"
+                  />
+                ) : (
+                  <TaskItem
+                    key={it.occ.key}
+                    id={it.occ.key}
+                    item={it}
+                    onToggle={(d) => void toggleOccurrence(it.occ, d)}
+                    onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
+                  />
+                ),
+              )}
+            </ul>
+          </SortableContext>
+        </DndContext>
+
+        <div className={s.addRow}>
+          <form
+            className={s.quick}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addQuick();
+            }}
+          >
+            <label htmlFor="quick-add" className="sr-only">
+              Быстро добавить задачу
+            </label>
+            <input
+              id="quick-add"
+              className="quick-input"
+              style={{ flex: 1, minWidth: 0, minHeight: 40, padding: '6px 10px', background: 'var(--c-bg)', border: '4px solid var(--c-border)', color: 'var(--c-text)' }}
+              placeholder="Быстрая задача + Enter"
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+            />
+          </form>
+          <Button variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
+            Задача
+          </Button>
+        </div>
+      </Panel>
+
+      {calendarOpen && (
+        <CalendarPicker open value={date} todayDate={todayDate} onPick={setDate} onClose={() => setCalendarOpen(false)} />
+      )}
+    </>
+  );
+}

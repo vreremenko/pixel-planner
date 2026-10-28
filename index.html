@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0a1a" />
+    <meta name="app-build" content="3" />
+    <meta name="description" content="8-битный ежедневник: задачи, привычки, статистика" />
+    <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>PIXEL PLANNER</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Экран загрузки: React заменит его при старте -->
+      <div id="boot" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0b0a1a;color:#eceaff;font:16px monospace;text-align:center;padding:24px">
+        <div style="color:#29e6ff;font-size:20px;letter-spacing:2px">PIXEL&#9642;PLANNER</div>
+        <div id="boot-msg" style="color:#b4b0e0">LOADING...</div>
+      </div>
+    </div>
+    <script>
+      // Сторож старта: если приложение не запустилось — показать причину вместо белого экрана
+      (function () {
+        var errors = [];
+        function note(m) { errors.push(String(m).slice(0, 300)); }
+        window.addEventListener('error', function (e) { note((e.message || 'error') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+        window.addEventListener('unhandledrejection', function (e) { note('Promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason)); });
+        setTimeout(function () {
+          if (window.__appMounted) return;
+          var el = document.getElementById('boot-msg');
+          if (!el) return;
+          el.innerHTML = '';
+          var p = document.createElement('p');
+          p.textContent = 'Приложение не запустилось.';
+          el.appendChild(p);
+          var pre = document.createElement('pre');
+          pre.style.cssText = 'white-space:pre-wrap;text-align:left;font-size:13px;color:#ff4fa8';
+          pre.textContent = (errors.length ? errors.join('\n') : 'Ошибок нет, но запуск завис.') + '\n' + navigator.userAgent;
+          el.appendChild(pre);
+          var b = document.createElement('button');
+          b.textContent = 'Сбросить кэш и перезагрузить';
+          b.style.cssText = 'min-height:44px;padding:8px 14px;background:#211e42;color:#eceaff;border:4px solid #29e6ff;font:14px monospace';
+          b.onclick = function () {
+            var jobs = [];
+            if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+            if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+            Promise.all(jobs).then(function () { location.reload(); }, function () { location.reload(); });
+          };
+          el.appendChild(b);
+        }, 10000);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

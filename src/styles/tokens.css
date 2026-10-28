@@ -1,0 +1,65 @@
+/*
+ * Дизайн-токены. Вся палитра — здесь: поменяйте значения, и интерфейс перекрасится.
+ * Один смысловой цвет на тип сущности: задачи / привычки / XP / предупреждения.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Поверхности */
+  --c-bg: #0b0a1a;
+  --c-panel: #16142e;
+  --c-panel-2: #211e42;
+  --c-panel-3: #2c2856;
+  --c-border: #4a4488;
+  --c-shadow: #000000;
+
+  /* Текст (WCAG на любой поверхности: text ≥ 11:1, dim ≥ 6.6:1, muted ≥ 4.8:1) */
+  --c-text: #eceaff;
+  --c-text-dim: #b4b0e0;
+  --c-text-muted: #9a95cf;
+  --c-on-accent: #0b0a1a;
+
+  /* Смысловые акценты */
+  --c-task: #29e6ff; /* задачи — циан */
+  --c-habit: #4dff7a; /* привычки — зелёный */
+  --c-xp: #ffd23f; /* XP и награды — жёлтый */
+  --c-warn: #ff4fa8; /* предупреждения, просрочка — маджента */
+  --c-backlog: #b48cff; /* инвентарь — фиолетовый */
+
+  /* Приоритеты */
+  --c-prio-low: #8f8ac4;
+  --c-prio-medium: #ffd23f;
+  --c-prio-high: #ff4fa8;
+
+  /* Тепловая карта 0..4 */
+  --c-heat-0: #211e42;
+  --c-heat-1: #1d5e4a;
+  --c-heat-2: #23945c;
+  --c-heat-3: #36c96a;
+  --c-heat-4: #4dff7a;
+
+  /* Шрифты */
+  --font-title: 'Press Start 2P', monospace;
+  --font-body: 'Pixelify Sans', 'VT323', monospace;
+  --font-digits: 'VT323', 'Pixelify Sans', monospace;
+
+  /* Пиксельная сетка */
+  --px: 4px;
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-6: 24px;
+
+  --fs-title: 14px;
+  --fs-title-sm: 10px;
+  --fs-body: 20px;
+  --fs-small: 17px;
+
+  /* Тени-смещения (без размытия) */
+  --shadow-1: 4px 4px 0 var(--c-shadow);
+  --shadow-2: 6px 6px 0 var(--c-shadow);
+
+  --nav-w: 220px;
+  --bottom-nav-h: 64px;
+}

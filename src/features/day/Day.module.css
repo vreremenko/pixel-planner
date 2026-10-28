@@ -1,0 +1,207 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-4);
+}
+.dateBlock {
+  flex: 1 1 220px;
+  min-width: 0;
+  text-align: center;
+}
+.stage {
+  font-family: var(--font-title);
+  font-size: 8px;
+  color: var(--c-warn);
+  letter-spacing: 1px;
+}
+.dateTitle {
+  color: var(--c-task);
+  margin-top: 6px;
+}
+.subtitle {
+  color: var(--c-text-dim);
+  font-size: var(--fs-small);
+}
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  margin-bottom: var(--gap-3);
+  font-family: var(--font-title);
+  font-size: 8px;
+  color: var(--c-text-dim);
+}
+.progressRow > div {
+  flex: 1;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+}
+.item {
+  --ic: var(--c-task);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  min-height: 52px;
+  padding: 6px 8px 6px 4px;
+  background: var(--c-panel-2);
+  border-left: 8px solid var(--prio, var(--c-prio-low));
+  box-shadow: 4px 4px 0 var(--c-shadow);
+  position: relative;
+}
+.item.dragging {
+  z-index: 10;
+  background: var(--c-panel-3);
+  box-shadow: 8px 8px 0 var(--c-shadow);
+  outline: var(--px) dashed var(--c-xp);
+}
+.item.done .title {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: var(--c-text-muted);
+}
+.item.missed {
+  border-left-color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-warn) 8%, var(--c-panel-2));
+}
+.grip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.grip:hover {
+  color: var(--c-text);
+}
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+}
+.title {
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 16px;
+  color: var(--c-text-dim);
+}
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge {
+  font-family: var(--font-title);
+  font-size: 7px;
+  padding: 3px 4px;
+  border: 2px solid currentColor;
+  text-transform: uppercase;
+}
+.time {
+  font-family: var(--font-digits);
+  font-size: 22px;
+  color: var(--c-task);
+  min-width: 52px;
+  text-align: right;
+}
+.actions {
+  display: flex;
+  align-items: center;
+}
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-top: var(--gap-4);
+}
+.quick {
+  flex: 1 1 240px;
+  display: flex;
+  gap: var(--gap-2);
+}
+
+/* Календарь */
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gap-3);
+}
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calDow {
+  text-align: center;
+  font-family: var(--font-title);
+  font-size: 7px;
+  color: var(--c-text-muted);
+  padding: 4px 0;
+}
+.calDay {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 36px;
+  border: 2px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-digits);
+  font-size: 20px;
+  cursor: pointer;
+}
+.calDay:hover {
+  background: var(--c-panel-2);
+}
+.calDay.other {
+  color: var(--c-text-muted);
+  opacity: 0.6;
+}
+.calDay.today {
+  border-color: var(--c-xp);
+}
+.calDay.selected {
+  background: var(--c-task);
+  color: var(--c-on-accent);
+  border-color: var(--c-task);
+}
+.dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  background: var(--c-task);
+}
+.dot.allDone {
+  background: var(--c-habit);
+}
+.selected .dot {
+  background: var(--c-on-accent);
+}

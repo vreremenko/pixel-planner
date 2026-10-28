@@ -1,0 +1,219 @@
+import { useEffect, useState, type SyntheticEvent } from 'react';
+import { Button, Field, Modal, Segmented, SelectInput, TextInput, inputClass, toast } from '../../ui';
+import { useUi, type EditorTarget } from '../../stores/ui';
+import { today } from '../../domain/dates';
+import { REMINDER_OFFSETS, type LocalDate, type Priority, type ReminderOffset } from '../../domain/types';
+import {
+  createTask,
+  deleteOccurrence,
+  deleteTask,
+  editOccurrence,
+  skipOccurrence,
+  updateTask,
+  type EditScope,
+  type TaskDraft,
+} from '../../services/tasks';
+import { seriesRepo } from '../../data/repo';
+import { RecurrenceEditor, type RepeatValue } from '../recurring/RecurrenceEditor';
+import { EditScopeDialog } from '../recurring/EditScopeDialog';
+import { describeRule } from '../../domain/recurrence';
+import { PRIORITY_LABEL } from './labels';
+
+const PRIORITIES: { value: Priority; label: string }[] = (['low', 'medium', 'high'] as const).map((p) => ({
+  value: p,
+  label: PRIORITY_LABEL[p],
+}));
+
+const REMINDER_OPTIONS = [
+  { value: 'none', label: 'Без напоминания' },
+  ...REMINDER_OFFSETS.map((m) => ({ value: String(m), label: m === 0 ? 'В момент начала' : `За ${m} минут` })),
+];
+
+interface FormState {
+  title: string;
+  notes: string;
+  inBacklog: boolean;
+  date: LocalDate;
+  time: string;
+  priority: Priority;
+  reminder: string;
+  tags: string;
+  repeat: RepeatValue | undefined;
+}
+
+function initial(t: EditorTarget): FormState {
+  if (t.kind === 'new') {
+    return {
+      title: '', notes: '', inBacklog: t.date === null, date: t.date ?? today(), time: '',
+      priority: 'medium', reminder: 'none', tags: '', repeat: undefined,
+    };
+  }
+  const src = t.kind === 'task' ? t.task : t.occ;
+  return {
+    title: src.title,
+    notes: src.notes ?? '',
+    inBacklog: t.kind === 'task' && t.task.date === null,
+    date: (t.kind === 'task' ? t.task.date : t.occ.date) ?? today(),
+    time: src.time ?? '',
+    priority: src.priority,
+    reminder: src.reminder ? String(src.reminder.offsetMin) : 'none',
+    tags: src.tags.join(', '),
+    repeat: undefined,
+  };
+}
+
+function toDraft(f: FormState): TaskDraft {
+  const d: TaskDraft = {
+    title: f.title.trim(),
+    date: f.inBacklog ? null : f.date,
+    priority: f.priority,
+    tags: f.tags.split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean),
+  };
+  if (f.notes.trim()) d.notes = f.notes.trim();
+  if (f.time) d.time = f.time;
+  if (f.time && f.reminder !== 'none') d.reminder = { offsetMin: Number(f.reminder) as ReminderOffset };
+  if (f.repeat && !f.inBacklog) d.repeat = f.repeat;
+  return d;
+}
+
+function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => void }) {
+  const [f, setF] = useState<FormState>(() => initial(target));
+  const [scopeFor, setScopeFor] = useState<'edit' | 'delete' | null>(null);
+  const [ruleText, setRuleText] = useState<string | null>(null);
+  const isOcc = target.kind === 'occurrence';
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    if (target.kind !== 'occurrence') return;
+    void seriesRepo.get(target.occ.seriesId).then((s) => {
+      if (!s) return;
+      setRuleText(describeRule(s.rule));
+      const { start: _s, end, ...pattern } = s.rule;
+      setF((p) => ({ ...p, repeat: { pattern, end } }));
+    });
+  }, [target]);
+
+  const invalid =
+    !f.title.trim() || (f.repeat?.pattern.freq === 'weekly' && f.repeat.pattern.days.length === 0);
+
+  const save = async (scope?: EditScope) => {
+    const draft = toDraft(f);
+    if (target.kind === 'new') {
+      await createTask(draft);
+      toast(draft.repeat ? 'Повторяющаяся задача создана' : draft.date ? 'Задача добавлена' : 'Добавлено в инвентарь', 'plus', 'var(--c-task)');
+    } else if (target.kind === 'task') {
+      await updateTask(target.task, draft);
+    } else {
+      if (!scope) return setScopeFor('edit');
+      // «Только эта» — правила не меняем
+      if (scope === 'this') delete draft.repeat;
+      await editOccurrence(target.occ, draft, scope);
+    }
+    onDone();
+  };
+
+  const remove = async (scope?: EditScope) => {
+    if (target.kind === 'task') await deleteTask(target.task.id);
+    else if (target.kind === 'occurrence') {
+      if (!scope) return setScopeFor('delete');
+      await deleteOccurrence(target.occ, scope);
+    }
+    toast('Удалено', 'trash', 'var(--c-warn)');
+    onDone();
+  };
+
+  const onSubmit = (e: SyntheticEvent) => {
+    e.preventDefault();
+    if (!invalid) void save();
+  };
+
+  return (
+    <form onSubmit={onSubmit}>
+      <TextInput label="Название" value={f.title} data-autofocus required maxLength={200} onChange={(e) => set('title', e.target.value)} placeholder="Победить босса…" />
+      {!isOcc && (
+        <Field label="Где">
+          <Segmented
+            label="Где лежит задача"
+            value={f.inBacklog ? 'backlog' : 'day'}
+            options={[
+              { value: 'day', label: 'На дату' },
+              { value: 'backlog', label: 'В инвентарь' },
+            ]}
+            onChange={(v) => set('inBacklog', v === 'backlog')}
+          />
+        </Field>
+      )}
+      {!f.inBacklog && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <TextInput label="Дата" type="date" value={f.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
+          <TextInput label="Время" type="time" value={f.time} onChange={(e) => set('time', e.target.value)} />
+        </div>
+      )}
+      <Field label="Приоритет">
+        <Segmented label="Приоритет" value={f.priority} options={PRIORITIES} onChange={(v) => set('priority', v)} />
+      </Field>
+      {!f.inBacklog && (
+        <SelectInput
+          label={f.time ? 'Напоминание' : 'Напоминание (укажите время)'}
+          value={f.time ? f.reminder : 'none'}
+          disabled={!f.time}
+          options={REMINDER_OPTIONS}
+          onChange={(e) => set('reminder', e.target.value)}
+        />
+      )}
+      <TextInput label="Теги через запятую" value={f.tags} onChange={(e) => set('tags', e.target.value)} placeholder="работа, дом" />
+      <Field label="Заметки">
+        <textarea className={inputClass} rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+      </Field>
+      {!f.inBacklog && (target.kind !== 'occurrence' || f.repeat) && (
+        <>
+          {ruleText && <p style={{ margin: '0 0 8px', color: 'var(--c-text-dim)' }}>Сейчас: {ruleText}. Изменение правила применяется к «этой и следующим».</p>}
+          <RecurrenceEditor value={f.repeat} onChange={(v) => set('repeat', v)} start={f.date} />
+        </>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        {target.kind !== 'new' && (
+          <Button variant="danger" icon="trash" onClick={() => void remove()}>
+            Удалить
+          </Button>
+        )}
+        {target.kind === 'occurrence' && target.occ.status !== 'done' && (
+          <Button
+            icon="skip"
+            onClick={() => {
+              void skipOccurrence(target.occ).then(onDone);
+            }}
+          >
+            Пропустить
+          </Button>
+        )}
+        <span style={{ flex: 1 }} />
+        <Button onClick={onDone}>Отмена</Button>
+        <Button type="submit" variant="primary" icon="check" disabled={invalid}>
+          Сохранить
+        </Button>
+      </div>
+      <EditScopeDialog
+        open={scopeFor !== null}
+        action={scopeFor ?? 'edit'}
+        onClose={() => setScopeFor(null)}
+        onPick={(scope) => {
+          const act = scopeFor;
+          setScopeFor(null);
+          void (act === 'delete' ? remove(scope) : save(scope));
+        }}
+      />
+    </form>
+  );
+}
+
+export function TaskEditor() {
+  const editor = useUi((st) => st.editor);
+  const close = useUi((st) => st.closeEditor);
+  const title = !editor ? '' : editor.kind === 'new' ? 'Новая задача' : 'Задача';
+  return (
+    <Modal open={editor !== null} onClose={close} title={title} accent="var(--c-task)">
+      {editor && <EditorBody key={JSON.stringify(editor)} target={editor} onDone={close} />}
+    </Modal>
+  );
+}
