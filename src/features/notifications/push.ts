@@ -62,7 +62,9 @@ export async function testPush(): Promise<string> {
 /** Ключ VAPID с сервера; null — сервера нет (локальная разработка или статичный хостинг). */
 export async function getServerKey(): Promise<string | null> {
   try {
-    const res = await fetch(api('config'));
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 10_000);
+    const res = await fetch(api('config'), { signal: ctrl.signal });
     if (!res.ok) return null;
     const cfg = (await res.json()) as { vapidPublicKey?: string; push?: boolean };
     return cfg.push && cfg.vapidPublicKey ? cfg.vapidPublicKey : null;
@@ -79,21 +81,38 @@ function urlB64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-/** Включить push. Вызывать после того, как пользователь дал разрешение на уведомления. */
-export async function enablePush(): Promise<void> {
-  const key = await getServerKey();
+function step<T>(label: string, p: Promise<T>, ms = 15_000): Promise<T> {
+  return Promise.race([
+    p.catch((e: unknown) => {
+      throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label}: нет ответа`)), ms)),
+  ]);
+}
+
+/**
+ * Включить push. Вызывать прямо из обработчика нажатия: Safari разрешает
+ * pushManager.subscribe() только в ответ на действие пользователя, поэтому
+ * ключ сервера загружается заранее, а подписка — первый вызов после нажатия.
+ */
+export async function enablePush(serverKey?: string): Promise<void> {
+  const key = serverKey ?? (await step('Ключ сервера', getServerKey()));
   if (!key) throw new Error('Push-сервер недоступен');
-  const reg = await navigator.serviceWorker.ready;
-  const sub =
-    (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(key) }));
+  const reg = await step('Service worker', navigator.serviceWorker.ready);
+  const sub = await step(
+    'Подписка в браузере',
+    reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(key) }),
+  );
   const deviceId = (await getPushState())?.deviceId ?? crypto.randomUUID();
-  const res = await fetch(api(`devices/${deviceId}`), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ subscription: sub.toJSON() }),
-  });
-  if (!res.ok) throw new Error(`Сервер ответил ${String(res.status)}`);
+  const res = await step(
+    'Регистрация на сервере',
+    fetch(api(`devices/${deviceId}`), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    }),
+  );
+  if (!res.ok) throw new Error(`Регистрация на сервере: HTTP ${String(res.status)}`);
   await metaRepo.set('push', { deviceId, enabled: true } satisfies PushState);
   lastSent = '';
 }

@@ -36,16 +36,22 @@ function NotificationsPanel() {
   const isIos = detectIos();
   const standalone = isStandalone();
   const [server, setServer] = useState<boolean | null>(null);
+  const [serverKey, setServerKey] = useState<string | null>(null);
   const [pushOn, setPushOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   useEffect(() => {
-    void getServerKey().then((k) => setServer(k !== null));
+    void getServerKey().then((k) => {
+      setServer(k !== null);
+      setServerKey(k);
+    });
     void getPushState().then((st) => setPushOn(st?.enabled === true));
   }, []);
 
   const togglePush = async (v: boolean) => {
     setBusy(true);
+    setPushError(null);
     try {
       if (v) {
         if (perm !== 'granted') {
@@ -53,7 +59,7 @@ function NotificationsPanel() {
           setPerm(p);
           if (p !== 'granted') throw new Error('Нужно разрешение на уведомления');
         }
-        await enablePush();
+        await enablePush(serverKey ?? undefined);
         if (!settings.notificationsEnabled) await update({ notificationsEnabled: true });
         toast('Push включён: напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
       } else {
@@ -62,7 +68,9 @@ function NotificationsPanel() {
       setPushOn(v);
       void tick();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Не удалось включить push', 'alert', 'var(--c-warn)');
+      const msg = e instanceof Error ? e.message : 'Не удалось включить push';
+      setPushError(msg);
+      toast(msg, 'alert', 'var(--c-warn)');
     } finally {
       setBusy(false);
     }
@@ -147,7 +155,13 @@ function NotificationsPanel() {
       <div style={{ padding: 12, marginBottom: 16, border: '4px solid var(--c-habit)' }}>
         <ToggleRow
           label="Push при закрытом приложении"
-          hint={pushReason ?? 'Расписание напоминаний на 7 дней хранится на сервере, он присылает их вовремя'}
+          hint={
+            busy
+              ? 'Подключаем…'
+              : pushError
+                ? `Ошибка: ${pushError}`
+                : (pushReason ?? 'Расписание напоминаний на 7 дней хранится на сервере, он присылает их вовремя')
+          }
           checked={pushOn}
           onChange={(v) => {
             if (busy) return;
