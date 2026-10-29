@@ -7,7 +7,7 @@ import type { CreatingHookContext, IndexableType, UpdatingHookContext } from 'de
 import { db } from '../data/db';
 import { metaRepo } from '../data/repo';
 import { apiUrl } from '../apiBase';
-import { generateKey, SYNCED_TABLES, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
+import { forServer, generateKey, SYNCED_TABLES, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
 
 const META_KEY = 'sync';
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -85,8 +85,9 @@ export async function syncNow(): Promise<void> {
     again = true;
     return;
   }
-  const state = (await loadState()) ?? null;
-  if (!state) return;
+  const stored = (await loadState()) ?? null;
+  if (!stored) return;
+  const state = forServer(stored, apiUrl(''));
   useSync.setState({ running: true });
   applying = true;
   try {

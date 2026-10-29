@@ -24,6 +24,13 @@ export interface SyncState {
   pushedSince: number;
   lastAt?: number;
   lastError?: string;
+  /** Адрес сервера, с которым синхронизировались: при смене сервера начинаем с нуля. */
+  server?: string;
+}
+
+/** Сервер сменился (или раньше не запоминали): забираем всё и отправляем всё заново, у нового сервера пусто. */
+export function forServer(state: SyncState, server: string): SyncState {
+  return state.server === server ? state : { ...state, server, cursor: 0, pushedSince: 0 };
 }
 
 export interface Transport {
