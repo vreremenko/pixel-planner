@@ -19,7 +19,6 @@ import { useDay } from '../../data/hooks';
 import { diffDays, formatDateLong } from '../../domain/dates';
 import { ProgressBar } from '../../charts/ProgressBar';
 import {
-  createTask,
   moveUnfinishedToTomorrow,
   reorderDay,
   scheduleTask,
@@ -30,6 +29,7 @@ import {
   type DayItem,
 } from '../../services/tasks';
 import { TaskItem } from './TaskItem';
+import { QuickAdd } from './QuickAdd';
 import { CalendarPicker } from './CalendarPicker';
 
 const itemId = (it: DayItem) => (it.kind === 'task' ? it.task.id : it.occ.key);
@@ -48,7 +48,6 @@ export function DayScreen() {
   const todayDate = useToday();
   const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen } = useUi();
   const data = useDay(date, todayDate);
-  const [quick, setQuick] = useState('');
 
   const sorted = useMemo<DayItem[]>(() => {
     if (!data) return [];
@@ -98,13 +97,6 @@ export function DayScreen() {
   const doneCount = items.filter(isDone).length;
   const pendingTasks = items.filter((x) => x.kind === 'task' && !x.task.done).length;
   const diff = diffDays(date, todayDate);
-
-  const addQuick = async () => {
-    const title = quick.trim();
-    if (!title) return;
-    await createTask({ title, date, priority: 'medium', tags: [] });
-    setQuick('');
-  };
 
   return (
     <>
@@ -189,25 +181,7 @@ export function DayScreen() {
         </DndContext>
 
         <div className={s.addRow}>
-          <form
-            className={s.quick}
-            onSubmit={(e) => {
-              e.preventDefault();
-              void addQuick();
-            }}
-          >
-            <label htmlFor="quick-add" className="sr-only">
-              Быстро добавить задачу
-            </label>
-            <input
-              id="quick-add"
-              className="quick-input"
-              style={{ flex: 1, minWidth: 0, minHeight: 40, padding: '6px 10px', background: 'var(--c-bg)', border: '4px solid var(--c-border)', color: 'var(--c-text)' }}
-              placeholder="Быстрая задача + Enter"
-              value={quick}
-              onChange={(e) => setQuick(e.target.value)}
-            />
-          </form>
+          <QuickAdd date={date} todayDate={todayDate} />
           <Button variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
             Задача
           </Button>

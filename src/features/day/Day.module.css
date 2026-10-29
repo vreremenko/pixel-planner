@@ -136,6 +136,7 @@
 }
 .addRow {
   display: flex;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--gap-2);
   margin-top: var(--gap-4);
