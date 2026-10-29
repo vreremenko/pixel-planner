@@ -172,7 +172,8 @@
   margin-bottom: var(--gap-3);
 }
 .countInput {
-  width: 110px;
+  width: min(100%, 190px);
+  min-width: 0;
   min-height: 40px;
   padding: 6px 10px;
   background: var(--c-bg);
@@ -185,6 +186,10 @@
 .countInput:focus-visible {
   border-color: var(--c-xp);
 }
+.countInput[aria-invalid='true'] {
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+}
 .unit {
   color: var(--c-text-dim);
   font-size: 18px;
@@ -195,6 +200,8 @@
   gap: var(--gap-2);
 }
 .tile {
+  min-width: 0;
+  overflow: hidden;
   padding: 8px;
   background: var(--c-bg);
   border: var(--px) solid var(--c-border);
@@ -211,14 +218,25 @@
   display: block;
   margin-top: 4px;
   font-family: var(--font-digits);
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 400;
   line-height: 1;
   color: var(--c-xp);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile .suffix {
+  margin-left: 4px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--c-text-dim);
 }
 .tile span {
+  display: block;
   font-size: 16px;
   color: var(--c-text-dim);
+  overflow-wrap: anywhere;
 }
 .history {
   list-style: none;
@@ -236,9 +254,13 @@
 }
 .historyDate {
   flex: 1;
+  min-width: 0;
   color: var(--c-text-dim);
 }
 .historyValue {
+  max-width: 55%;
+  text-align: right;
+  overflow-wrap: anywhere;
   font-family: var(--font-digits);
   font-size: 24px;
   color: var(--c-text);

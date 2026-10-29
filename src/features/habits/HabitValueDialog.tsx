@@ -72,6 +72,7 @@ export function HabitValueDialog({ habit, unit, date: initialDate, values, today
           label={`Сколько (${unit})`}
           inputMode="decimal"
           autoComplete="off"
+          maxLength={12}
           data-autofocus
           data-select
           value={text}

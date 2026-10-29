@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatDateShort } from '../domain/dates';
-import { formatValue, type DayPoint } from '../domain/habitStats';
+import { formatCompact, formatValue, type DayPoint } from '../domain/habitStats';
 
 interface Props {
   points: readonly DayPoint[];
@@ -12,7 +12,7 @@ interface Props {
 
 const W = 600;
 const H = 180;
-const LEFT = 40;
+const LEFT = 60;
 const TOP = 14;
 const BOTTOM = 22;
 
@@ -68,7 +68,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
               <rect key={j} x={LEFT + j * 8} y={yOf(t)} width={4} height={1} fill="var(--c-panel-3)" />
             ))}
             <text x={LEFT - 6} y={yOf(t) + 4} textAnchor="end" fill="var(--c-text-muted)" fontFamily="var(--font-digits)" fontSize="15">
-              {formatValue(t)}
+              {formatCompact(t)}
             </text>
           </g>
         ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSeries, countStats, formatValue, movingAverage, parseValue } from './habitStats';
+import { buildSeries, compactParts, countStats, formatCompact, formatValue, movingAverage, parseValue } from './habitStats';
 
 const vals = (o: Record<string, number>) => new Map(Object.entries(o));
 
@@ -63,5 +63,21 @@ describe('ввод чисел', () => {
     expect(formatValue(12)).toBe('12');
     expect(formatValue(2.5)).toBe('2.5');
     expect(formatValue(1 / 3)).toBe('0.33');
+  });
+  it('formatCompact: большие числа коротко', () => {
+    expect(formatCompact(0)).toBe('0');
+    expect(formatCompact(9999)).toBe('9999');
+    expect(formatCompact(12345)).toBe('12.3 тыс');
+    expect(formatCompact(250000)).toBe('250 тыс');
+    expect(formatCompact(999999)).toBe('1 млн');
+    expect(formatCompact(1234567)).toBe('1.2 млн');
+    expect(formatCompact(999999999)).toBe('1 млрд');
+    expect(formatCompact(2_012_345_679)).toBe('2 млрд');
+    expect(formatCompact(2e12)).toBe('2000 млрд');
+  });
+  it('compactParts: число и суффикс отдельно', () => {
+    expect(compactParts(500)).toEqual({ text: '500', suffix: '' });
+    expect(compactParts(12345)).toEqual({ text: '12.3', suffix: 'тыс' });
+    expect(compactParts(999999999)).toEqual({ text: '1', suffix: 'млрд' });
   });
 });

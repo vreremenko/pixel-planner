@@ -3,7 +3,7 @@ import s from './Habits.module.css';
 import { Button, Modal, Segmented } from '../../ui';
 import { TrendChart } from '../../charts/TrendChart';
 import { addDays, formatDateLong } from '../../domain/dates';
-import { buildSeries, countStats, formatValue, movingAverage } from '../../domain/habitStats';
+import { buildSeries, compactParts, countStats, formatValue, movingAverage } from '../../domain/habitStats';
 import { percentDelta } from '../../domain/stats';
 import type { Habit, LocalDate } from '../../domain/types';
 
@@ -32,7 +32,17 @@ export function HabitDetail({ habit, unit, values, todayDate, onAdd, onEdit, onC
 
   const history = useMemo(() => [...values].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 30), [values]);
   const delta = stats.last7Avg !== null && stats.prev7Avg !== null ? percentDelta(stats.last7Avg, stats.prev7Avg) : null;
-  const num = (v: number | null) => (v === null ? '—' : formatValue(v));
+  const num = (v: number | null) => {
+    if (v === null) return '—';
+    const { text, suffix } = compactParts(v);
+    return (
+      <>
+        {text}
+        {suffix && <small className={s.suffix}>{suffix}</small>}
+      </>
+    );
+  };
+  const full = (v: number | null) => (v === null ? undefined : `${formatValue(v)} ${unit}`);
 
   return (
     <Modal
@@ -55,24 +65,24 @@ export function HabitDetail({ habit, unit, values, todayDate, onAdd, onEdit, onC
       <div className={s.tiles}>
         <div className={s.tile}>
           <div className={s.tileLabel}>Сегодня</div>
-          <b>{num(stats.today)}</b>
+          <b title={full(stats.today)}>{num(stats.today)}</b>
           <span>{unit}</span>
         </div>
         <div className={s.tile}>
           <div className={s.tileLabel}>Среднее, 7 дн.</div>
-          <b>{num(stats.last7Avg !== null ? Math.round(stats.last7Avg * 10) / 10 : null)}</b>
+          <b title={full(stats.last7Avg)}>{num(stats.last7Avg !== null ? Math.round(stats.last7Avg * 10) / 10 : null)}</b>
           <span style={{ color: delta === null ? undefined : delta >= 0 ? 'var(--c-habit)' : 'var(--c-warn)' }}>
-            {delta === null ? unit : `${delta >= 0 ? '▲ +' : '▼ '}${delta}%`}
+            {delta === null ? unit : `${delta >= 0 ? '▲ +' : '▼ '}${Math.abs(delta) > 999 ? '>999' : String(delta)}%`}
           </span>
         </div>
         <div className={s.tile}>
           <div className={s.tileLabel}>Лучший день</div>
-          <b>{num(stats.best?.value ?? null)}</b>
+          <b title={full(stats.best?.value ?? null)}>{num(stats.best?.value ?? null)}</b>
           <span>{stats.best ? stats.best.date.split('-').reverse().slice(0, 2).join('.') : unit}</span>
         </div>
         <div className={s.tile}>
           <div className={s.tileLabel}>Всего</div>
-          <b>{formatValue(stats.total)}</b>
+          <b title={full(stats.total)}>{num(stats.total)}</b>
           <span>{unit}</span>
         </div>
       </div>

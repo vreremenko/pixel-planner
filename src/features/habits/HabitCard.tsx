@@ -51,6 +51,7 @@ function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: str
         className={s.countInput}
         inputMode="decimal"
         autoComplete="off"
+        maxLength={12}
         placeholder="0"
         value={text}
         aria-invalid={invalid}
