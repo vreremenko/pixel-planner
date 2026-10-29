@@ -144,7 +144,7 @@
   outline: none;
 }
 .input::placeholder {
-  color: var(--c-text-muted);
+  color: var(--c-placeholder);
 }
 select.input {
   appearance: none;

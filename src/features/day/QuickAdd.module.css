@@ -16,7 +16,7 @@
   border-color: var(--c-xp);
 }
 .input::placeholder {
-  color: var(--c-text-muted);
+  color: var(--c-placeholder);
 }
 .hint {
   margin: 6px 0 0;
