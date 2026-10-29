@@ -1,3 +1,4 @@
+import { withChecked } from './checklist';
 import { addDays, daysInMonth, diffDays, parseLocalDate, weekday, WEEKDAYS_SHORT } from './dates';
 import type {
   LocalDate,
@@ -126,6 +127,8 @@ export function buildOccurrences(
       };
       const notes = p.notes ?? s.notes;
       if (notes !== undefined) occ.notes = notes;
+      const template = 'checklist' in p ? p.checklist : s.checklist;
+      if (template && template.length > 0) occ.checklist = withChecked(template, o?.checked ?? []);
       const time = 'time' in p ? p.time : s.time;
       if (time !== undefined) occ.time = time;
       const reminder = 'reminder' in p ? p.reminder : s.reminder;

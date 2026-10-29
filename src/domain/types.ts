@@ -20,9 +20,17 @@ export interface ReminderSpec {
   offsetMin: ReminderOffset;
 }
 
+/** Пункт чек-листа задачи. У повторяющихся задач в шаблоне серии done всегда false. */
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface Task extends SyncMeta {
   title: string;
   notes?: string;
+  checklist?: ChecklistItem[];
   /** null — задача лежит в бэклоге («Инвентарь»). */
   date: LocalDate | null;
   time?: LocalTime;
@@ -56,6 +64,8 @@ export type RecurrenceRule = RecurrencePattern & {
 export interface RecurringSeries extends SyncMeta {
   title: string;
   notes?: string;
+  /** Шаблон чек-листа: пункты одинаковы у всех экземпляров, отметки — по дням в override.checked. */
+  checklist?: ChecklistItem[];
   time?: LocalTime;
   priority: Priority;
   tags: string[];
@@ -65,7 +75,7 @@ export interface RecurringSeries extends SyncMeta {
 }
 
 export type OccurrencePatch = Partial<
-  Pick<RecurringSeries, 'title' | 'notes' | 'time' | 'priority' | 'reminder'>
+  Pick<RecurringSeries, 'title' | 'notes' | 'checklist' | 'time' | 'priority' | 'reminder'>
 >;
 
 /** Отклонения конкретного экземпляра от правила. id = `${seriesId}:${date}`. */
@@ -79,6 +89,8 @@ export interface OccurrenceOverride extends SyncMeta {
   movedTo?: LocalDate;
   cancelled?: boolean;
   order?: number;
+  /** id отмеченных пунктов чек-листа в этот день. */
+  checked?: string[];
 }
 
 export type OccurrenceStatus = 'pending' | 'done' | 'skipped' | 'missed';
@@ -91,6 +103,7 @@ export interface Occurrence {
   date: LocalDate;
   title: string;
   notes?: string;
+  checklist?: ChecklistItem[];
   time?: LocalTime;
   priority: Priority;
   tags: string[];
