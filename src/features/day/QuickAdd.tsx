@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import s from './QuickAdd.module.css';
 import { Button, PixelIcon, toast, cx } from '../../ui';
 import { createTask } from '../../services/tasks';
@@ -20,6 +20,7 @@ const HINT = 'Можно сразу с датой, временем и метк�
 /** Быстрый ввод: разбирает дату, время, приоритет, метки, повтор и напоминание прямо из текста. */
 export function QuickAdd({ date, todayDate }: Props) {
   const [text, setText] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const [ignored, setIgnored] = useState<ReadonlySet<QuickKind>>(new Set());
 
   // Без отключений — чтобы показать и те части, которые пользователь отключил (их можно вернуть)
@@ -36,6 +37,9 @@ export function QuickAdd({ date, todayDate }: Props) {
 
   const submit = async () => {
     if (text.trim() === '') return;
+    // Фокус остаётся в поле, даже если нажали кнопку: можно сразу вводить следующую задачу,
+    // а на телефоне клавиатура не закрывается
+    inputRef.current?.focus();
     // Поле очищаем сразу, до записи в базу: пока она идёт (на телефоне — заметное время),
     // пользователь уже может печатать следующую задачу, и тексты не должны склеиться.
     const sent = { text, ignored };
@@ -95,19 +99,22 @@ export function QuickAdd({ date, todayDate }: Props) {
         <label htmlFor="quick-add" className={s.label}>
           Быстрый ввод
         </label>
-        {/* Поле и кнопка «Добавить» — один элемент: понятно, что кнопка отправляет написанное, а не открывает окно */}
-        <div className={s.field}>
-          <input
-            id="quick-add"
-            className={s.input}
-            placeholder="Что сделать?"
-            autoComplete="off"
-            enterKeyHint="send"
-            aria-describedby="quick-add-hint"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <Button type="submit" small variant="primary" icon="right" className={s.send} disabled={text.trim() === ''}>
+        {/* Кнопка «Добавить» — рядом с полем, а на узком экране под ним: она отправляет написанное, а не открывает окно */}
+        <div className={s.row}>
+          <div className={s.field}>
+            <input
+              ref={inputRef}
+              id="quick-add"
+              className={s.input}
+              placeholder="Что сделать?"
+              autoComplete="off"
+              enterKeyHint="send"
+              aria-describedby="quick-add-hint"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="primary" icon="right" className={s.send} disabled={text.trim() === ''}>
             Добавить
           </Button>
         </div>
