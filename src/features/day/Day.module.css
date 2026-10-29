@@ -267,3 +267,13 @@
   text-decoration: line-through;
   text-decoration-thickness: 2px;
 }
+
+.noteText {
+  margin: 4px 0 2px;
+  padding-left: 8px;
+  border-left: 4px solid var(--c-border);
+  color: var(--c-text-dim);
+  font-size: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
