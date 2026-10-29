@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { loadOccurrences } from '../data/hooks';
 import { overrideRepo, seriesRepo, taskRepo, xpRepo } from '../data/repo';
+import type { Task } from '../domain/types';
 import {
   createTask,
   deleteOccurrence,
@@ -187,10 +188,10 @@ describe('сервис задач', () => {
       await createTask(draft({ repeat: undefined, time: '10:00', reminders: rem(15) }));
       const [t] = await taskRepo.all();
       // «Старая» задача с одним полем reminder
-      const legacy = { ...t!, reminder: { offsetMin: 30 } } as typeof t & { reminders?: unknown };
-      delete legacy.reminders;
-      await taskRepo.put(legacy!);
-      await updateTask(legacy!, draft({ repeat: undefined, time: '10:00', reminders: rem(60, 0) }));
+      const { reminders: _dropped, ...rest } = t!;
+      const legacy: Task = { ...rest, reminder: { offsetMin: 30 } };
+      await taskRepo.put(legacy);
+      await updateTask(legacy, draft({ repeat: undefined, time: '10:00', reminders: rem(60, 0) }));
       const [t2] = await taskRepo.all();
       expect(t2?.reminders?.map((r) => r.offsetMin)).toEqual([60, 0]);
       expect(t2).not.toHaveProperty('reminder');
