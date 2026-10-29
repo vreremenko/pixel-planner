@@ -15,3 +15,5 @@ dev-dist
 server-netlify/.env.netlify
 server-deno/.env.deno
 server-deno/.env.netlify
+server-node/dist
+server-node/.env.vps

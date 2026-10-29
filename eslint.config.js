@@ -40,7 +40,15 @@ export default tseslint.config(
     rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
   },
   {
-    files: ['src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
+    extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
+    files: ['server-node/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: { project: ['./tsconfig.node-server.json'], tsconfigRootDir: import.meta.dirname },
+    },
+    rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
+  },
+  {
+    files: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 );
