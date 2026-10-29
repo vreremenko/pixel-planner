@@ -20,7 +20,9 @@ const MAX_ITEMS = 500;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
-const MAX_SYNC_PULL = 300;
+/** Пачка записей в ответе не больше ~10 КБ: провайдеры в России режут ответы крупнее ~16 КБ (см. README). */
+const MAX_SYNC_PULL = 40;
+const MAX_SYNC_PULL_BYTES = 10_000;
 const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements']);
 const SYNC_KEY = /^[A-Za-z0-9_-]{43}$/;
 /** Напоминания старше этого не отправляем: устарели. */
@@ -117,8 +119,15 @@ async function handleSync(req: Request, env: Env, url: URL): Promise<Response> {
     )
       .bind(space, after, MAX_SYNC_PULL + 1)
       .all<{ seq: number; t: string; id: string; u: number; d: string }>();
-    const more = results.length > MAX_SYNC_PULL;
-    const records = results.slice(0, MAX_SYNC_PULL);
+    // Берём записи, пока не набралось ~10 КБ (но хотя бы одну), остальное — со следующим запросом
+    const records: typeof results = [];
+    let bytes = 0;
+    for (const r of results.slice(0, MAX_SYNC_PULL)) {
+      if (records.length > 0 && bytes + r.d.length > MAX_SYNC_PULL_BYTES) break;
+      records.push(r);
+      bytes += r.d.length;
+    }
+    const more = records.length < results.length;
     return json({ records, cursor: records.at(-1)?.seq ?? after, more });
   }
 
@@ -159,6 +168,12 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
 
   if (req.method === 'GET' && parts[1] === 'config') {
     return json({ vapidPublicKey: env.VAPID_PUBLIC_KEY, push: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) });
+  }
+
+  // GET /api/ping?kb=N — ответ заданного размера: проверить, проходят ли с этого устройства крупные ответы
+  if (req.method === 'GET' && parts[1] === 'ping') {
+    const kb = Math.min(256, Math.max(0, Math.floor(Number(url.searchParams.get('kb') ?? 1)) || 0));
+    return new Response('x'.repeat(kb * 1024), { headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
   }
 
   if (parts[1] === 'sync' && parts.length === 2) return handleSync(req, env, url);

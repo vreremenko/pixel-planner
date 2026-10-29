@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PlannerDB } from '../data/db';
-import { applyRemote, collectChanges, generateKey, isValidKey, keyToPairingText, parsePairingText, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
+import { applyRemote, chunkRecords, collectChanges, generateKey, isValidKey, keyToPairingText, parsePairingText, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
 import type { Task } from '../domain/types';
 
 /** Сервер в памяти с теми же правилами, что и у Worker. */
@@ -125,5 +125,23 @@ describe('синхронизация двух устройств', () => {
       { t: 'tasks', id: 'x', u: 1, d: JSON.stringify({ id: 'другой', updatedAt: 1 }) },
     ]);
     expect(n).toBe(0);
+  });
+});
+
+describe('chunkRecords', () => {
+  const rec = (n: number, size: number): WireRecord => ({ t: 'tasks', id: String(n), u: n, d: 'x'.repeat(size) });
+  it('делит по размеру и не теряет записи', () => {
+    const recs = Array.from({ length: 10 }, (_, i) => rec(i, 3000));
+    const chunks = chunkRecords(recs);
+    expect(chunks.flat()).toHaveLength(10);
+    expect(chunks.every((c) => c.reduce((a, r) => a + r.d.length, 0) <= 9000)).toBe(true);
+    expect(chunks.length).toBeGreaterThan(2);
+  });
+  it('запись крупнее лимита уходит отдельной пачкой', () => {
+    const chunks = chunkRecords([rec(1, 100), rec(2, 20_000), rec(3, 100)]);
+    expect(chunks.map((c) => c.length)).toEqual([1, 1, 1]);
+  });
+  it('делит и по числу записей', () => {
+    expect(chunkRecords(Array.from({ length: 5 }, (_, i) => rec(i, 1)), 2)).toHaveLength(3);
   });
 });
