@@ -305,3 +305,21 @@
   background: var(--c-backlog);
   color: var(--c-on-accent);
 }
+
+/* Список напоминаний в редакторе */
+.rRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.rHint {
+  margin: 0 0 8px;
+  color: var(--c-text-dim);
+  font-size: 17px;
+}
+.rCount {
+  font-family: var(--font-digits);
+  font-size: 20px;
+  color: var(--c-text-dim);
+}

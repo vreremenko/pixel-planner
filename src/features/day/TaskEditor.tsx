@@ -1,8 +1,8 @@
 import { useEffect, useState, type SyntheticEvent } from 'react';
-import { Button, Field, Modal, MultiToggle, Segmented, SelectInput, TextInput, inputClass, toast } from '../../ui';
+import { Button, Field, Modal, MultiToggle, Segmented, TextInput, inputClass, toast } from '../../ui';
 import { useUi, type EditorTarget } from '../../stores/ui';
 import { today } from '../../domain/dates';
-import { REMINDER_OFFSETS, type ChecklistItem, type LocalDate, type Priority, type ReminderOffset } from '../../domain/types';
+import { type ChecklistItem, type LocalDate, type Priority, type ReminderOffset } from '../../domain/types';
 import {
   createTask,
   deleteOccurrence,
@@ -16,9 +16,11 @@ import {
 import { seriesRepo } from '../../data/repo';
 import { RecurrenceEditor, type RepeatValue } from '../recurring/RecurrenceEditor';
 import { ChecklistEditor } from './ChecklistEditor';
+import { ReminderList } from './ReminderList';
 import { EditScopeDialog } from '../recurring/EditScopeDialog';
 import { describeRule } from '../../domain/recurrence';
 import { parseTagInput } from '../../domain/tags';
+import { remindersOf } from '../../domain/reminderSpecs';
 import { useTagCounts } from '../../data/hooks';
 import { PRIORITY_LABEL } from './labels';
 
@@ -26,11 +28,6 @@ const PRIORITIES: { value: Priority; label: string }[] = (['low', 'medium', 'hig
   value: p,
   label: PRIORITY_LABEL[p],
 }));
-
-const REMINDER_OPTIONS = [
-  { value: 'none', label: 'Без напоминания' },
-  ...REMINDER_OFFSETS.map((m) => ({ value: String(m), label: m === 0 ? 'В момент начала' : `За ${m} минут` })),
-];
 
 type Extra = 'notes' | 'checklist';
 const EXTRA_OPTIONS: { value: Extra; label: string }[] = [
@@ -48,7 +45,7 @@ interface FormState {
   date: LocalDate;
   time: string;
   priority: Priority;
-  reminder: string;
+  reminders: ReminderOffset[];
   tags: string;
   repeat: RepeatValue | undefined;
 }
@@ -58,7 +55,7 @@ function initial(t: EditorTarget): FormState {
     // У новой задачи сразу открыта вкладка «Заметки»; пустая заметка при сохранении не записывается
     return {
       title: '', notes: '', extras: ['notes'], checklist: [], inBacklog: t.date === null, date: t.date ?? today(), time: '',
-      priority: 'medium', reminder: 'none', tags: '', repeat: undefined,
+      priority: 'medium', reminders: [], tags: '', repeat: undefined,
     };
   }
   const src = t.kind === 'task' ? t.task : t.occ;
@@ -72,7 +69,7 @@ function initial(t: EditorTarget): FormState {
     date: (t.kind === 'task' ? t.task.date : t.occ.date) ?? today(),
     time: src.time ?? '',
     priority: src.priority,
-    reminder: src.reminder ? String(src.reminder.offsetMin) : 'none',
+    reminders: remindersOf(src).map((r) => r.offsetMin),
     tags: src.tags.join(', '),
     repeat: undefined,
   };
@@ -88,7 +85,7 @@ function toDraft(f: FormState): TaskDraft {
   if (f.extras.includes('notes') && f.notes.trim()) d.notes = f.notes.trim();
   if (f.extras.includes('checklist') && f.checklist.length > 0) d.checklist = f.checklist;
   if (f.time) d.time = f.time;
-  if (f.time && f.reminder !== 'none') d.reminder = { offsetMin: Number(f.reminder) as ReminderOffset };
+  if (f.time && f.reminders.length > 0) d.reminders = f.reminders.map((offsetMin) => ({ offsetMin }));
   if (f.repeat && !f.inBacklog) d.repeat = f.repeat;
   return d;
 }
@@ -180,15 +177,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
       <Field label="Приоритет">
         <Segmented label="Приоритет" value={f.priority} options={PRIORITIES} onChange={(v) => set('priority', v)} />
       </Field>
-      {!f.inBacklog && (
-        <SelectInput
-          label={f.time ? 'Напоминание' : 'Напоминание (укажите время)'}
-          value={f.time ? f.reminder : 'none'}
-          disabled={!f.time}
-          options={REMINDER_OPTIONS}
-          onChange={(e) => set('reminder', e.target.value)}
-        />
-      )}
+      {!f.inBacklog && <ReminderList value={f.reminders} onChange={(v) => set('reminders', v)} disabled={!f.time} />}
       <TextInput label="Метки через запятую" value={f.tags} onChange={(e) => set('tags', e.target.value)} placeholder="работа, дом" />
       {suggestions.length > 0 && (
         <div role="group" aria-label="Уже используемые метки" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '-6px 0 12px' }}>

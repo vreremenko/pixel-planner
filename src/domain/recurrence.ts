@@ -1,4 +1,5 @@
 import { withChecked } from './checklist';
+import { normalizeReminders, remindersOf } from './reminderSpecs';
 import { addDays, daysInMonth, diffDays, parseLocalDate, weekday, WEEKDAYS_SHORT } from './dates';
 import type {
   LocalDate,
@@ -122,6 +123,10 @@ export function buildOccurrences(
         title: p.title ?? s.title,
         priority: p.priority ?? s.priority,
         tags: s.tags,
+        // «Только эта» могла задать свой список (в том числе пустой); старые правки хранили одно поле reminder
+        reminders: normalizeReminders(
+          'reminders' in p ? p.reminders : 'reminder' in p ? (p.reminder ? [p.reminder] : []) : remindersOf(s),
+        ),
         status,
         order: o?.order ?? -1000 + (s.time ? Number(s.time.replace(':', '')) / 10000 : 0),
       };
@@ -131,8 +136,6 @@ export function buildOccurrences(
       if (template && template.length > 0) occ.checklist = withChecked(template, o?.checked ?? []);
       const time = 'time' in p ? p.time : s.time;
       if (time !== undefined) occ.time = time;
-      const reminder = 'reminder' in p ? p.reminder : s.reminder;
-      if (reminder !== undefined) occ.reminder = reminder;
       if (o?.doneAt !== undefined) occ.doneAt = o.doneAt;
       out.push(occ);
     }

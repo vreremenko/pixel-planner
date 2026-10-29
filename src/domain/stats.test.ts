@@ -10,7 +10,7 @@ const t = (p: Partial<Task>): Task => ({
 describe('computeStats', () => {
   it('считает задачи, бэклог, повторяющиеся и привычки', () => {
     const occ = (date: string, status: Occurrence['status']): Occurrence => ({
-      key: `s:${date}`, seriesId: 's', originalDate: date, date, title: 'r', priority: 'low', tags: [], status, order: 0,
+      key: `s:${date}`, seriesId: 's', originalDate: date, date, title: 'r', priority: 'low', tags: [], reminders: [], status, order: 0,
     });
     const habit: Habit = { id: 'h', createdAt: new Date(2026, 0, 1).getTime(), updatedAt: 0, name: 'h', icon: 'star', schedule: { type: 'daily' }, archived: false, order: 0 };
     const logs: HabitLog[] = ['2026-01-05', '2026-01-06'].map((d) => ({ id: `h:${d}`, habitId: 'h', date: d, createdAt: 0, updatedAt: 0 }));

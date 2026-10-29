@@ -39,7 +39,10 @@ export interface Task extends SyncMeta {
   doneAt?: number;
   order: number;
   tags: string[];
+  /** Устаревшее поле (одно напоминание): читается через remindersOf, новые данные пишутся в reminders. */
   reminder?: ReminderSpec;
+  /** Напоминания до начала (до 5, без повторов); нужны время задачи. */
+  reminders?: ReminderSpec[];
   wasInBacklog: boolean;
   postponedCount: number;
 }
@@ -69,13 +72,15 @@ export interface RecurringSeries extends SyncMeta {
   time?: LocalTime;
   priority: Priority;
   tags: string[];
+  /** Устаревшее поле: см. Task.reminder. */
   reminder?: ReminderSpec;
+  reminders?: ReminderSpec[];
   rule: RecurrenceRule;
   splitFromId?: string;
 }
 
 export type OccurrencePatch = Partial<
-  Pick<RecurringSeries, 'title' | 'notes' | 'checklist' | 'time' | 'priority' | 'reminder'>
+  Pick<RecurringSeries, 'title' | 'notes' | 'checklist' | 'time' | 'priority' | 'reminder' | 'reminders'>
 >;
 
 /** Отклонения конкретного экземпляра от правила. id = `${seriesId}:${date}`. */
@@ -107,7 +112,8 @@ export interface Occurrence {
   time?: LocalTime;
   priority: Priority;
   tags: string[];
-  reminder?: ReminderSpec;
+  /** Напоминания этого экземпляра (уже с учётом правок «только эта»); пусто — нет. */
+  reminders: ReminderSpec[];
   status: OccurrenceStatus;
   doneAt?: number;
   order: number;

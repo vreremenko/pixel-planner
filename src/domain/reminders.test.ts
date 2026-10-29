@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyQuietHours, inQuietHours, planReminders, reminderInstant } from './reminders';
 import { toInstant } from './dates';
-import { DEFAULT_SETTINGS, type Settings, type Task } from './types';
+import { DEFAULT_SETTINGS, type Occurrence, type Settings, type Task } from './types';
 
 const prevTz = process.env.TZ;
 afterAll(() => {
@@ -89,5 +89,34 @@ describe('planReminders', () => {
     const habit = { id: 'h1', createdAt: 0, updatedAt: 0, name: 'Вода', icon: 'drop', schedule: { type: 'daily' as const }, reminderTime: '12:00', archived: false, order: 0 };
     expect(planReminders({ ...base, tasks: [], habits: [habit] }).map((x) => x.key)).toContain('habit:h1:2026-01-10');
     expect(planReminders({ ...base, tasks: [], habits: [habit], habitDone: new Set(['h1:2026-01-10']) }).map((x) => x.kind)).toEqual(['summary']);
+  });
+
+  it('несколько напоминаний одной задачи — отдельные уведомления с разными ключами', () => {
+    const multi = { ...task, reminders: [{ offsetMin: 60 }, { offsetMin: 15 }, { offsetMin: 0 }] } as Task;
+    const r = planReminders({ ...base, tasks: [multi], settings: { ...settings, morningSummary: { enabled: false, time: '08:00' } } });
+    expect(r.map((x) => new Date(x.fireAt).toISOString())).toEqual([
+      '2026-01-10T08:00:00.000Z', // за 60 минут (задача на 10:00 по Берлину = 09:00Z)
+      '2026-01-10T08:45:00.000Z', // за 15
+      '2026-01-10T09:00:00.000Z', // в момент начала
+    ]);
+    expect(new Set(r.map((x) => x.key)).size).toBe(3);
+    expect(r.map((x) => x.body)).toEqual(['Через 60 мин, в 10:00', 'Через 15 мин, в 10:00', 'Сейчас, 10:00']);
+  });
+  it('старое поле reminder по-прежнему работает', () => {
+    const legacy = { ...task, reminder: { offsetMin: 30 } } as Task;
+    const r = planReminders({ ...base, tasks: [legacy], settings: { ...settings, morningSummary: { enabled: false, time: '08:00' } } });
+    expect(r.map((x) => new Date(x.fireAt).toISOString())).toEqual(['2026-01-10T08:30:00.000Z']);
+  });
+  it('новое поле главнее старого: пустой список — без напоминаний', () => {
+    const cleared = { ...task, reminder: { offsetMin: 30 }, reminders: [] } as Task;
+    expect(planReminders({ ...base, tasks: [cleared], settings: { ...settings, morningSummary: { enabled: false, time: '08:00' } } })).toEqual([]);
+  });
+  it('напоминания экземпляров повторяющейся задачи', () => {
+    const occ = {
+      key: 's1:2026-01-10', seriesId: 's1', originalDate: '2026-01-10', date: '2026-01-10', title: 'Зарядка', time: '07:00',
+      priority: 'low', tags: [], reminders: [{ offsetMin: 15 }, { offsetMin: 5 }], status: 'pending', order: 0,
+    } as Occurrence;
+    const r = planReminders({ ...base, tasks: [], occurrences: [occ], settings: { ...settings, morningSummary: { enabled: false, time: '08:00' } } });
+    expect(r.map((x) => x.key)).toEqual(['occ:s1:2026-01-10:2026-01-10T07:00-15', 'occ:s1:2026-01-10:2026-01-10T07:00-5']);
   });
 });
