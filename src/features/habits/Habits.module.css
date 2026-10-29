@@ -47,20 +47,20 @@
 }
 .sched {
   color: var(--c-text-dim);
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
 }
 .streaks {
   display: flex;
   gap: var(--gap-4);
   margin-bottom: var(--gap-3);
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 .streaks b {
   display: block;
   font-family: var(--font-digits);
-  font-size: 28px;
+  font-size: max(calc(28px * var(--fs-scale-lg)), var(--fs-min));
   font-weight: 400;
   color: var(--c-xp);
   line-height: 1;
@@ -74,7 +74,7 @@
 .dow {
   text-align: center;
   font-family: var(--font-title);
-  font-size: 6px;
+  font-size: max(calc(6px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }
 .cell {
@@ -85,7 +85,7 @@
   display: grid;
   place-items: center;
   font-family: var(--font-digits);
-  font-size: 14px;
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
   padding: 0;
   cursor: pointer;
@@ -121,7 +121,7 @@
   margin-left: auto;
 }
 .rest {
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }
 .iconGrid {
@@ -183,7 +183,7 @@
   border: var(--px) solid var(--c-habit);
   color: var(--c-text);
   font-family: var(--font-digits);
-  font-size: 26px;
+  font-size: max(calc(26px * var(--fs-scale-lg)), var(--fs-min));
   outline: none;
 }
 .countInput:focus-visible {
@@ -196,12 +196,12 @@
 .unit {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 72px;
+  max-width: var(--unit-max, 72px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--c-text-dim);
-  font-size: 18px;
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
 }
 @media (max-width: 359px) {
   /* Совсем узкий экран: кнопке разрешено уйти на вторую строку, она остаётся справа */
@@ -230,7 +230,7 @@
 }
 .tileLabel {
   font-family: var(--font-title);
-  font-size: 7px;
+  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
   line-height: 1.6;
   color: var(--c-text-dim);
   text-transform: uppercase;
@@ -239,7 +239,7 @@
   display: block;
   margin-top: 4px;
   font-family: var(--font-digits);
-  font-size: 32px;
+  font-size: max(calc(32px * var(--fs-scale-lg)), var(--fs-min));
   font-weight: 400;
   line-height: 1;
   color: var(--c-xp);
@@ -250,12 +250,12 @@
 .tile .suffix {
   margin-left: 4px;
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 .tile span {
   display: block;
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
   overflow-wrap: anywhere;
 }
@@ -283,7 +283,7 @@
   text-align: right;
   overflow-wrap: anywhere;
   font-family: var(--font-digits);
-  font-size: 24px;
+  font-size: max(calc(24px * var(--fs-scale-lg)), var(--fs-min));
   color: var(--c-text);
 }
 

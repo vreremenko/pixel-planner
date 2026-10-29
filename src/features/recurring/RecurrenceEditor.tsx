@@ -1,6 +1,7 @@
 import { MultiToggle, SelectInput, TextInput } from '../../ui';
 import { WEEKDAYS_SHORT, weekday, parseLocalDate } from '../../domain/dates';
 import type { LocalDate, RecurrenceEnd, RecurrencePattern, Weekday } from '../../domain/types';
+import { fs } from '../../ui/fs';
 
 export interface RepeatValue {
   pattern: RecurrencePattern;
@@ -45,7 +46,7 @@ export function RecurrenceEditor({ value, onChange, start }: Props) {
 
   return (
     <fieldset style={{ border: '4px solid var(--c-border)', padding: 12, margin: '0 0 12px' }}>
-      <legend className="title" style={{ fontSize: 8, padding: '0 6px', color: 'var(--c-text-dim)' }}>
+      <legend className="title" style={{ fontSize: fs(8), padding: '0 6px', color: 'var(--c-text-dim)' }}>
         ПОВТОРЕНИЕ
       </legend>
       <SelectInput label="Как часто" value={freq} options={FREQ_OPTIONS} onChange={(e) => setFreq(e.target.value as Freq)} />

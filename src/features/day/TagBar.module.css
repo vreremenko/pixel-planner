@@ -7,7 +7,7 @@
 }
 .label {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
   margin-right: 4px;
 }
@@ -21,7 +21,7 @@
   background: transparent;
   color: var(--c-backlog);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
 }
 .tag:hover {
@@ -33,13 +33,13 @@
 }
 .count {
   font-family: var(--font-digits);
-  font-size: 18px;
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
   opacity: 0.85;
 }
 .link {
   margin-left: auto;
   color: var(--c-task);
-  font-size: 17px;
+  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
   text-decoration: none;
   border-bottom: 2px dotted currentColor;
 }

@@ -13,6 +13,7 @@ import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
 import { startNotifications } from '../features/notifications/scheduler';
 import { startSync } from '../sync/manager';
+import { applyMode } from '../features/settings/mode';
 import { WhatsNew } from '../features/whatsnew/WhatsNew';
 
 const router = createHashRouter([
@@ -34,9 +35,16 @@ const router = createHashRouter([
 
 export function App() {
   const crt = useSettings((s) => s.settings.crtEffect);
+  const mom = useSettings((s) => s.settings.momMode);
+  const loaded = useSettings((s) => s.loaded);
   useEffect(() => {
-    document.body.classList.toggle('crt', crt);
-  }, [crt]);
+    // Сканлайны не сочетаются со светлой темой
+    document.body.classList.toggle('crt', crt && !mom);
+  }, [crt, mom]);
+  useEffect(() => {
+    // До загрузки настроек ничего не трогаем: тему уже выставил скрипт в index.html
+    if (loaded) applyMode(mom);
+  }, [mom, loaded]);
   useEffect(() => startNotifications(), []);
   useEffect(() => startSync(), []);
   return (

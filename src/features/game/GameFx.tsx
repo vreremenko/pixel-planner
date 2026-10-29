@@ -5,6 +5,7 @@ import { Button, Panel, PixelIcon, toast } from '../../ui';
 import { achievementById } from '../../services/game';
 import { lockScroll, unlockScroll } from '../../ui/scrollLock';
 import { isIconName } from '../../ui/icons';
+import { fs } from '../../ui/fs';
 
 function XpPop({ ev }: { ev: Extract<GameEvent, { type: 'xp' }> }) {
   const consume = useGame((st) => st.consume);
@@ -46,7 +47,7 @@ function LevelUp({ ev }: { ev: Extract<GameEvent, { type: 'levelup' }> }) {
       <Panel accent="var(--c-xp)" className={s.levelCard}>
         <PixelIcon name="crown" size={64} />
         <h2 className="glow">LEVEL UP!</h2>
-        <p style={{ fontSize: 24, margin: '0 0 16px' }}>Уровень {ev.level}</p>
+        <p style={{ fontSize: fs(24), margin: '0 0 16px' }}>Уровень {ev.level}</p>
         <Button variant="xp" onClick={close} autoFocus>
           Продолжить
         </Button>

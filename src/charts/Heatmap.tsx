@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { addDays, formatDateShort, parseLocalDate, startOfWeek, MONTHS, WEEKDAYS_SHORT } from '../domain/dates';
 import { heatLevel } from '../domain/stats';
 import type { LocalDate } from '../domain/types';
+import { fs } from '../ui/fs';
 
 interface Props {
   values: ReadonlyMap<LocalDate, number>;
@@ -81,7 +82,7 @@ export function Heatmap({ values, end, weeks = 20, title }: Props) {
           </g>
         )}
       </svg>
-      <figcaption style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', color: 'var(--c-text-muted)', fontSize: 15, marginTop: 6 }}>
+      <figcaption style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', color: 'var(--c-text-muted)', fontSize: fs(15), marginTop: 6 }}>
         меньше
         {[0, 1, 2, 3, 4].map((l) => (
           <span key={l} style={{ width: 12, height: 12, background: `var(--c-heat-${l})`, display: 'inline-block' }} />

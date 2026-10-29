@@ -7,6 +7,7 @@ import { levelFromXp } from '../domain/xp';
 import { ProgressBar } from '../charts/ProgressBar';
 import { GameFx } from '../features/game/GameFx';
 import { MissedReminders } from '../features/notifications/MissedReminders';
+import { fs } from '../ui/fs';
 
 interface NavItem {
   to: string;
@@ -74,7 +75,7 @@ export function Layout() {
         <nav className={s.nav} aria-label="Основная навигация">
           <NavLinks items={NAV} />
         </nav>
-        <div className={s.sideFooter} style={{ color: 'var(--c-text-muted)', fontSize: 16 }}>
+        <div className={s.sideFooter} style={{ color: 'var(--c-text-muted)', fontSize: fs(16) }}>
           N — новая задача · ←/→ — дни
         </div>
       </aside>

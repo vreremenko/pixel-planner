@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDateShort } from '../domain/dates';
 import { formatCompact, formatValue, type DayPoint } from '../domain/habitStats';
+import { fs } from '../ui/fs';
 
 interface Props {
   points: readonly DayPoint[];
@@ -111,7 +112,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
           </g>
         )}
       </svg>
-      <figcaption style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--c-text-dim)', fontSize: 16, marginTop: 6 }}>
+      <figcaption style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--c-text-dim)', fontSize: fs(16), marginTop: 6 }}>
         <span>
           <span style={{ display: 'inline-block', width: 12, height: 12, background: 'var(--c-habit)', marginRight: 6 }} />
           за день, {unit}

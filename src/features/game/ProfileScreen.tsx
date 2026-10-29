@@ -5,6 +5,7 @@ import { useAllTasks, useHabitLogs, useUnlocked, useXpTotal } from '../../data/h
 import { levelFromXp } from '../../domain/xp';
 import { ACHIEVEMENTS } from '../../domain/achievements';
 import { ProgressBar } from '../../charts/ProgressBar';
+import { fs } from '../../ui/fs';
 
 const TITLES = ['Новичок', 'Оруженосец', 'Странник', 'Рыцарь', 'Ветеран', 'Чемпион', 'Герой', 'Легенда'];
 
@@ -31,11 +32,11 @@ export function ProfileScreen() {
             <div className={s.level}>LV {lv.level}</div>
             <div style={{ color: 'var(--c-text-dim)', marginBottom: 8 }}>{rank}</div>
             <ProgressBar value={lv.into / lv.span} label="Опыт до следующего уровня" height={16} />
-            <div className="digits" style={{ marginTop: 6, fontSize: 20 }}>
+            <div className="digits" style={{ marginTop: 6, fontSize: fs(20) }}>
               {lv.into} / {lv.span} XP · всего {lv.total}
             </div>
           </div>
-          <div className="digits" style={{ fontSize: 20, color: 'var(--c-text-dim)' }}>
+          <div className="digits" style={{ fontSize: fs(20), color: 'var(--c-text-dim)' }}>
             <div>Задач закрыто: <b style={{ color: 'var(--c-task)' }}>{tasks?.filter((t) => t.done).length ?? 0}</b></div>
             <div>Отметок квестов: <b style={{ color: 'var(--c-habit)' }}>{logs?.length ?? 0}</b></div>
             <div>Достижений: <b style={{ color: 'var(--c-xp)' }}>{unlockedMap.size}/{ACHIEVEMENTS.length}</b></div>

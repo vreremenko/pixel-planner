@@ -33,7 +33,7 @@
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-title);
-  font-size: 10px;
+  font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
   line-height: 1.4;
   text-transform: uppercase;
   cursor: pointer;
@@ -106,7 +106,7 @@
 .small {
   min-height: 32px;
   padding: 4px 8px;
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
 }
 .iconOnly {
   padding: 4px;
@@ -125,7 +125,7 @@
 }
 .label {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
   text-transform: uppercase;
 }
@@ -238,11 +238,11 @@ input[type='time'].input {
   overflow: visible;
 }
 .dialog::backdrop {
-  background: rgba(7, 6, 18, 0.8);
+  background: var(--c-overlay);
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0 4px,
-    rgba(255, 255, 255, 0.03) 4px 8px
+    var(--c-overlay-stripe) 4px 8px
   );
 }
 .dialogInner:focus {

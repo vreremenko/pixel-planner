@@ -5,6 +5,7 @@ import { deleteRemoteAndDisable, disableSync, enableSync, syncNow, useSync } fro
 import { QrCode } from './QrCode';
 import { QrScanner } from './QrScanner';
 import { decodeQrFromFile } from './decodeQr';
+import { fs } from '../../ui/fs';
 
 const fmt = (t: number) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const fail = (e: unknown) => toast(e instanceof Error ? e.message : 'Что-то пошло не так', 'alert', 'var(--c-warn)');
@@ -110,7 +111,7 @@ export function SyncPanel() {
           </div>
         </>
       )}
-      <p style={{ marginBottom: 0, color: 'var(--c-text-dim)', fontSize: 17 }}>
+      <p style={{ marginBottom: 0, color: 'var(--c-text-dim)', fontSize: fs(17) }}>
         Ключ работает как пароль: у кого он есть, тот видит ваши данные. На сервере они хранятся без шифрования. Настройки и журнал напоминаний остаются на каждом устройстве свои. Без сети всё работает как раньше, а изменения уйдут при подключении.
       </p>
 
@@ -122,7 +123,7 @@ export function SyncPanel() {
               <QrCode text={keyToPairingText(state.key)} label="QR-код ключа синхронизации" />
             </div>
             <p style={{ marginBottom: 4, color: 'var(--c-text-dim)' }}>Нет камеры? Введите ключ вручную:</p>
-            <code className="digits" style={{ wordBreak: 'break-all', userSelect: 'all', fontSize: 18 }}>{state.key}</code>
+            <code className="digits" style={{ wordBreak: 'break-all', userSelect: 'all', fontSize: fs(18) }}>{state.key}</code>
             <p style={{ marginBottom: 0 }}>
               <Button
                 small

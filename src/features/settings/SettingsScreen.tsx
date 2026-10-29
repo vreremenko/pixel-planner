@@ -14,6 +14,7 @@ import { APP_VERSION, CHANGELOG } from '../../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { SyncPanel } from '../sync/SyncPanel';
 import { markEverythingDirty } from '../../sync/manager';
+import { fs } from '../../ui/fs';
 
 function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
   return (
@@ -21,7 +22,7 @@ function ToggleRow({ label, hint, checked, onChange, color }: { label: string; h
       <Checkbox checked={checked} onChange={onChange} label={label} color={color} />
       <div>
         <div>{label}</div>
-        {hint && <div style={{ color: 'var(--c-text-dim)', fontSize: 17 }}>{hint}</div>}
+        {hint && <div style={{ color: 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
       </div>
     </div>
   );
@@ -370,7 +371,7 @@ export function SettingsScreen() {
         </Panel>
         <Panel title="О приложении" icon="star" accent="var(--c-xp)">
           <p style={{ marginTop: 0 }}>
-            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: 22, color: 'var(--c-xp)' }}>{APP_VERSION}</b>
+            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-xp)' }}>{APP_VERSION}</b>
           </p>
           <Button icon="book" onClick={() => setShowLog(true)}>
             Что нового
@@ -385,6 +386,14 @@ export function SettingsScreen() {
             <li><b>Esc</b> — закрыть окно</li>
             <li>Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до ручки, Пробел, стрелки, Пробел.</li>
           </ul>
+        </Panel>
+        <Panel title="Для мамы" icon="heart" accent="var(--c-warn)">
+          <ToggleRow
+            label="Режим «Для мамы»"
+            hint="Светлая тёплая тема, крупнее текст и более читаемый шрифт. Выключите — всё вернётся как было."
+            checked={settings.momMode}
+            onChange={(v) => void update({ momMode: v })}
+          />
         </Panel>
       </div>
       {showLog && <ChangelogModal entries={CHANGELOG.slice(0, 10)} title="История обновлений" closeLabel="Закрыть" collapseOlder onClose={() => setShowLog(false)} />}

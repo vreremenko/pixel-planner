@@ -4,7 +4,7 @@
   top: 80px;
   z-index: 900;
   font-family: var(--font-title);
-  font-size: 14px;
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   color: var(--c-xp);
   text-shadow: 3px 3px 0 var(--c-shadow);
   pointer-events: none;
@@ -50,13 +50,13 @@
   z-index: 950;
   display: grid;
   place-items: center;
-  background: rgba(7, 6, 18, 0.75);
+  background: var(--c-overlay-fx);
   animation: flash 0.4s steps(4);
 }
 @keyframes flash {
   0%,
   50% {
-    background: rgba(255, 210, 63, 0.35);
+    background: var(--c-flash);
   }
 }
 .levelCard {
@@ -70,14 +70,14 @@
   }
 }
 .levelCard h2 {
-  font-size: 20px;
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
   color: var(--c-xp);
   margin: 16px 0;
 }
 .blink {
   animation: blink 0.8s steps(1) infinite;
   font-family: var(--font-title);
-  font-size: 9px;
+  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 @keyframes blink {
@@ -108,7 +108,7 @@
 }
 .level {
   font-family: var(--font-title);
-  font-size: 18px;
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
   color: var(--c-xp);
   margin-bottom: 8px;
 }
@@ -145,10 +145,10 @@
 }
 .achTitle {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   line-height: 1.6;
 }
 .achDesc {
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
