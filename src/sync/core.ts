@@ -32,6 +32,26 @@ export interface Transport {
 }
 
 export const PUSH_CHUNK = 250;
+/** Запрос с отправкой не больше ~9 КБ: крупные запросы и ответы на российских провайдерах зависают. */
+export const PUSH_CHUNK_BYTES = 9_000;
+
+/** Разбить записи на пачки по числу и по размеру; запись крупнее лимита уходит одна. */
+export function chunkRecords(records: WireRecord[], maxCount = PUSH_CHUNK, maxBytes = PUSH_CHUNK_BYTES): WireRecord[][] {
+  const out: WireRecord[][] = [];
+  let cur: WireRecord[] = [];
+  let bytes = 0;
+  for (const r of records) {
+    if (cur.length > 0 && (cur.length >= maxCount || bytes + r.d.length > maxBytes)) {
+      out.push(cur);
+      cur = [];
+      bytes = 0;
+    }
+    cur.push(r);
+    bytes += r.d.length;
+  }
+  if (cur.length > 0) out.push(cur);
+  return out;
+}
 export const KEY_PREFIX = 'pixelplanner-sync:';
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 
@@ -113,7 +133,7 @@ export interface SyncResult {
 /** Один проход: сначала отправить своё (чтобы изменение ушло за один запрос), затем забрать новое. Бросает при сетевой ошибке — состояние не двигается. */
 export async function syncOnce(db: PlannerDB, state: SyncState, transport: Transport, echo: Map<string, number> = new Map(), now = Date.now()): Promise<SyncResult> {
   const changes = await collectChanges(db, state.pushedSince, echo);
-  for (let i = 0; i < changes.length; i += PUSH_CHUNK) await transport.push(changes.slice(i, i + PUSH_CHUNK));
+  for (const chunk of chunkRecords(changes)) await transport.push(chunk);
 
   let cursor = state.cursor;
   let pulled = 0;

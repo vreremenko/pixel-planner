@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Button, Panel, TextInput, rowClass, toast } from '../../ui';
 import { apiUrl, defaultApiBase, getApiOverride, setApiOverride } from '../../apiBase';
-import { probe, verdict, type ProbeResult, type ProbeTarget } from './probe';
+import { probe, probeBody, verdict, type ProbeResult, type ProbeTarget } from './probe';
 
 const TARGETS = (): ProbeTarget[] => [
   { id: 'api', label: 'Текущий сервер приложения', url: apiUrl('config') },
+  { id: 'api8', label: 'Сервер приложения: ответ 8 КБ', url: apiUrl('ping?kb=8'), body: true },
+  { id: 'api64', label: 'Сервер приложения: ответ 64 КБ', url: apiUrl('ping?kb=64'), body: true },
   { id: 'cf', label: 'Cloudflare (workers.dev)', url: 'https://pixel-planner.pixel-planner.workers.dev/api/config' },
   { id: 'yc-fn', label: 'Yandex Cloud Functions', url: 'https://functions.yandexcloud.net/' },
   { id: 'yc-st', label: 'Yandex Object Storage', url: 'https://storage.yandexcloud.net/' },
@@ -26,7 +28,7 @@ export function NetworkPanel() {
     setResults(Object.fromEntries(TARGETS().map((t) => [t.id, PENDING])));
     await Promise.all(
       TARGETS().map(async (t) => {
-        const r = await probe(t.url);
+        const r = await (t.body ? probeBody(t.url) : probe(t.url));
         setResults((p) => ({ ...p, [t.id]: r }));
       }),
     );
