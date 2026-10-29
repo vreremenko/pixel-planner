@@ -14,10 +14,10 @@ declare const self: ServiceWorkerGlobalScope;
 void self.skipWaiting();
 clientsClaim();
 
-precacheAndRoute(self.__WB_MANIFEST);
-cleanupOutdatedCaches();
 // Навигация (в т.ч. запуск установленного приложения): сначала сеть, кэш — только офлайн.
 // Так iOS всегда получает свежую страницу, а ответ без редиректов.
+// Маршрут ОБЯЗАН быть зарегистрирован раньше precacheAndRoute: иначе precache отдаёт закэшированный
+// index.html старой версии, и новая версия появляется только со второго запуска.
 async function cleanCopy(r: Response): Promise<Response> {
   return new Response(await r.blob(), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
@@ -38,6 +38,9 @@ registerRoute(
     return fetch(request.url);
   }),
 );
+
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
 
 self.addEventListener('message', (e: ExtendableMessageEvent) => {
   if ((e.data as { type?: string } | null)?.type === 'SKIP_WAITING') void self.skipWaiting();

@@ -6,12 +6,22 @@ import { VitePWA } from 'vite-plugin-pwa';
 // BASE_PATH задаётся при деплое на GitHub Pages: /<repo>/
 const base = process.env.BASE_PATH ?? '/';
 
+// Номер сборки: зашивается в код и кладётся в version.json — по расхождению приложение узнаёт об обновлении
+const buildId = Date.now().toString(36);
+
 export default defineConfig({
   base,
+  define: { __BUILD_ID__: JSON.stringify(buildId) },
   // iOS Safari 15+: синтаксис понижается до поддерживаемого
   build: { target: ['es2020', 'safari15', 'chrome100', 'firefox100'] },
   plugins: [
     react(),
+    {
+      name: 'emit-version',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: buildId }) });
+      },
+    },
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src/sw',
