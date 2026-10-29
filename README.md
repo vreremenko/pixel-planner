@@ -204,6 +204,20 @@ jobs:
 ### Vercel
 Импортируйте репозиторий: Framework — Vite, Build — `npm run build`, Output — `dist`. `BASE_PATH` не нужен.
 
+### Netlify (запасной сервер для России)
+Cloudflare из России без VPN не открывается, а Netlify открывается (проверено в Настройки → «Сеть и сервер» →
+«Проверить платформы»). В `server-netlify/` лежит вторая реализация сервера: та же логика, что у Cloudflare Worker
+(`src/core.ts`), хранилище Netlify Blobs (`src/blobs-store.ts`) и две функции: `netlify/functions/api.ts`
+(адреса `/api/*`) и `cron.ts` (раз в минуту дёргает `/api/cron` с секретом `CRON_SECRET`, и API рассылает
+наступившие push-напоминания). Логика проверяется vitest на хранилище в памяти; боевой слой проверен на живом сайте.
+
+Развёртывание (нужен вход: `npx netlify-cli login`): из папки `server-netlify`
+`npx netlify-cli deploy --prod --no-build --dir=public --functions=netlify/functions`. Переменные окружения сайта:
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `ALLOWED_ORIGINS=https://vreremenko.github.io`,
+`CRON_SECRET` (случайная строка). Каждая публикация стоит 15 кредитов из 300 бесплатных в месяц, поэтому сайт
+публикуется вручную, а не по каждому пушу в `main`. Адрес сервера в приложении — переменная репозитория `API_BASE`
+(`https://<сайт>.netlify.app/`); после смены сервера push на устройствах нужно выключить и включить.
+
 ### Cloudflare Workers + Web Push (этап Б, текущий деплой)
 Один бесплатный Cloudflare Worker раздаёт фронтенд (static assets), принимает API `/api/*`
 и раз в минуту (Cron Trigger) рассылает наступившие напоминания через Web Push. Подписки и расписание

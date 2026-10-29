@@ -32,7 +32,15 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.test.ts'],
+    extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
+    files: ['server-netlify/src/**/*.ts', 'server-netlify/netlify/functions/*.ts'],
+    languageOptions: {
+      parserOptions: { project: ['./tsconfig.netlify.json'], tsconfigRootDir: import.meta.dirname },
+    },
+    rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
+  },
+  {
+    files: ['src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 );

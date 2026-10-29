@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PlannerDB } from '../data/db';
-import { applyRemote, chunkRecords, collectChanges, generateKey, isValidKey, keyToPairingText, parsePairingText, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
+import { applyRemote, chunkRecords, forServer, collectChanges, generateKey, isValidKey, keyToPairingText, parsePairingText, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
 import type { Task } from '../domain/types';
 
 /** Сервер в памяти с теми же правилами, что и у Worker. */
@@ -143,5 +143,15 @@ describe('chunkRecords', () => {
   });
   it('делит и по числу записей', () => {
     expect(chunkRecords(Array.from({ length: 5 }, (_, i) => rec(i, 1)), 2)).toHaveLength(3);
+  });
+});
+
+describe('смена сервера', () => {
+  it('на новом сервере курсор и отправка начинаются заново', () => {
+    const st: SyncState = { key: generateKey(), cursor: 50, pushedSince: 1000, server: 'https://old.test/api/' };
+    expect(forServer(st, 'https://old.test/api/')).toBe(st);
+    expect(forServer(st, 'https://new.test/api/')).toEqual({ ...st, server: 'https://new.test/api/', cursor: 0, pushedSince: 0 });
+    // раньше адрес не запоминали — тоже начинаем с нуля один раз
+    expect(forServer({ key: st.key, cursor: 9, pushedSince: 5 }, 'https://x.test/api/').cursor).toBe(0);
   });
 });
