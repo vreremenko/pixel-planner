@@ -383,7 +383,7 @@ export function SettingsScreen() {
           </ul>
         </Panel>
       </div>
-      {showLog && <ChangelogModal entries={CHANGELOG.slice(0, 10)} title="История обновлений" closeLabel="Закрыть" onClose={() => setShowLog(false)} />}
+      {showLog && <ChangelogModal entries={CHANGELOG.slice(0, 10)} title="История обновлений" closeLabel="Закрыть" collapseOlder onClose={() => setShowLog(false)} />}
     </>
   );
 }

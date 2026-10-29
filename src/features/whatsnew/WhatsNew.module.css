@@ -53,3 +53,37 @@
   height: 8px;
   background: var(--c-xp);
 }
+
+/* Свёрнутые старые версии в истории обновлений */
+.summary {
+  display: block;
+  position: relative;
+  padding-left: 22px;
+  cursor: pointer;
+  list-style: none; /* убираем родной треугольник — рисуем свой в пиксельном стиле */
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.summary::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  color: var(--c-xp);
+}
+.fold[open] > .summary::before {
+  content: '▾';
+}
+.summary:hover .summaryTitle {
+  color: var(--c-text);
+}
+.summaryTitle {
+  display: block;
+  margin-top: 4px;
+  color: var(--c-text-dim);
+  line-height: 1.5;
+}
+.fold[open] > .items {
+  margin-top: 10px;
+}
