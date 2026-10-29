@@ -248,6 +248,8 @@ input[type='time'].input {
 .dialogInner {
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
+  /* прокрутка внутри окна не «прорывается» на страницу, когда дошли до края */
+  overscroll-behavior: contain;
 }
 .dialogHeader {
   display: flex;

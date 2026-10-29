@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import s from './ui.module.css';
 import { Button } from './Button';
+import { lockScroll, unlockScroll } from './scrollLock';
 
 interface Props {
   open: boolean;
@@ -14,6 +15,13 @@ interface Props {
 /** Модалка на нативном <dialog>: фокус-ловушка, Esc и возврат фокуса — средствами браузера. */
 export function Modal({ open, onClose, title, children, footer, accent }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Пока окно открыто, страница под ним не прокручивается
+  useEffect(() => {
+    if (!open) return;
+    lockScroll();
+    return unlockScroll;
+  }, [open]);
+
   useEffect(() => {
     const d = ref.current;
     if (!d) return;

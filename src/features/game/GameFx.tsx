@@ -3,6 +3,7 @@ import s from './Game.module.css';
 import { useGame, type GameEvent } from '../../stores/game';
 import { Button, Panel, PixelIcon, toast } from '../../ui';
 import { achievementById } from '../../services/game';
+import { lockScroll, unlockScroll } from '../../ui/scrollLock';
 import { isIconName } from '../../ui/icons';
 
 function XpPop({ ev }: { ev: Extract<GameEvent, { type: 'xp' }> }) {
@@ -29,6 +30,10 @@ function XpPop({ ev }: { ev: Extract<GameEvent, { type: 'xp' }> }) {
 function LevelUp({ ev }: { ev: Extract<GameEvent, { type: 'levelup' }> }) {
   const consume = useGame((st) => st.consume);
   const close = () => consume(ev.id);
+  useEffect(() => {
+    lockScroll();
+    return unlockScroll;
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Enter') close();
