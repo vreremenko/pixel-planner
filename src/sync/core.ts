@@ -110,8 +110,11 @@ export interface SyncResult {
   pushed: number;
 }
 
-/** Один проход: забрать новое с сервера, затем отправить своё. Бросает при сетевой ошибке — состояние не двигается. */
+/** Один проход: сначала отправить своё (чтобы изменение ушло за один запрос), затем забрать новое. Бросает при сетевой ошибке — состояние не двигается. */
 export async function syncOnce(db: PlannerDB, state: SyncState, transport: Transport, echo: Map<string, number> = new Map(), now = Date.now()): Promise<SyncResult> {
+  const changes = await collectChanges(db, state.pushedSince, echo);
+  for (let i = 0; i < changes.length; i += PUSH_CHUNK) await transport.push(changes.slice(i, i + PUSH_CHUNK));
+
   let cursor = state.cursor;
   let pulled = 0;
   for (let more = true; more; ) {
@@ -120,9 +123,6 @@ export async function syncOnce(db: PlannerDB, state: SyncState, transport: Trans
     more = page.more && page.cursor > cursor;
     cursor = page.cursor;
   }
-
-  const changes = await collectChanges(db, state.pushedSince, echo);
-  for (let i = 0; i < changes.length; i += PUSH_CHUNK) await transport.push(changes.slice(i, i + PUSH_CHUNK));
 
   return { state: { ...state, cursor, pushedSince: now, lastAt: now, lastError: undefined }, pulled, pushed: changes.length };
 }
