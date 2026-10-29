@@ -13,6 +13,7 @@ import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { SyncPanel } from '../sync/SyncPanel';
+import { NetworkPanel } from '../network/NetworkPanel';
 import { markEverythingDirty } from '../../sync/manager';
 import { fs } from '../../ui/fs';
 
@@ -348,6 +349,7 @@ export function SettingsScreen() {
           <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
         </Panel>
         <SyncPanel />
+        <NetworkPanel />
         <DataPanel />
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (
