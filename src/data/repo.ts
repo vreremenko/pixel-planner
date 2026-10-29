@@ -117,6 +117,13 @@ export const habitLogRepo = {
   async isDone(habitId: string, date: LocalDate) {
     return alive(await db.habitLogs.get(`${habitId}:${date}`));
   },
+  /** Записать значение за день (счётная привычка); заменяет прежнее. */
+  async setValue(habitId: string, date: LocalDate, value: number) {
+    const id = `${habitId}:${date}`;
+    const now = Date.now();
+    const cur = await db.habitLogs.get(id);
+    await db.habitLogs.put({ id, habitId, date, value, createdAt: cur?.createdAt ?? now, updatedAt: now });
+  },
   async set(habitId: string, date: LocalDate, done: boolean) {
     const id = `${habitId}:${date}`;
     const now = Date.now();

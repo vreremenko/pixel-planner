@@ -19,7 +19,10 @@ export function Modal({ open, onClose, title, children, footer, accent }: Props)
     if (!d) return;
     if (open && !d.open) {
       d.showModal();
-      d.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+      const el = d.querySelector<HTMLElement>('[data-autofocus]');
+      el?.focus();
+      // data-select: выделить текст, чтобы ввод сразу заменял старое значение
+      if (el instanceof HTMLInputElement && el.hasAttribute('data-select')) el.select();
     }
     if (!open && d.open) d.close();
   }, [open]);

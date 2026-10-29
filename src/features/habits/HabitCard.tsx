@@ -1,21 +1,71 @@
 import s from './Habits.module.css';
+import { useState } from 'react';
 import { Button, Checkbox, Panel, PixelIcon, cx } from '../../ui';
-import type { Habit, LocalDate } from '../../domain/types';
+import { isCountHabit, type Habit, type LocalDate } from '../../domain/types';
+import { formatValue, parseValue } from '../../domain/habitStats';
 import { addDays, endOfMonth, parseLocalDate, startOfMonth, weekday, WEEKDAYS_SHORT } from '../../domain/dates';
 import { habitStreak, isScheduled } from '../../domain/streaks';
-import { toggleHabit } from '../../services/habits';
+import { setHabitValue, toggleHabit } from '../../services/habits';
 import { dateOf } from '../../domain/dates';
 import { scheduleText } from './habitText';
 
 interface Props {
   habit: Habit;
   done: ReadonlySet<LocalDate>;
+  /** Значения по дням — только у счётных привычек. */
+  values: ReadonlyMap<LocalDate, number>;
   month: LocalDate;
   todayDate: LocalDate;
   onEdit: () => void;
+  /** Открыть график и историю (счётные привычки). */
+  onOpen: () => void;
+  /** Записать значение за день (счётные привычки). */
+  onPickDay: (date: LocalDate) => void;
 }
 
-export function HabitCard({ habit, done, month, todayDate, onEdit }: Props) {
+/** Быстрый ввод числа за сегодня. */
+function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: string; value: number | undefined; todayDate: LocalDate }) {
+  const [text, setText] = useState(value === undefined ? '' : formatValue(value));
+  const [prev, setPrev] = useState(value);
+  if (prev !== value) {
+    // Значение изменилось снаружи (диалог, другая вкладка) — подтягиваем в поле
+    setPrev(value);
+    setText(value === undefined ? '' : formatValue(value));
+  }
+  const parsed = parseValue(text);
+  const dirty = parsed !== (value ?? null) && !(parsed === null && text.trim() === '' && value === undefined);
+  const invalid = text.trim() !== '' && parsed === null;
+  return (
+    <form
+      className={s.countRow}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!invalid) void setHabitValue(habit, todayDate, parsed ?? 0);
+      }}
+    >
+      <label className="sr-only" htmlFor={`count-${habit.id}`}>
+        Сколько сегодня ({unit})
+      </label>
+      <input
+        id={`count-${habit.id}`}
+        className={s.countInput}
+        inputMode="decimal"
+        autoComplete="off"
+        placeholder="0"
+        value={text}
+        aria-invalid={invalid}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <span className={s.unit}>{unit}</span>
+      <Button type="submit" small variant="habit" icon="check" disabled={invalid || !dirty}>
+        {value === undefined ? 'Записать' : 'Обновить'}
+      </Button>
+    </form>
+  );
+}
+
+export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpen, onPickDay }: Props) {
+  const count = isCountHabit(habit) ? habit.tracking : null;
   const streak = habitStreak(habit, done, todayDate);
   const scheduledToday = isScheduled(habit.schedule, todayDate);
   const doneToday = done.has(todayDate);
@@ -33,14 +83,22 @@ export function HabitCard({ habit, done, month, todayDate, onEdit }: Props) {
           <PixelIcon name={habit.icon} size={32} />
         </div>
         <div className={s.name}>
-          <div>{habit.name}</div>
+          {count ? (
+            <button type="button" className={s.nameBtn} onClick={onOpen} aria-label={`График и история: ${habit.name}`}>
+              {habit.name}
+            </button>
+          ) : (
+            <div>{habit.name}</div>
+          )}
           <div className={s.sched}>
             {scheduleText(habit)}
             {habit.reminderTime && ` · 🔔 ${habit.reminderTime}`}
           </div>
         </div>
         <div className={s.todayRow}>
-          {scheduledToday || doneToday ? (
+          {count ? (
+            <Button small variant="ghost" icon="bars" label="График и история" onClick={onOpen} />
+          ) : scheduledToday || doneToday ? (
             <Checkbox checked={doneToday} onChange={(v) => void toggleHabit(habit, todayDate, v)} label={`Выполнено сегодня: ${habit.name}`} color="var(--c-habit)" />
           ) : (
             <span className={s.rest}>отдых</span>
@@ -48,6 +106,9 @@ export function HabitCard({ habit, done, month, todayDate, onEdit }: Props) {
           <Button small variant="ghost" icon="edit" label="Изменить" onClick={onEdit} />
         </div>
       </div>
+      {count && (scheduledToday || doneToday) && (
+        <TodayCount habit={habit} unit={count.unit} value={values.get(todayDate)} todayDate={todayDate} />
+      )}
       <div className={s.streaks}>
         <div>
           СТРИК
@@ -80,9 +141,10 @@ export function HabitCard({ habit, done, month, todayDate, onEdit }: Props) {
               type="button"
               disabled={future}
               className={cx(s.cell, !sched && s.off, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
-              aria-label={`${parseLocalDate(d).day}: ${state}`}
+              aria-label={`${parseLocalDate(d).day}: ${state}${count && values.has(d) ? `, ${formatValue(values.get(d) ?? 0)} ${count.unit}` : ''}`}
               aria-pressed={isDone}
-              onClick={() => void toggleHabit(habit, d, !isDone)}
+              title={count && values.has(d) ? `${formatValue(values.get(d) ?? 0)} ${count.unit}` : undefined}
+              onClick={() => (count ? onPickDay(d) : void toggleHabit(habit, d, !isDone))}
             >
               {parseLocalDate(d).day}
             </button>

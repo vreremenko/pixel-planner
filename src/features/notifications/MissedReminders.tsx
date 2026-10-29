@@ -42,7 +42,11 @@ export function MissedReminders() {
                   label="Отметить выполненным"
                   onClick={() =>
                     void completeFromReminder(r)
-                      .then(() => reminderLogRepo.acknowledge([r.key]))
+                      .then(async (done) => {
+                        await reminderLogRepo.acknowledge([r.key]);
+                        // Счётная привычка: число вводят на экране квестов
+                        if (!done) location.hash = '#/habits';
+                      })
                       .then(checkAchievements)
                   }
                 />

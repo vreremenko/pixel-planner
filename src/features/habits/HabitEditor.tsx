@@ -3,7 +3,7 @@ import s from './Habits.module.css';
 import { Button, Field, Modal, MultiToggle, PixelIcon, Segmented, TextInput, toast } from '../../ui';
 import { HABIT_ICONS } from '../../ui/icons';
 import { WEEKDAYS_SHORT } from '../../domain/dates';
-import type { Habit, Weekday } from '../../domain/types';
+import { isCountHabit, type Habit, type HabitTracking, type Weekday } from '../../domain/types';
 import { createHabit, deleteHabit, setArchived, updateHabit, type HabitDraft } from '../../services/habits';
 
 const WD = WEEKDAYS_SHORT.map((label, i) => ({ value: i as Weekday, label }));
@@ -19,13 +19,16 @@ export function HabitEditor({ habit, onClose }: Props) {
   const [days, setDays] = useState<Weekday[]>(habit?.schedule.type === 'days' ? habit.schedule.days : [0, 1, 2, 3, 4, 5, 6]);
   const [mode, setMode] = useState<'daily' | 'days'>(habit?.schedule.type ?? 'daily');
   const [time, setTime] = useState(habit?.reminderTime ?? '');
-  const invalid = !name.trim() || (mode === 'days' && days.length === 0);
+  const [kind, setKind] = useState<HabitTracking['kind']>(habit?.tracking?.kind ?? 'check');
+  const [unit, setUnit] = useState(habit && isCountHabit(habit) ? habit.tracking.unit : 'раз');
+  const invalid = !name.trim() || (mode === 'days' && days.length === 0) || (kind === 'count' && !unit.trim());
 
   const save = async () => {
     const d: HabitDraft = {
       name: name.trim(),
       icon,
       schedule: mode === 'daily' ? { type: 'daily' } : { type: 'days', days: [...days].sort() },
+      tracking: kind === 'count' ? { kind: 'count', unit: unit.trim() } : { kind: 'check' },
     };
     if (time) d.reminderTime = time;
     if (habit) await updateHabit(habit, d);
@@ -84,6 +87,25 @@ export function HabitEditor({ habit, onClose }: Props) {
             ))}
           </div>
         </Field>
+        <Field label="Тип привычки">
+          <Segmented
+            label="Тип привычки"
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: 'check', label: 'Отметка' },
+              { value: 'count', label: 'Со счётом' },
+            ]}
+          />
+        </Field>
+        <p style={{ margin: '-4px 0 12px', color: 'var(--c-text-dim)', fontSize: 17 }}>
+          {kind === 'check'
+            ? 'Просто отмечаете, что сделали за день.'
+            : 'Каждый день записываете число (например, отжимания) — приложение покажет историю и график.'}
+        </p>
+        {kind === 'count' && (
+          <TextInput label="Единица измерения" value={unit} maxLength={20} onChange={(e) => setUnit(e.target.value)} placeholder="раз, км, стр., мин…" />
+        )}
         <Field label="Расписание">
           <Segmented
             label="Расписание"

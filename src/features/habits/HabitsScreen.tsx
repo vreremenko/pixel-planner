@@ -5,9 +5,11 @@ import { useHabitLogs, useHabits } from '../../data/hooks';
 import { useToday } from '../../app/useToday';
 import { useHotkeys } from '../../app/hotkeys';
 import { addMonths, MONTHS, parseLocalDate, startOfMonth } from '../../domain/dates';
-import type { Habit, LocalDate } from '../../domain/types';
+import { isCountHabit, type Habit, type LocalDate } from '../../domain/types';
 import { HabitCard } from './HabitCard';
 import { HabitEditor } from './HabitEditor';
+import { HabitDetail } from './HabitDetail';
+import { HabitValueDialog } from './HabitValueDialog';
 
 export function HabitsScreen() {
   const habits = useHabits();
@@ -15,6 +17,8 @@ export function HabitsScreen() {
   const todayDate = useToday();
   const [month, setMonth] = useState(() => startOfMonth(todayDate));
   const [editing, setEditing] = useState<Habit | 'new' | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [valueFor, setValueFor] = useState<{ habitId: string; date: LocalDate } | null>(null);
 
   useHotkeys(
     useMemo(
@@ -36,6 +40,22 @@ export function HabitsScreen() {
     }
     return m;
   }, [logs]);
+
+  // Значения по дням у счётных привычек: habitId → (дата → число)
+  const valuesBy = useMemo(() => {
+    const m = new Map<string, Map<LocalDate, number>>();
+    for (const l of logs ?? []) {
+      if (l.value === undefined) continue;
+      let v = m.get(l.habitId);
+      if (!v) m.set(l.habitId, (v = new Map<LocalDate, number>()));
+      v.set(l.date, l.value);
+    }
+    return m;
+  }, [logs]);
+  const noValues = new Map<LocalDate, number>();
+  const find = (id: string | null) => (id ? (habits ?? []).find((h) => h.id === id) : undefined);
+  const detail = find(detailId);
+  const valueHabit = find(valueFor?.habitId ?? null);
 
   const active = (habits ?? []).filter((h) => !h.archived);
   const archived = (habits ?? []).filter((h) => h.archived);
@@ -65,7 +85,17 @@ export function HabitsScreen() {
       )}
       <div className={s.list}>
         {active.map((h) => (
-          <HabitCard key={h.id} habit={h} done={doneBy.get(h.id) ?? empty} month={month} todayDate={todayDate} onEdit={() => setEditing(h)} />
+          <HabitCard
+            key={h.id}
+            habit={h}
+            done={doneBy.get(h.id) ?? empty}
+            values={valuesBy.get(h.id) ?? noValues}
+            month={month}
+            todayDate={todayDate}
+            onEdit={() => setEditing(h)}
+            onOpen={() => setDetailId(h.id)}
+            onPickDay={(date) => setValueFor({ habitId: h.id, date })}
+          />
         ))}
       </div>
       {archived.length > 0 && (
@@ -75,12 +105,43 @@ export function HabitsScreen() {
           </summary>
           <div className={s.list} style={{ marginTop: 12 }}>
             {archived.map((h) => (
-              <HabitCard key={h.id} habit={h} done={doneBy.get(h.id) ?? empty} month={month} todayDate={todayDate} onEdit={() => setEditing(h)} />
+              <HabitCard
+            key={h.id}
+            habit={h}
+            done={doneBy.get(h.id) ?? empty}
+            values={valuesBy.get(h.id) ?? noValues}
+            month={month}
+            todayDate={todayDate}
+            onEdit={() => setEditing(h)}
+            onOpen={() => setDetailId(h.id)}
+            onPickDay={(date) => setValueFor({ habitId: h.id, date })}
+          />
             ))}
           </div>
         </details>
       )}
       {editing && <HabitEditor habit={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {detail && isCountHabit(detail) && !editing && !valueFor && (
+        <HabitDetail
+          habit={detail}
+          unit={detail.tracking.unit}
+          values={valuesBy.get(detail.id) ?? noValues}
+          todayDate={todayDate}
+          onAdd={(date) => setValueFor({ habitId: detail.id, date })}
+          onEdit={() => setEditing(detail)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
+      {valueHabit && isCountHabit(valueHabit) && valueFor && (
+        <HabitValueDialog
+          habit={valueHabit}
+          unit={valueHabit.tracking.unit}
+          date={valueFor.date}
+          values={valuesBy.get(valueHabit.id) ?? noValues}
+          todayDate={todayDate}
+          onClose={() => setValueFor(null)}
+        />
+      )}
     </>
   );
 }

@@ -139,7 +139,11 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
             }
           : undefined);
       if (event.action === 'done' && log) {
-        await completeFromReminder(log);
+        // У счётной привычки нужно число — открываем приложение вместо отметки
+        if (!(await completeFromReminder(log))) {
+          await focusOrOpen();
+          return;
+        }
         await reminderLogRepo.acknowledge([log.key]);
         await notifyClients();
         return;

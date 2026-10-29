@@ -1,4 +1,4 @@
-import type { Habit, HabitSchedule, LocalDate, LocalTime } from '../domain/types';
+import type { Habit, HabitSchedule, HabitTracking, LocalDate, LocalTime } from '../domain/types';
 import { habitLogRepo, habitRepo, stamp } from '../data/repo';
 import { habitStreak } from '../domain/streaks';
 import { habitXp } from '../domain/xp';
@@ -10,6 +10,7 @@ export interface HabitDraft {
   name: string;
   icon: string;
   schedule: HabitSchedule;
+  tracking: HabitTracking;
   reminderTime?: LocalTime;
 }
 
@@ -40,6 +41,24 @@ export async function toggleHabit(h: Habit, date: LocalDate, done: boolean): Pro
     const { current } = habitStreak(h, dates, today());
     await awardXp('habit', ref, habitXp(current), date);
   } else {
+    await revokeXp('habit', ref);
+    play('undo');
+  }
+}
+
+/**
+ * Записать значение за день у счётной привычки. Значение > 0 — день выполнен (XP начисляется
+ * один раз, повторная правка числа его не дублирует); 0 — запись удаляется и XP отзывается.
+ */
+export async function setHabitValue(h: Habit, date: LocalDate, value: number): Promise<void> {
+  const ref = `${h.id}:${date}`;
+  if (value > 0) {
+    await habitLogRepo.setValue(h.id, date, value);
+    const dates = new Set((await habitLogRepo.byHabit(h.id)).map((l) => l.date));
+    const { current } = habitStreak(h, dates, today());
+    await awardXp('habit', ref, habitXp(current), date);
+  } else {
+    await habitLogRepo.set(h.id, date, false);
     await revokeXp('habit', ref);
     play('undo');
   }

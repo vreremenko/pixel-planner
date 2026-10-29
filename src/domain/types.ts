@@ -102,10 +102,15 @@ export interface Occurrence {
 
 export type HabitSchedule = { type: 'daily' } | { type: 'days'; days: Weekday[] };
 
+/** check — просто отметка за день; count — за день записывается число (отжимания, километры…). */
+export type HabitTracking = { kind: 'check' } | { kind: 'count'; unit: string };
+
 export interface Habit extends SyncMeta {
   name: string;
   icon: string;
   schedule: HabitSchedule;
+  /** Нет поля — старые привычки, они считаются «check». */
+  tracking?: HabitTracking;
   reminderTime?: LocalTime;
   archived: boolean;
   order: number;
@@ -115,7 +120,12 @@ export interface Habit extends SyncMeta {
 export interface HabitLog extends SyncMeta {
   habitId: string;
   date: LocalDate;
+  /** Значение за день у счётных привычек (> 0). */
+  value?: number;
 }
+
+export const isCountHabit = (h: Pick<Habit, 'tracking'>): h is { tracking: { kind: 'count'; unit: string } } =>
+  h.tracking?.kind === 'count';
 
 export type XpSource = 'task' | 'occurrence' | 'habit' | 'achievement';
 
