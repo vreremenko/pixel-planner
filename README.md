@@ -218,6 +218,16 @@ Cloudflare из России без VPN не открывается, а Netlify 
 публикуется вручную, а не по каждому пушу в `main`. Адрес сервера в приложении — переменная репозитория `API_BASE`
 (`https://<сайт>.netlify.app/`); после смены сервера push на устройствах нужно выключить и включить.
 
+### Свой сервер в России (Node.js + SQLite)
+Cloudflare и Netlify из России без VPN работают «мигая», поэтому основной сервер — маленький VPS (FirstVDS, Ubuntu 24.04,
+1 ГБ, ~190 ₽/мес) с российским IP. Код в `server-node/`: та же логика (`src/core.ts`), хранилище SQLite
+(`src/sqlite-store.ts`, встроенный `node:sqlite`) и `src/main.ts` — HTTP-API и рассылка push раз в минуту. Перед
+Node стоит Caddy: он сам получает сертификат HTTPS. Установка и обновление одной командой с вашего Mac:
+`HOST=<ip> bash server-node/deploy.sh` (нужен вход по ключу SSH и файл с ключами VAPID `server-deno/.env.deno`).
+Служба называется `pixel-planner` (`systemctl status pixel-planner`, журнал `journalctl -u pixel-planner`), данные лежат
+в `/var/lib/pixel-planner/`. Адрес для HTTPS по умолчанию `<ip-через-дефисы>.sslip.io`; со своим доменом задайте `DOMAIN=`.
+Адрес сервера в приложении — переменная репозитория `API_BASE`.
+
 ### Cloudflare Workers + Web Push (этап Б, текущий деплой)
 Один бесплатный Cloudflare Worker раздаёт фронтенд (static assets), принимает API `/api/*`
 и раз в минуту (Cron Trigger) рассылает наступившие напоминания через Web Push. Подписки и расписание
