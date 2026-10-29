@@ -52,7 +52,7 @@ export default defineConfig({
   server: { proxy: { '/api': 'http://localhost:8787' } },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
+    include: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
     setupFiles: ['src/test/setup.ts'],
   },
 });

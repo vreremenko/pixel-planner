@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "deploy": "npm run build && wrangler d1 migrations apply pixel-planner-push --remote && wrangler deploy",
     "dev:api": "wrangler d1 migrations apply pixel-planner-push --local && wrangler dev --port 8787",
-    "vapid": "node scripts/gen-vapid.mjs"
+    "vapid": "node scripts/gen-vapid.mjs",
+    "build:node": "esbuild server-node/src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/server.mjs --legal-comments=none"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^2.0.0",
