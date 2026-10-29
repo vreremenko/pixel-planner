@@ -134,12 +134,37 @@
   display: flex;
   align-items: center;
 }
-.addRow {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--gap-2);
-  margin-top: var(--gap-4);
+/* Быстрый ввод: закреплён внизу экрана поверх содержимого. Геометрия повторяет колонку контента
+   (левая панель навигации, отступы и максимальная ширина как у main). */
+.dock {
+  position: fixed;
+  z-index: 40;
+  left: var(--nav-w);
+  right: 0;
+  bottom: 0;
+  pointer-events: none; /* сквозь пустые поля вокруг панели клики проходят к содержимому */
+}
+.dockInner {
+  max-width: 1100px;
+  box-sizing: border-box;
+  padding: 0 24px 16px;
+}
+.dockBox {
+  pointer-events: auto;
+  padding: 10px 12px;
+  background: var(--c-panel);
+  border: var(--px) solid var(--c-task);
+  box-shadow: 4px 4px 0 var(--c-shadow);
+}
+@media (max-width: 767px) {
+  .dock {
+    left: 0;
+    /* над нижней навигацией */
+    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  }
+  .dockInner {
+    padding: 0 12px 8px;
+  }
 }
 .quick {
   flex: 1 1 240px;

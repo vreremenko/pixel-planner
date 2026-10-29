@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -15,6 +15,7 @@ import { Button, Panel, PixelIcon, toast } from '../../ui';
 import { useUi } from '../../stores/ui';
 import { useToday } from '../../app/useToday';
 import { useHotkeys } from '../../app/hotkeys';
+import { useDockHeight } from '../../app/useDockHeight';
 import { useDay } from '../../data/hooks';
 import { diffDays, formatDateLong } from '../../domain/dates';
 import { hasAllTags, tagCounts } from '../../domain/tags';
@@ -63,6 +64,8 @@ export function DayScreen() {
 
   // Локальный порядок для мгновенного отклика при перетаскивании
   const [items, setItems] = useState<DayItem[]>(sorted);
+  const dockRef = useRef<HTMLDivElement>(null);
+  useDockHeight(dockRef);
   const [prevSorted, setPrevSorted] = useState(sorted);
   if (prevSorted !== sorted) {
     setPrevSorted(sorted);
@@ -128,7 +131,12 @@ export function DayScreen() {
         icon="sword"
         accent="var(--c-task)"
         actions={
-          pendingTasks > 0 && (
+          <>
+            {/* Создание задачи в окне — отдельная кнопка, не связанная со строкой быстрого ввода ниже */}
+            <Button small variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
+              Новая задача
+            </Button>
+            {pendingTasks > 0 && (
             <Button
               small
               icon="skip"
@@ -141,7 +149,8 @@ export function DayScreen() {
             >
               {filtering ? 'Выбранные на завтра' : 'Перенести на завтра'}
             </Button>
-          )
+            )}
+          </>
         }
       >
         {visible.length > 0 && (
@@ -200,14 +209,17 @@ export function DayScreen() {
             </ul>
           </SortableContext>
         </DndContext>
-
-        <div className={s.addRow}>
-          <QuickAdd date={date} todayDate={todayDate} />
-          <Button variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
-            Задача
-          </Button>
-        </div>
       </Panel>
+
+      {/* Быстрый ввод закреплён внизу экрана поверх содержимого; пустой блок ниже резервирует место под последней задачей */}
+      <div className={s.dock} ref={dockRef}>
+        <div className={s.dockInner}>
+          <div className={s.dockBox}>
+            <QuickAdd date={date} todayDate={todayDate} />
+          </div>
+        </div>
+      </div>
+      <div style={{ height: 'var(--dock-h, 0px)' }} aria-hidden />
 
       {calendarOpen && (
         <CalendarPicker open value={date} todayDate={todayDate} onPick={setDate} onClose={() => setCalendarOpen(false)} />

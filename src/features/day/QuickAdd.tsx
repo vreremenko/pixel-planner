@@ -1,6 +1,6 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import s from './QuickAdd.module.css';
-import { PixelIcon, toast, cx } from '../../ui';
+import { Button, PixelIcon, toast, cx } from '../../ui';
 import { createTask } from '../../services/tasks';
 import { parseQuickAdd, type QuickKind } from '../../domain/quickAdd';
 import { describeRule } from '../../domain/recurrence';
@@ -15,11 +15,13 @@ interface Props {
   todayDate: LocalDate;
 }
 
-const HINT = 'Например: завтра в 15:00 позвонить маме #семья !  ·  каждый день зарядка';
+// Подсказка с примером — прямо в поле: на телефоне она просто обрежется, на компьютере видна целиком
+const PLACEHOLDER = 'Что сделать? Например: завтра в 15:00 позвонить маме #семья !';
 
 /** Быстрый ввод: разбирает дату, время, приоритет, метки, повтор и напоминание прямо из текста. */
 export function QuickAdd({ date, todayDate }: Props) {
   const [text, setText] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const [ignored, setIgnored] = useState<ReadonlySet<QuickKind>>(new Set());
 
   // Без отключений — чтобы показать и те части, которые пользователь отключил (их можно вернуть)
@@ -36,6 +38,9 @@ export function QuickAdd({ date, todayDate }: Props) {
 
   const submit = async () => {
     if (text.trim() === '') return;
+    // Фокус остаётся в поле, даже если нажали кнопку: можно сразу вводить следующую задачу,
+    // а на телефоне клавиатура не закрывается
+    inputRef.current?.focus();
     // Поле очищаем сразу, до записи в базу: пока она идёт (на телефоне — заметное время),
     // пользователь уже может печатать следующую задачу, и тексты не должны склеиться.
     const sent = { text, ignored };
@@ -93,23 +98,29 @@ export function QuickAdd({ date, todayDate }: Props) {
         }}
       >
         <label htmlFor="quick-add" className="sr-only">
-          Быстро добавить задачу
+          Быстрый ввод задачи
         </label>
-        <input
-          id="quick-add"
-          className={s.input}
-          placeholder="Быстрая задача + Enter"
-          autoComplete="off"
-          aria-describedby="quick-add-hint"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+        {/* Кнопка «Добавить» — рядом с полем, а на узком экране под ним: она отправляет написанное, а не открывает окно */}
+        <div className={s.row}>
+          <div className={s.field}>
+            <input
+              ref={inputRef}
+              id="quick-add"
+              className={s.input}
+              placeholder={PLACEHOLDER}
+              autoComplete="off"
+              enterKeyHint="send"
+              aria-describedby={text.trim() === '' ? undefined : 'quick-add-hint'}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="primary" icon="right" className={s.send} disabled={text.trim() === ''}>
+            Добавить
+          </Button>
+        </div>
       </form>
-      {text.trim() === '' ? (
-        <p id="quick-add-hint" className={s.hint}>
-          {HINT}
-        </p>
-      ) : (
+      {text.trim() === '' ? null : (
         <div id="quick-add-hint" className={s.chips} aria-live="polite">
           {hasFound ? <span className={s.note}>Распознано:</span> : null}
           {full.found.includes('date') && full.date && chip('date', 'calendar', formatDateLong(full.date))}
