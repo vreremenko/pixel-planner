@@ -8,3 +8,10 @@ dev-dist
 .dev.vars
 .wrangler
 .claude
+
+# Local Netlify folder
+.netlify
+.netlify
+server-netlify/.env.netlify
+server-deno/.env.deno
+server-deno/.env.netlify
