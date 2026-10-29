@@ -1,6 +1,7 @@
 import { addDays, today } from '../domain/dates';
 import { overrideId, splitRule } from '../domain/recurrence';
 import type {
+  ChecklistItem,
   LocalDate,
   LocalTime,
   Occurrence,
@@ -14,6 +15,7 @@ import type {
   Task,
 } from '../domain/types';
 import { XP_OCCURRENCE, XP_TASK } from '../domain/xp';
+import { checkedIds, cleanChecklist, stripDone, toggleItem } from '../domain/checklist';
 import { metaRepo, overrideRepo, seriesRepo, stamp, taskRepo } from '../data/repo';
 import { db } from '../data/db';
 import { awardXp, checkAchievements, revokeXp } from './game';
@@ -22,6 +24,8 @@ import { play } from './sfx';
 export interface TaskDraft {
   title: string;
   notes?: string;
+  /** Пункты чек-листа; done учитывается у обычных задач и у выбранного дня повтора. */
+  checklist?: ChecklistItem[];
   date: LocalDate | null;
   time?: LocalTime;
   priority: Priority;
@@ -48,10 +52,13 @@ function ruleFrom(draft: TaskDraft, start: LocalDate): RecurrenceRule {
   return { ...draft.repeat.pattern, start, end: draft.repeat.end };
 }
 
-function seriesFields(draft: TaskDraft) {
+/** forSeries: шаблон серии — пункты без отметок (они хранятся по дням). */
+function seriesFields(draft: TaskDraft, forSeries = false) {
+  const checklist = cleanChecklist(draft.checklist);
   return optional({
     title: draft.title.trim(),
     notes: draft.notes?.trim() || undefined,
+    checklist: checklist && forSeries ? stripDone(checklist) : checklist,
     time: draft.time || undefined,
     priority: draft.priority,
     tags: draft.tags,
@@ -62,7 +69,7 @@ function seriesFields(draft: TaskDraft) {
 export async function createTask(draft: TaskDraft): Promise<void> {
   if (draft.repeat) {
     const start = draft.date ?? today();
-    await seriesRepo.put(stamp({ ...seriesFields(draft), rule: ruleFrom(draft, start) } as RecurringSeries));
+    await seriesRepo.put(stamp({ ...seriesFields(draft, true), rule: ruleFrom(draft, start) } as RecurringSeries));
     return;
   }
   const task = stamp(
@@ -89,7 +96,7 @@ export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
     return;
   }
   const moved = draft.date !== task.date;
-  const { notes: _n, time: _t, reminder: _r, ...rest } = task;
+  const { notes: _n, checklist: _c, time: _t, reminder: _r, ...rest } = task;
   await taskRepo.put({
     ...rest,
     ...seriesFields(draft),
@@ -108,6 +115,12 @@ export async function toggleTask(task: Task, done: boolean): Promise<void> {
     await revokeXp('task', task.id);
     play('undo');
   }
+}
+
+/** Отметить / снять пункт чек-листа обычной задачи. */
+export async function toggleChecklistItem(task: Task, itemId: string): Promise<void> {
+  if (!task.checklist) return;
+  await taskRepo.put({ ...task, checklist: toggleItem(task.checklist, itemId) });
 }
 
 export async function deleteTask(id: string): Promise<void> {
@@ -184,6 +197,12 @@ export async function toggleOccurrence(occ: Occurrence, done: boolean): Promise<
   }
 }
 
+/** Отметить / снять пункт чек-листа у экземпляра повторяющейся задачи (только в этот день). */
+export async function toggleOccurrenceChecklistItem(occ: Occurrence, itemId: string): Promise<void> {
+  if (!occ.checklist) return;
+  await patchOverride(occ.seriesId, occ.originalDate, { checked: checkedIds(toggleItem(occ.checklist, itemId)) });
+}
+
 export async function skipOccurrence(occ: Occurrence): Promise<void> {
   await patchOverride(occ.seriesId, occ.originalDate, { status: 'skipped' });
 }
@@ -197,15 +216,18 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
     const patch: OccurrenceOverride['patch'] = {
       title: f.title,
       priority: f.priority,
-      ...(f.notes !== undefined ? { notes: f.notes } : {}),
+      notes: f.notes ?? '', // пустая строка — «в этот день без заметок»
     };
     // undefined в patch.time/reminder означает «убрать» — храним явно через ключ
     (patch as Record<string, unknown>).time = f.time;
     (patch as Record<string, unknown>).reminder = f.reminder;
+    // Чек-лист: пустой массив — «в этот день пунктов нет» (шаблон серии не применяется)
+    const items = f.checklist ?? [];
+    patch.checklist = stripDone(items);
     const movedTo = draft.date && draft.date !== occ.originalDate ? draft.date : undefined;
     const cur = await overrideRepo.get(occ.key);
     const { movedTo: _m, ...base } = cur ?? newOverride(occ.seriesId, occ.originalDate);
-    await overrideRepo.put({ ...base, patch, ...(movedTo ? { movedTo } : {}) });
+    await overrideRepo.put({ ...base, patch, checked: checkedIds(items), ...(movedTo ? { movedTo } : {}) });
     return;
   }
 
@@ -222,7 +244,7 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
     ? ruleFrom(draft, draft.date ?? from)
     : splitRule(series.rule, from).after;
   const newSeries = stamp({
-    ...seriesFields(draft),
+    ...seriesFields(draft, true),
     rule: newRule,
     splitFromId: series.id,
   } as RecurringSeries);
@@ -235,10 +257,17 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
     for (const o of await overrideRepo.bySeries(series.id)) {
       if (o.date < from) continue;
       await overrideRepo.put({ ...o, deletedAt: Date.now() });
-      if (o.status || o.movedTo || o.cancelled) {
+      if (o.status || o.movedTo || o.cancelled || o.checked?.length) {
         const { patch: _p, ...keep } = o;
         await overrideRepo.put({ ...keep, id: overrideId(newSeries.id, o.date), seriesId: newSeries.id, createdAt: Date.now() });
       }
+    }
+    // Отметки пунктов в редактируемый день берём из формы
+    const doneIds = checkedIds(cleanChecklist(draft.checklist) ?? []);
+    const fromId = overrideId(newSeries.id, from);
+    const existing = await overrideRepo.get(fromId);
+    if (doneIds.length > 0 || existing?.checked) {
+      await overrideRepo.put({ ...(existing ?? newOverride(newSeries.id, from)), checked: doneIds });
     }
   });
 }

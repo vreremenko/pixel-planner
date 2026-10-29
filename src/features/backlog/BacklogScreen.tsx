@@ -10,6 +10,7 @@ import type { Task } from '../../domain/types';
 import { CalendarPicker } from '../day/CalendarPicker';
 import { PRIORITY_COLOR, PRIORITY_SHORT } from '../day/labels';
 import { addDays, formatDateLong } from '../../domain/dates';
+import { checklistProgress } from '../../domain/checklist';
 
 type Show = 'open' | 'done' | 'all';
 const PRIO_RANK = { high: 0, medium: 1, low: 2 } as const;
@@ -40,7 +41,7 @@ export function BacklogScreen() {
     return (all ?? [])
       .filter((t) => (show === 'all' ? true : show === 'done' ? t.done : !t.done))
       .filter((t) => tags.every((tag) => t.tags.includes(tag)))
-      .filter((t) => !q || t.title.toLowerCase().includes(q) || (t.notes ?? '').toLowerCase().includes(q) || t.tags.some((x) => x.toLowerCase().includes(q)))
+      .filter((t) => !q || t.title.toLowerCase().includes(q) || (t.notes ?? '').toLowerCase().includes(q) || (t.checklist ?? []).some((c) => c.text.toLowerCase().includes(q)) || t.tags.some((x) => x.toLowerCase().includes(q)))
       .sort((a, b) => PRIO_RANK[a.priority] - PRIO_RANK[b.priority] || b.createdAt - a.createdAt);
   }, [all, query, tags, show]);
 
@@ -127,6 +128,12 @@ export function BacklogScreen() {
                 <div className={s.cardTitle}>{t.title}</div>
                 <div className={s.cardMeta}>
                   <span style={{ color: PRIORITY_COLOR[t.priority] }}>{PRIORITY_SHORT[t.priority]}</span>
+                  {t.checklist && t.checklist.length > 0 && (
+                    <span title="Чек-лист" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--c-task)' }}>
+                      <PixelIcon name="check" size={16} />
+                      {checklistProgress(t.checklist).done}/{t.checklist.length}
+                    </span>
+                  )}
                   {t.tags.map((x) => (
                     <span key={x} style={{ color: 'var(--c-backlog)' }}>
                       #{x}

@@ -1,8 +1,8 @@
 import { useEffect, useState, type SyntheticEvent } from 'react';
-import { Button, Field, Modal, Segmented, SelectInput, TextInput, inputClass, toast } from '../../ui';
+import { Button, Field, Modal, MultiToggle, Segmented, SelectInput, TextInput, inputClass, toast } from '../../ui';
 import { useUi, type EditorTarget } from '../../stores/ui';
 import { today } from '../../domain/dates';
-import { REMINDER_OFFSETS, type LocalDate, type Priority, type ReminderOffset } from '../../domain/types';
+import { REMINDER_OFFSETS, type ChecklistItem, type LocalDate, type Priority, type ReminderOffset } from '../../domain/types';
 import {
   createTask,
   deleteOccurrence,
@@ -15,6 +15,7 @@ import {
 } from '../../services/tasks';
 import { seriesRepo } from '../../data/repo';
 import { RecurrenceEditor, type RepeatValue } from '../recurring/RecurrenceEditor';
+import { ChecklistEditor } from './ChecklistEditor';
 import { EditScopeDialog } from '../recurring/EditScopeDialog';
 import { describeRule } from '../../domain/recurrence';
 import { PRIORITY_LABEL } from './labels';
@@ -29,9 +30,18 @@ const REMINDER_OPTIONS = [
   ...REMINDER_OFFSETS.map((m) => ({ value: String(m), label: m === 0 ? 'В момент начала' : `За ${m} минут` })),
 ];
 
+type Extra = 'notes' | 'checklist';
+const EXTRA_OPTIONS: { value: Extra; label: string }[] = [
+  { value: 'notes', label: 'Заметки' },
+  { value: 'checklist', label: 'Чек-лист' },
+];
+
 interface FormState {
   title: string;
   notes: string;
+  /** Какие дополнительные блоки включены; выключенный блок при сохранении не записывается. */
+  extras: Extra[];
+  checklist: ChecklistItem[];
   inBacklog: boolean;
   date: LocalDate;
   time: string;
@@ -44,14 +54,17 @@ interface FormState {
 function initial(t: EditorTarget): FormState {
   if (t.kind === 'new') {
     return {
-      title: '', notes: '', inBacklog: t.date === null, date: t.date ?? today(), time: '',
+      title: '', notes: '', extras: [], checklist: [], inBacklog: t.date === null, date: t.date ?? today(), time: '',
       priority: 'medium', reminder: 'none', tags: '', repeat: undefined,
     };
   }
   const src = t.kind === 'task' ? t.task : t.occ;
+  const checklist = src.checklist ?? [];
   return {
     title: src.title,
     notes: src.notes ?? '',
+    checklist,
+    extras: [...(src.notes ? (['notes'] as const) : []), ...(checklist.length > 0 ? (['checklist'] as const) : [])],
     inBacklog: t.kind === 'task' && t.task.date === null,
     date: (t.kind === 'task' ? t.task.date : t.occ.date) ?? today(),
     time: src.time ?? '',
@@ -69,7 +82,8 @@ function toDraft(f: FormState): TaskDraft {
     priority: f.priority,
     tags: f.tags.split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean),
   };
-  if (f.notes.trim()) d.notes = f.notes.trim();
+  if (f.extras.includes('notes') && f.notes.trim()) d.notes = f.notes.trim();
+  if (f.extras.includes('checklist') && f.checklist.length > 0) d.checklist = f.checklist;
   if (f.time) d.time = f.time;
   if (f.time && f.reminder !== 'none') d.reminder = { offsetMin: Number(f.reminder) as ReminderOffset };
   if (f.repeat && !f.inBacklog) d.repeat = f.repeat;
@@ -82,6 +96,13 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
   const [ruleText, setRuleText] = useState<string | null>(null);
   const isOcc = target.kind === 'occurrence';
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
+  const setExtras = (extras: Extra[]) =>
+    setF((p) => ({
+      ...p,
+      extras,
+      // Включили чек-лист — сразу даём пустой пункт, чтобы было куда печатать
+      checklist: extras.includes('checklist') && p.checklist.length === 0 ? [{ id: crypto.randomUUID(), text: '', done: false }] : p.checklist,
+    }));
 
   useEffect(() => {
     if (target.kind !== 'occurrence') return;
@@ -162,9 +183,15 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
         />
       )}
       <TextInput label="Теги через запятую" value={f.tags} onChange={(e) => set('tags', e.target.value)} placeholder="работа, дом" />
-      <Field label="Заметки">
-        <textarea className={inputClass} rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+      <Field label="Добавить к задаче">
+        <MultiToggle label="Заметки и чек-лист" values={f.extras} options={EXTRA_OPTIONS} onChange={setExtras} />
       </Field>
+      {f.extras.includes('notes') && (
+        <Field label="Заметки">
+          <textarea className={inputClass} rows={3} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+        </Field>
+      )}
+      {f.extras.includes('checklist') && <ChecklistEditor items={f.checklist} onChange={(items) => set('checklist', items)} />}
       {!f.inBacklog && (target.kind !== 'occurrence' || f.repeat) && (
         <>
           {ruleText && <p style={{ margin: '0 0 8px', color: 'var(--c-text-dim)' }}>Сейчас: {ruleText}. Изменение правила применяется к «этой и следующим».</p>}

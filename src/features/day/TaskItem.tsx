@@ -1,10 +1,11 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
 import { Button, Checkbox, PixelIcon, cx } from '../../ui';
 import type { DayItem } from '../../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_SHORT } from './labels';
+import { checklistProgress } from '../../domain/checklist';
 
 interface Props {
   item: DayItem;
@@ -14,14 +15,17 @@ interface Props {
   onExtra?: (() => void) | undefined;
   extraLabel?: string;
   extraIcon?: 'skip' | 'bag';
+  /** Отметить / снять пункт чек-листа. */
+  onToggleItem?: ((itemId: string) => void) | undefined;
 }
 
-export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon }: Props) {
+export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem }: Props) {
+  const [listOpen, setListOpen] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const data =
     item.kind === 'task'
-      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
-      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminder: item.occ.reminder, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
+      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
+      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminder: item.occ.reminder, checklist: item.occ.checklist, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -71,6 +75,29 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
       {onExtra && extraIcon && (
         <div className={s.actions}>
           <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
+        </div>
+      )}
+      {data.checklist && data.checklist.length > 0 && (
+        <div className={s.clWrap}>
+          <button
+            type="button"
+            className={s.clToggle}
+            aria-expanded={listOpen}
+            aria-label={`Чек-лист: выполнено ${String(checklistProgress(data.checklist).done)} из ${String(data.checklist.length)}. ${listOpen ? 'Свернуть' : 'Развернуть'}`}
+            onClick={() => setListOpen(!listOpen)}
+          >
+            {listOpen ? '▾' : '▸'} Чек-лист {checklistProgress(data.checklist).done}/{data.checklist.length}
+          </button>
+          {listOpen && (
+            <ul className={s.checklist} aria-label={`Чек-лист: ${data.title}`}>
+              {data.checklist.map((c) => (
+                <li key={c.id} className={cx(s.checkItem, c.done && s.itemDone)}>
+                  <Checkbox checked={c.done} onChange={() => onToggleItem?.(c.id)} label={c.text} color="var(--c-task)" disabled={!onToggleItem} />
+                  <span>{c.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </li>

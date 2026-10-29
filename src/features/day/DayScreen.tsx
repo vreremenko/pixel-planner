@@ -23,7 +23,9 @@ import {
   moveUnfinishedToTomorrow,
   reorderDay,
   scheduleTask,
+  toggleChecklistItem,
   toggleOccurrence,
+  toggleOccurrenceChecklistItem,
   toggleTask,
   type DayItem,
 } from '../../services/tasks';
@@ -165,6 +167,7 @@ export function DayScreen() {
                     id={it.task.id}
                     item={it}
                     onToggle={(d) => void toggleTask(it.task, d)}
+                    onToggleItem={(itemId) => void toggleChecklistItem(it.task, itemId)}
                     onEdit={() => openEditor({ kind: 'task', task: it.task })}
                     onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в инвентарь', 'bag', 'var(--c-backlog)'))}
                     extraIcon="bag"
@@ -176,6 +179,7 @@ export function DayScreen() {
                     id={it.occ.key}
                     item={it}
                     onToggle={(d) => void toggleOccurrence(it.occ, d)}
+                    onToggleItem={(itemId) => void toggleOccurrenceChecklistItem(it.occ, itemId)}
                     onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
                   />
                 ),
