@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
@@ -6,6 +6,7 @@ import { Button, Checkbox, PixelIcon, cx } from '../../ui';
 import type { DayItem } from '../../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_SHORT } from './labels';
 import { checklistProgress } from '../../domain/checklist';
+import { collapseKey, useCollapsed } from '../../stores/collapsed';
 
 interface Props {
   item: DayItem;
@@ -20,12 +21,19 @@ interface Props {
 }
 
 export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem }: Props) {
-  const [listOpen, setListOpen] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const data =
     item.kind === 'task'
-      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
-      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminder: item.occ.reminder, checklist: item.occ.checklist, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
+      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, notes: item.task.notes, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
+      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminder: item.occ.reminder, notes: item.occ.notes, checklist: item.occ.checklist, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
+
+  // Свёрнутость запоминается на устройстве; у повторов — одна на всю серию, а не на каждый день
+  const collapseId = item.kind === 'task' ? item.task.id : item.occ.seriesId;
+  const notesKey = collapseKey.taskNotes(collapseId);
+  const listKey = collapseKey.taskList(collapseId);
+  const notesOpen = useCollapsed((st) => st.collapsed[notesKey] !== true);
+  const listOpen = useCollapsed((st) => st.collapsed[listKey] !== true);
+  const toggleCollapsed = useCollapsed((st) => st.toggle);
 
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -77,6 +85,20 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
           <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
         </div>
       )}
+      {data.notes && (
+        <div className={s.clWrap}>
+          <button
+            type="button"
+            className={s.clToggle}
+            aria-expanded={notesOpen}
+            aria-label={`Заметки: ${notesOpen ? 'свернуть' : 'развернуть'}`}
+            onClick={() => toggleCollapsed(notesKey)}
+          >
+            {notesOpen ? '▾' : '▸'} Заметки
+          </button>
+          {notesOpen && <p className={s.noteText}>{data.notes}</p>}
+        </div>
+      )}
       {data.checklist && data.checklist.length > 0 && (
         <div className={s.clWrap}>
           <button
@@ -84,7 +106,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
             className={s.clToggle}
             aria-expanded={listOpen}
             aria-label={`Чек-лист: выполнено ${String(checklistProgress(data.checklist).done)} из ${String(data.checklist.length)}. ${listOpen ? 'Свернуть' : 'Развернуть'}`}
-            onClick={() => setListOpen(!listOpen)}
+            onClick={() => toggleCollapsed(listKey)}
           >
             {listOpen ? '▾' : '▸'} Чек-лист {checklistProgress(data.checklist).done}/{data.checklist.length}
           </button>
