@@ -141,9 +141,10 @@ export async function scheduleTask(task: Task, date: LocalDate | null): Promise<
 }
 
 /** Все невыполненные разовые задачи дня — на следующий день. */
-export async function moveUnfinishedToTomorrow(date: LocalDate): Promise<number> {
+/** Если задан `only`, переносятся только задачи с этими id (например, видимые при фильтре по метке). */
+export async function moveUnfinishedToTomorrow(date: LocalDate, only?: ReadonlySet<string>): Promise<number> {
   const target = addDays(date, 1);
-  const pending = (await taskRepo.byDate(date)).filter((t) => !t.done);
+  const pending = (await taskRepo.byDate(date)).filter((t) => !t.done && (!only || only.has(t.id)));
   let order = await nextOrder(target);
   await taskRepo.bulkPut(
     pending

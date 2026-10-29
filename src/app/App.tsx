@@ -7,6 +7,7 @@ import { HabitsScreen } from '../features/habits/HabitsScreen';
 import { StatsScreen } from '../features/stats/StatsScreen';
 import { ProfileScreen } from '../features/game/ProfileScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { TagScreen } from '../features/tags/TagScreen';
 import { TaskEditor } from '../features/day/TaskEditor';
 import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
@@ -24,6 +25,7 @@ const router = createHashRouter([
       { path: 'stats', element: <StatsScreen /> },
       { path: 'profile', element: <ProfileScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
+      { path: 'tag/:tag', element: <TagScreen /> },
       { path: '*', element: <DayScreen /> },
     ],
   },

@@ -6,6 +6,7 @@ import { Button, Checkbox, PixelIcon, cx } from '../../ui';
 import type { DayItem } from '../../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_SHORT } from './labels';
 import { checklistProgress } from '../../domain/checklist';
+import { normalizeTag } from '../../domain/tags';
 import { collapseKey, useCollapsed } from '../../stores/collapsed';
 
 interface Props {
@@ -18,10 +19,16 @@ interface Props {
   extraIcon?: 'skip' | 'bag';
   /** Отметить / снять пункт чек-листа. */
   onToggleItem?: ((itemId: string) => void) | undefined;
+  /** Нажатие на метку: фильтр по ней. */
+  onTagClick?: ((tag: string) => void) | undefined;
+  /** Выбранные метки-фильтры (подсвечиваем). */
+  activeTags?: readonly string[] | undefined;
+  /** Перетаскивание отключено (например, при фильтре по метке: порядок скрытых задач не должен сбиться). */
+  dragDisabled?: boolean | undefined;
 }
 
-export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false }: Props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
   const data =
     item.kind === 'task'
       ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, notes: item.task.notes, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
@@ -43,9 +50,15 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
 
   return (
     <li ref={setNodeRef} style={style} className={cx(s.item, data.done && s.done, data.missed && s.missed, isDragging && s.dragging)}>
-      <button className={s.grip} {...attributes} {...listeners} aria-label={`Переместить «${data.title}»`}>
-        <PixelIcon name="grip" size={16} />
-      </button>
+      {dragDisabled ? (
+        <span className={s.grip} aria-hidden style={{ cursor: 'default', opacity: 0.25 }}>
+          <PixelIcon name="grip" size={16} />
+        </span>
+      ) : (
+        <button className={s.grip} {...attributes} {...listeners} aria-label={`Переместить «${data.title}»`}>
+          <PixelIcon name="grip" size={16} />
+        </button>
+      )}
       <Checkbox
         checked={data.done}
         onChange={onToggle}
@@ -72,17 +85,34 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
           {data.missed && <span style={{ color: 'var(--c-warn)' }}>пропущено</span>}
           {data.skipped && <span>пропущено вручную</span>}
           {data.postponed > 0 && <span title="Сколько раз переносилась">⏩×{data.postponed}</span>}
-          {data.tags.map((t) => (
-            <span key={t} style={{ color: 'var(--c-backlog)' }}>
-              #{t}
-            </span>
-          ))}
         </span>
       </button>
       {data.time && <span className={s.time}>{data.time}</span>}
       {onExtra && extraIcon && (
         <div className={s.actions}>
           <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
+        </div>
+      )}
+      {data.tags.length > 0 && (
+        <div className={s.clWrap}>
+          <div className={s.tagRow} role="group" aria-label="Метки">
+            {data.tags.map((t) => {
+              const tag = normalizeTag(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={cx(s.tagChip, activeTags.includes(tag) && s.tagActive)}
+                  aria-pressed={activeTags.includes(tag)}
+                  title="Показать задачи с этой меткой"
+                  disabled={!onTagClick}
+                  onClick={() => onTagClick?.(tag)}
+                >
+                  #{tag}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       {data.notes && (

@@ -18,6 +18,8 @@ import { RecurrenceEditor, type RepeatValue } from '../recurring/RecurrenceEdito
 import { ChecklistEditor } from './ChecklistEditor';
 import { EditScopeDialog } from '../recurring/EditScopeDialog';
 import { describeRule } from '../../domain/recurrence';
+import { parseTagInput } from '../../domain/tags';
+import { useTagCounts } from '../../data/hooks';
 import { PRIORITY_LABEL } from './labels';
 
 const PRIORITIES: { value: Priority; label: string }[] = (['low', 'medium', 'high'] as const).map((p) => ({
@@ -81,7 +83,7 @@ function toDraft(f: FormState): TaskDraft {
     title: f.title.trim(),
     date: f.inBacklog ? null : f.date,
     priority: f.priority,
-    tags: f.tags.split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean),
+    tags: parseTagInput(f.tags),
   };
   if (f.extras.includes('notes') && f.notes.trim()) d.notes = f.notes.trim();
   if (f.extras.includes('checklist') && f.checklist.length > 0) d.checklist = f.checklist;
@@ -97,6 +99,10 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
   const [ruleText, setRuleText] = useState<string | null>(null);
   const isOcc = target.kind === 'occurrence';
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
+  // Подсказки: самые используемые метки, которых в этой задаче ещё нет
+  const tagCounts = useTagCounts();
+  const chosen = parseTagInput(f.tags);
+  const suggestions = tagCounts.filter((c) => !chosen.includes(c.tag)).slice(0, 10);
   const setExtras = (extras: Extra[]) =>
     setF((p) => ({
       ...p,
@@ -183,7 +189,22 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
           onChange={(e) => set('reminder', e.target.value)}
         />
       )}
-      <TextInput label="Теги через запятую" value={f.tags} onChange={(e) => set('tags', e.target.value)} placeholder="работа, дом" />
+      <TextInput label="Метки через запятую" value={f.tags} onChange={(e) => set('tags', e.target.value)} placeholder="работа, дом" />
+      {suggestions.length > 0 && (
+        <div role="group" aria-label="Уже используемые метки" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '-6px 0 12px' }}>
+          {suggestions.map(({ tag, count }) => (
+            <button
+              key={tag}
+              type="button"
+              title={`Добавить метку (использована ${String(count)} раз)`}
+              onClick={() => set('tags', [...parseTagInput(f.tags), tag].join(', '))}
+              style={{ minHeight: 28, padding: '0 8px', border: '2px dashed var(--c-backlog)', background: 'transparent', color: 'var(--c-backlog)', font: 'inherit', fontSize: 16, cursor: 'pointer' }}
+            >
+              + #{tag}
+            </button>
+          ))}
+        </div>
+      )}
       <Field label="Добавить к задаче">
         <MultiToggle label="Заметки и чек-лист" values={f.extras} options={EXTRA_OPTIONS} onChange={setExtras} />
       </Field>

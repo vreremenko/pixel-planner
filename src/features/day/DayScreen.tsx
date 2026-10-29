@@ -17,6 +17,7 @@ import { useToday } from '../../app/useToday';
 import { useHotkeys } from '../../app/hotkeys';
 import { useDay } from '../../data/hooks';
 import { diffDays, formatDateLong } from '../../domain/dates';
+import { hasAllTags, tagCounts } from '../../domain/tags';
 import { ProgressBar } from '../../charts/ProgressBar';
 import {
   moveUnfinishedToTomorrow,
@@ -30,11 +31,13 @@ import {
 } from '../../services/tasks';
 import { TaskItem } from './TaskItem';
 import { QuickAdd } from './QuickAdd';
+import { TagBar } from './TagBar';
 import { CalendarPicker } from './CalendarPicker';
 
 const itemId = (it: DayItem) => (it.kind === 'task' ? it.task.id : it.occ.key);
 const itemOrder = (it: DayItem) => (it.kind === 'task' ? it.task.order : it.occ.order);
 const itemTime = (it: DayItem) => (it.kind === 'task' ? it.task.time : it.occ.time) ?? '99:99';
+const itemTags = (it: DayItem) => (it.kind === 'task' ? it.task.tags : it.occ.tags);
 const isDone = (it: DayItem) => (it.kind === 'task' ? it.task.done : it.occ.status === 'done');
 
 function relativeLabel(diff: number): string {
@@ -46,7 +49,7 @@ function relativeLabel(diff: number): string {
 
 export function DayScreen() {
   const todayDate = useToday();
-  const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen } = useUi();
+  const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen, tagFilter, toggleTag, clearTags } = useUi();
   const data = useDay(date, todayDate);
 
   const sorted = useMemo<DayItem[]>(() => {
@@ -94,8 +97,13 @@ export function DayScreen() {
     ),
   );
 
-  const doneCount = items.filter(isDone).length;
-  const pendingTasks = items.filter((x) => x.kind === 'task' && !x.task.done).length;
+  // Метки дня и список с учётом выбранного фильтра
+  const dayTags = useMemo(() => tagCounts(items.map(itemTags)), [items]);
+  const filtering = tagFilter.length > 0;
+  const visible = useMemo(() => (filtering ? items.filter((x) => hasAllTags(itemTags(x), tagFilter)) : items), [items, filtering, tagFilter]);
+
+  const doneCount = visible.filter(isDone).length;
+  const pendingTasks = visible.filter((x) => x.kind === 'task' && !x.task.done).length;
   const diff = diffDays(date, todayDate);
 
   return (
@@ -125,23 +133,30 @@ export function DayScreen() {
               small
               icon="skip"
               onClick={() =>
-                void moveUnfinishedToTomorrow(date).then((n) => toast(`Перенесено на завтра: ${n}`, 'skip', 'var(--c-task)'))
+                // При фильтре переносим только то, что видно на экране
+                void moveUnfinishedToTomorrow(date, filtering ? new Set(visible.flatMap((x) => (x.kind === 'task' ? [x.task.id] : []))) : undefined).then((n) =>
+                  toast(`Перенесено на завтра: ${n}`, 'skip', 'var(--c-task)'),
+                )
               }
             >
-              Перенести на завтра
+              {filtering ? 'Выбранные на завтра' : 'Перенести на завтра'}
             </Button>
           )
         }
       >
-        {items.length > 0 && (
+        {visible.length > 0 && (
           <div className={s.progressRow}>
             <span>
-              {doneCount}/{items.length}
+              {doneCount}/{visible.length}
             </span>
             <div>
-              <ProgressBar value={doneCount / items.length} color="var(--c-task)" label="Выполнено за день" />
+              <ProgressBar value={doneCount / visible.length} color="var(--c-task)" label="Выполнено за день" />
             </div>
           </div>
+        )}
+        <TagBar available={dayTags} selected={tagFilter} onToggle={toggleTag} onClear={clearTags} />
+        {data && items.length > 0 && visible.length === 0 && (
+          <p style={{ color: 'var(--c-text-dim)', textAlign: 'center', padding: '16px 0' }}>На этот день задач с выбранными метками нет.</p>
         )}
         {data && items.length === 0 && (
           <div className="empty" style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '24px 0' }}>
@@ -150,9 +165,9 @@ export function DayScreen() {
           </div>
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={items.map(itemId)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={visible.map(itemId)} strategy={verticalListSortingStrategy}>
             <ul className={s.list} aria-label="Задачи дня">
-              {items.map((it) =>
+              {visible.map((it) =>
                 it.kind === 'task' ? (
                   <TaskItem
                     key={it.task.id}
@@ -160,6 +175,9 @@ export function DayScreen() {
                     item={it}
                     onToggle={(d) => void toggleTask(it.task, d)}
                     onToggleItem={(itemId) => void toggleChecklistItem(it.task, itemId)}
+                    onTagClick={toggleTag}
+                    activeTags={tagFilter}
+                    dragDisabled={filtering}
                     onEdit={() => openEditor({ kind: 'task', task: it.task })}
                     onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в инвентарь', 'bag', 'var(--c-backlog)'))}
                     extraIcon="bag"
@@ -172,6 +190,9 @@ export function DayScreen() {
                     item={it}
                     onToggle={(d) => void toggleOccurrence(it.occ, d)}
                     onToggleItem={(itemId) => void toggleOccurrenceChecklistItem(it.occ, itemId)}
+                    onTagClick={toggleTag}
+                    activeTags={tagFilter}
+                    dragDisabled={filtering}
                     onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
                   />
                 ),

@@ -1,4 +1,5 @@
 import { addDays, addMonths, daysInMonth, makeDate, parseLocalDate, weekday } from './dates';
+import { normalizeTag } from './tags';
 import { REMINDER_OFFSETS } from './types';
 import type {
   LocalDate,
@@ -69,9 +70,6 @@ const PRIORITY_WORDS: Record<string, Priority> = {
 /** Название без вырезанных кусков: лишние пробелы и знаки по краям убираем. */
 const tidy = (s: string) => s.replace(/\s+/g, ' ').trim().replace(/^[\s,;:\-–—]+|[\s,;:\-–—]+$/g, '');
 
-export function normalizeQuickTag(t: string): string {
-  return t.trim().replace(/^#/, '').toLowerCase();
-}
 
 type RepeatSpec =
   | { type: 'daily' }
@@ -214,7 +212,7 @@ export function parseQuickAdd(input: string, todayDate: LocalDate, ignore: Reado
   // 6. Метки #слово (всегда)
   const tags: string[] = [];
   for (const m of work.matchAll(/(?<!\S)#([\p{L}\p{N}_-]+)/gu)) {
-    const t = normalizeQuickTag(m[1] ?? '');
+    const t = normalizeTag(m[1] ?? '');
     if (t && !tags.includes(t)) tags.push(t);
   }
   work = work.replace(/(?<!\S)#[\p{L}\p{N}_-]+/gu, ' ');

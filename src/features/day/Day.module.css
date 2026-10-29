@@ -278,3 +278,30 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Метки под названием задачи */
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tagChip {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 2px solid var(--c-backlog);
+  background: transparent;
+  color: var(--c-backlog);
+  font-family: var(--font-body);
+  font-size: 16px;
+  cursor: pointer;
+}
+.tagChip:hover:not(:disabled) {
+  background: var(--c-panel-3);
+}
+.tagChip:disabled {
+  cursor: default;
+}
+.tagActive {
+  background: var(--c-backlog);
+  color: var(--c-on-accent);
+}

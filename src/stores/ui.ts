@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { addDays, today } from '../domain/dates';
+import { normalizeTag } from '../domain/tags';
 import type { LocalDate, Occurrence, Task } from '../domain/types';
 
 export type EditorTarget =
@@ -17,6 +18,10 @@ interface UiState {
   closeEditor: () => void;
   calendarOpen: boolean;
   setCalendarOpen: (v: boolean) => void;
+  /** Выбранные метки-фильтры экрана дня (сужают список: нужны все выбранные). */
+  tagFilter: string[];
+  toggleTag: (tag: string) => void;
+  clearTags: () => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -29,4 +34,11 @@ export const useUi = create<UiState>((set, get) => ({
   closeEditor: () => set({ editor: null }),
   calendarOpen: false,
   setCalendarOpen: (calendarOpen) => set({ calendarOpen }),
+  tagFilter: [],
+  toggleTag: (tag) => {
+    const t = normalizeTag(tag);
+    const cur = get().tagFilter;
+    set({ tagFilter: cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t] });
+  },
+  clearTags: () => set({ tagFilter: [] }),
 }));

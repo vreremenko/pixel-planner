@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { buildOccurrences } from '../domain/recurrence';
+import { tagCounts, type TagCount } from '../domain/tags';
 import type { Habit, HabitLog, LocalDate, Occurrence, Task } from '../domain/types';
 import {
   achievementRepo,
@@ -63,4 +64,14 @@ export function useUnlocked() {
 
 export function useSeries() {
   return useLiveQuery(() => seriesRepo.all(), []);
+}
+
+/** Все метки из задач и повторяющихся задач со счётчиком — для подсказок в редакторе. */
+export function useTagCounts(): TagCount[] {
+  return (
+    useLiveQuery(async () => {
+      const [tasks, series] = await Promise.all([taskRepo.all(), seriesRepo.all()]);
+      return tagCounts([...tasks.map((t) => t.tags), ...series.map((x) => x.tags)]);
+    }, []) ?? []
+  );
 }

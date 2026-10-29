@@ -11,6 +11,7 @@ import { CalendarPicker } from '../day/CalendarPicker';
 import { PRIORITY_COLOR, PRIORITY_SHORT } from '../day/labels';
 import { addDays, formatDateLong } from '../../domain/dates';
 import { checklistProgress } from '../../domain/checklist';
+import { hasAllTags, normalizeTag, tagCounts } from '../../domain/tags';
 
 type Show = 'open' | 'done' | 'all';
 const PRIO_RANK = { high: 0, medium: 1, low: 2 } as const;
@@ -35,12 +36,13 @@ export function BacklogScreen() {
     ),
   );
 
-  const allTags = useMemo(() => [...new Set((all ?? []).flatMap((t) => t.tags))].sort(), [all]);
+  const allTags = useMemo(() => tagCounts((all ?? []).map((t) => t.tags)), [all]);
+  const toggleTag = (tag: string) => setTags((cur) => (cur.includes(tag) ? cur.filter((x) => x !== tag) : [...cur, tag]));
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (all ?? [])
       .filter((t) => (show === 'all' ? true : show === 'done' ? t.done : !t.done))
-      .filter((t) => tags.every((tag) => t.tags.includes(tag)))
+      .filter((t) => hasAllTags(t.tags, tags))
       .filter((t) => !q || t.title.toLowerCase().includes(q) || (t.notes ?? '').toLowerCase().includes(q) || (t.checklist ?? []).some((c) => c.text.toLowerCase().includes(q)) || t.tags.some((x) => x.toLowerCase().includes(q)))
       .sort((a, b) => PRIO_RANK[a.priority] - PRIO_RANK[b.priority] || b.createdAt - a.createdAt);
   }, [all, query, tags, show]);
@@ -93,15 +95,9 @@ export function BacklogScreen() {
         </div>
         {allTags.length > 0 && (
           <div className={s.tags} role="group" aria-label="Фильтр по тегам">
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className={s.tag}
-                aria-pressed={tags.includes(tag)}
-                onClick={() => setTags(tags.includes(tag) ? tags.filter((x) => x !== tag) : [...tags, tag])}
-              >
-                #{tag}
+            {allTags.map(({ tag, count }) => (
+              <button key={tag} type="button" className={s.tag} aria-pressed={tags.includes(tag)} onClick={() => toggleTag(tag)}>
+                #{tag} <span className="digits">{count}</span>
               </button>
             ))}
             {tags.length > 0 && (
@@ -124,6 +120,7 @@ export function BacklogScreen() {
           {list.map((t) => (
             <li key={t.id} className={cx(s.card, t.done && s.done)} style={{ '--prio': PRIORITY_COLOR[t.priority] } as CSSProperties}>
               <Checkbox checked={t.done} onChange={(d) => void toggleTask(t, d)} label={`Выполнено: ${t.title}`} color="var(--c-backlog)" />
+              <div className={s.cardMain}>
               <button className={s.cardBody} onClick={() => openEditor({ kind: 'task', task: t })} aria-label={`Редактировать «${t.title}»`}>
                 <div className={s.cardTitle}>{t.title}</div>
                 <div className={s.cardMeta}>
@@ -134,13 +131,21 @@ export function BacklogScreen() {
                       {checklistProgress(t.checklist).done}/{t.checklist.length}
                     </span>
                   )}
-                  {t.tags.map((x) => (
-                    <span key={x} style={{ color: 'var(--c-backlog)' }}>
-                      #{x}
-                    </span>
-                  ))}
                 </div>
               </button>
+              {t.tags.length > 0 && (
+                <div className={s.cardTags} role="group" aria-label="Метки">
+                  {t.tags.map((x) => {
+                    const tag = normalizeTag(x);
+                    return (
+                      <button key={x} type="button" className={cx(s.cardTag, tags.includes(tag) && s.cardTagOn)} aria-pressed={tags.includes(tag)} title="Фильтр по метке" onClick={() => toggleTag(tag)}>
+                        #{tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              </div>
               {!t.done && (
                 <div className={s.cardActions}>
                   <Button small variant="ghost" icon="sun" label="На сегодня" onClick={() => void plan(t, todayDate)} />
