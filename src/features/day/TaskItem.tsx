@@ -7,6 +7,7 @@ import type { DayItem } from '../../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_SHORT } from './labels';
 import { checklistProgress } from '../../domain/checklist';
 import { normalizeTag } from '../../domain/tags';
+import { reminderLabel, remindersOf } from '../../domain/reminderSpecs';
 import { collapseKey, useCollapsed } from '../../stores/collapsed';
 
 interface Props {
@@ -31,8 +32,8 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
   const data =
     item.kind === 'task'
-      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminder: item.task.reminder, notes: item.task.notes, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
-      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminder: item.occ.reminder, notes: item.occ.notes, checklist: item.occ.checklist, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
+      ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminders: remindersOf(item.task), notes: item.task.notes, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
+      : { title: item.occ.title, time: item.occ.time, priority: item.occ.priority, done: item.occ.status === 'done', reminders: item.occ.reminders, notes: item.occ.notes, checklist: item.occ.checklist, tags: item.occ.tags, missed: item.occ.status === 'missed', skipped: item.occ.status === 'skipped', postponed: 0 };
 
   // Свёрнутость запоминается на устройстве; у повторов — одна на всю серию, а не на каждый день
   const collapseId = item.kind === 'task' ? item.task.id : item.occ.seriesId;
@@ -76,10 +77,10 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
               <PixelIcon name="repeat" size={16} /> повтор
             </span>
           )}
-          {data.reminder && (
-            <span title="Напоминание">
+          {data.reminders.length > 0 && (
+            <span title={`Напоминания: ${data.reminders.map((r) => reminderLabel(r.offsetMin).toLowerCase()).join(', ')}`}>
               <PixelIcon name="bell" size={16} />
-              {data.reminder.offsetMin ? `−${data.reminder.offsetMin}м` : ''}
+              {data.reminders.length > 1 ? `×${String(data.reminders.length)}` : data.reminders[0]?.offsetMin ? `−${String(data.reminders[0].offsetMin)}м` : ''}
             </span>
           )}
           {data.missed && <span style={{ color: 'var(--c-warn)' }}>пропущено</span>}

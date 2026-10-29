@@ -50,7 +50,7 @@ export function QuickAdd({ date, todayDate }: Props) {
         priority: p.priority ?? 'medium',
         tags: p.tags,
         ...(p.time ? { time: p.time } : {}),
-        ...(p.reminder !== undefined ? { reminder: { offsetMin: p.reminder } } : {}),
+        ...(p.reminder !== undefined ? { reminders: [{ offsetMin: p.reminder }] } : {}),
         ...(p.repeat ? { repeat: p.repeat } : {}),
       });
     } catch {

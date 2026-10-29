@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { loadOccurrences } from '../data/hooks';
-import { seriesRepo, taskRepo, xpRepo } from '../data/repo';
+import { overrideRepo, seriesRepo, taskRepo, xpRepo } from '../data/repo';
+import type { Task } from '../domain/types';
 import {
   createTask,
   deleteOccurrence,
@@ -166,6 +167,64 @@ describe('сервис задач', () => {
       expect(days.map((d) => d.checklist?.map((i) => i.text))).toEqual([['старый'], ['новый', 'второй'], ['новый', 'второй']]);
       expect(days[1]?.checklist?.map((i) => i.done)).toEqual([true, false]);
       expect(days[2]?.checklist?.map((i) => i.done)).toEqual([false, false]);
+    });
+  });
+
+  describe('несколько напоминаний', () => {
+    const rem = (...o: number[]) => o.map((offsetMin) => ({ offsetMin })) as TaskDraft['reminders'];
+
+    it('сохраняются без повторов, по убыванию, не больше пяти; без времени — не сохраняются', async () => {
+      await createTask(draft({ repeat: undefined, time: '10:00', reminders: rem(5, 60, 15, 5, 7) }));
+      const [t] = await taskRepo.all();
+      expect(t?.reminders?.map((r) => r.offsetMin)).toEqual([60, 15, 5]);
+      expect(t).not.toHaveProperty('reminder');
+
+      await Promise.all(db.tables.map((x) => x.clear()));
+      await createTask(draft({ repeat: undefined, reminders: rem(15) }));
+      expect((await taskRepo.all())[0]?.reminders).toBeUndefined();
+    });
+
+    it('правка заменяет список и убирает старое поле reminder', async () => {
+      await createTask(draft({ repeat: undefined, time: '10:00', reminders: rem(15) }));
+      const [t] = await taskRepo.all();
+      // «Старая» задача с одним полем reminder
+      const { reminders: _dropped, ...rest } = t!;
+      const legacy: Task = { ...rest, reminder: { offsetMin: 30 } };
+      await taskRepo.put(legacy);
+      await updateTask(legacy, draft({ repeat: undefined, time: '10:00', reminders: rem(60, 0) }));
+      const [t2] = await taskRepo.all();
+      expect(t2?.reminders?.map((r) => r.offsetMin)).toEqual([60, 0]);
+      expect(t2).not.toHaveProperty('reminder');
+      // убрали все
+      await updateTask(t2!, draft({ repeat: undefined, time: '10:00' }));
+      expect((await taskRepo.all())[0]?.reminders).toBeUndefined();
+    });
+
+    it('повторяющаяся: у экземпляров напоминания серии; «только эта» меняет только один день', async () => {
+      await createTask(draft({ time: '07:00', reminders: rem(15, 5) }));
+      const [d2] = await occ('2026-01-02', '2026-01-02');
+      await editOccurrence(d2!, draft({ date: '2026-01-02', time: '07:00', reminders: rem(60) }), 'this');
+      const days = await occ('2026-01-01', '2026-01-03');
+      expect(days.map((d) => d.reminders.map((r) => r.offsetMin))).toEqual([[15, 5], [60], [15, 5]]);
+    });
+
+    it('«только эта» без напоминаний убирает их у этого дня', async () => {
+      await createTask(draft({ time: '07:00', reminders: rem(15) }));
+      const [d2] = await occ('2026-01-02', '2026-01-02');
+      await editOccurrence(d2!, draft({ date: '2026-01-02', time: '07:00' }), 'this');
+      expect((await occ('2026-01-01', '2026-01-03')).map((d) => d.reminders.length)).toEqual([1, 0, 1]);
+    });
+
+    it('старые данные: серия с полем reminder и старая правка patch.reminder читаются', async () => {
+      await createTask(draft({ time: '07:00' }));
+      const [series] = await seriesRepo.all();
+      await seriesRepo.put({ ...series!, reminder: { offsetMin: 30 } });
+      expect((await occ('2026-01-01', '2026-01-01'))[0]?.reminders.map((r) => r.offsetMin)).toEqual([30]);
+      await overrideRepo.put({
+        id: `${series!.id}:2026-01-01`, seriesId: series!.id, date: '2026-01-01', createdAt: 0, updatedAt: 0,
+        patch: { reminder: { offsetMin: 5 } },
+      });
+      expect((await occ('2026-01-01', '2026-01-01'))[0]?.reminders.map((r) => r.offsetMin)).toEqual([5]);
     });
   });
 });

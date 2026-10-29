@@ -1,4 +1,5 @@
 import { addDays, dateOf, minutesOf, rangeDates, timeOf, toInstant } from './dates';
+import { remindersOf } from './reminderSpecs';
 import { isScheduled } from './streaks';
 import type {
   Habit,
@@ -75,29 +76,34 @@ export function planReminders(input: ReminderInput): PlannedReminder[] {
     }
   };
 
+  // Каждое напоминание — отдельное уведомление; ключ включает отступ, поэтому они не мешают друг другу
   for (const t of input.tasks) {
-    if (t.deletedAt || t.done || !t.date || !t.time || !t.reminder) continue;
-    push({
-      key: `task:${t.id}:${t.date}T${t.time}-${t.reminder.offsetMin}`,
-      kind: 'task',
-      ref: t.id,
-      date: t.date,
-      at: reminderInstant(t.date, t.time, t.reminder),
-      title: t.title,
-      body: offsetText(t.reminder, t.time),
-    });
+    if (t.deletedAt || t.done || !t.date || !t.time) continue;
+    for (const spec of remindersOf(t)) {
+      push({
+        key: `task:${t.id}:${t.date}T${t.time}-${String(spec.offsetMin)}`,
+        kind: 'task',
+        ref: t.id,
+        date: t.date,
+        at: reminderInstant(t.date, t.time, spec),
+        title: t.title,
+        body: offsetText(spec, t.time),
+      });
+    }
   }
   for (const o of input.occurrences) {
-    if (o.status !== 'pending' || !o.time || !o.reminder) continue;
-    push({
-      key: `occ:${o.key}:${o.date}T${o.time}-${o.reminder.offsetMin}`,
-      kind: 'occurrence',
-      ref: o.key,
-      date: o.date,
-      at: reminderInstant(o.date, o.time, o.reminder),
-      title: `↻ ${o.title}`,
-      body: offsetText(o.reminder, o.time),
-    });
+    if (o.status !== 'pending' || !o.time) continue;
+    for (const spec of o.reminders) {
+      push({
+        key: `occ:${o.key}:${o.date}T${o.time}-${String(spec.offsetMin)}`,
+        kind: 'occurrence',
+        ref: o.key,
+        date: o.date,
+        at: reminderInstant(o.date, o.time, spec),
+        title: `↻ ${o.title}`,
+        body: offsetText(spec, o.time),
+      });
+    }
   }
   // Привычки и сводка: перебираем даты окна (с запасом в день для тихих часов).
   const dates = rangeDates(addDays(dateOf(from), -1), dateOf(to));

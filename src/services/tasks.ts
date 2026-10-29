@@ -16,6 +16,7 @@ import type {
 } from '../domain/types';
 import { XP_OCCURRENCE, XP_TASK } from '../domain/xp';
 import { checkedIds, cleanChecklist, stripDone, toggleItem } from '../domain/checklist';
+import { normalizeReminders } from '../domain/reminderSpecs';
 import { metaRepo, overrideRepo, seriesRepo, stamp, taskRepo } from '../data/repo';
 import { db } from '../data/db';
 import { awardXp, checkAchievements, revokeXp } from './game';
@@ -30,7 +31,8 @@ export interface TaskDraft {
   time?: LocalTime;
   priority: Priority;
   tags: string[];
-  reminder?: ReminderSpec;
+  /** Напоминания (нужно время); повторы и недопустимые значения при сохранении отбрасываются. */
+  reminders?: ReminderSpec[];
   /** Если задано — задача повторяющаяся (start = date). */
   repeat?: { pattern: RecurrencePattern; end: RecurrenceEnd };
 }
@@ -55,6 +57,8 @@ function ruleFrom(draft: TaskDraft, start: LocalDate): RecurrenceRule {
 /** forSeries: шаблон серии — пункты без отметок (они хранятся по дням). */
 function seriesFields(draft: TaskDraft, forSeries = false) {
   const checklist = cleanChecklist(draft.checklist);
+  // Напоминания «за N минут» привязаны ко времени задачи; без времени их нет
+  const reminders = draft.time ? normalizeReminders(draft.reminders) : [];
   return optional({
     title: draft.title.trim(),
     notes: draft.notes?.trim() || undefined,
@@ -62,7 +66,7 @@ function seriesFields(draft: TaskDraft, forSeries = false) {
     time: draft.time || undefined,
     priority: draft.priority,
     tags: draft.tags,
-    reminder: draft.time ? draft.reminder : undefined,
+    reminders: reminders.length > 0 ? reminders : undefined,
   });
 }
 
@@ -96,7 +100,7 @@ export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
     return;
   }
   const moved = draft.date !== task.date;
-  const { notes: _n, checklist: _c, time: _t, reminder: _r, ...rest } = task;
+  const { notes: _n, checklist: _c, time: _t, reminder: _r, reminders: _rs, ...rest } = task;
   await taskRepo.put({
     ...rest,
     ...seriesFields(draft),
@@ -219,9 +223,10 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
       priority: f.priority,
       notes: f.notes ?? '', // пустая строка — «в этот день без заметок»
     };
-    // undefined в patch.time/reminder означает «убрать» — храним явно через ключ
+    // undefined в patch.time означает «убрать» — храним явно через ключ
     (patch as Record<string, unknown>).time = f.time;
-    (patch as Record<string, unknown>).reminder = f.reminder;
+    // Напоминания: пустой массив — «в этот день без напоминаний» (шаблон серии не применяется)
+    patch.reminders = f.reminders ?? [];
     // Чек-лист: пустой массив — «в этот день пунктов нет» (шаблон серии не применяется)
     const items = f.checklist ?? [];
     patch.checklist = stripDone(items);
