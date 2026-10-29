@@ -12,6 +12,8 @@ import { play } from '../../services/sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
+import { SyncPanel } from '../sync/SyncPanel';
+import { markEverythingDirty } from '../../sync/manager';
 
 function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
   return (
@@ -281,6 +283,7 @@ function DataPanel() {
     const n = await importBackup(pending, mode);
     setPending(null);
     await useSettings.getState().load();
+    void markEverythingDirty();
     toast(`Импортировано записей: ${n}`, 'upload', 'var(--c-habit)');
   };
 
@@ -313,7 +316,7 @@ function DataPanel() {
       >
         <p style={{ marginTop: 0 }}>Копия от {pending ? new Date(pending.exportedAt).toLocaleString('ru-RU') : ''}.</p>
         <p>
-          <b>Слить</b> — добавить записи из файла, при конфликте победит более свежая. <b>Заменить всё</b> — текущие данные будут удалены.
+          <b>Слить</b> — добавить записи из файла, при конфликте победит более свежая. <b>Заменить всё</b> — текущие данные будут удалены (при включённой синхронизации они вернутся с сервера).
         </p>
       </Modal>
     </Panel>
@@ -343,6 +346,7 @@ export function SettingsScreen() {
           />
           <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
         </Panel>
+        <SyncPanel />
         <DataPanel />
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (

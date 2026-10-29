@@ -12,6 +12,7 @@ import { TaskEditor } from '../features/day/TaskEditor';
 import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
 import { startNotifications } from '../features/notifications/scheduler';
+import { startSync } from '../sync/manager';
 import { WhatsNew } from '../features/whatsnew/WhatsNew';
 
 const router = createHashRouter([
@@ -37,6 +38,7 @@ export function App() {
     document.body.classList.toggle('crt', crt);
   }, [crt]);
   useEffect(() => startNotifications(), []);
+  useEffect(() => startSync(), []);
   return (
     <>
       <RouterProvider router={router} />
