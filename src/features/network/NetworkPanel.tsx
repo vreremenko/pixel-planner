@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Button, Panel, TextInput, rowClass, toast } from '../../ui';
-import { apiUrl, defaultApiBase, getApiOverride, setApiOverride } from '../../apiBase';
+import { Button, Panel, rowClass } from '../../ui';
+import { apiUrl } from '../../apiBase';
 import { probe, probeBody, verdict, type ProbeResult, type ProbeTarget } from './probe';
 
 const TARGETS = (): ProbeTarget[] => [
@@ -8,8 +8,6 @@ const TARGETS = (): ProbeTarget[] => [
   { id: 'api8', label: 'Сервер приложения: ответ 8 КБ', url: apiUrl('ping?kb=8'), body: true },
   { id: 'api64', label: 'Сервер приложения: ответ 64 КБ', url: apiUrl('ping?kb=64'), body: true },
   { id: 'cf', label: 'Cloudflare (workers.dev)', url: 'https://pixel-planner.pixel-planner.workers.dev/api/config' },
-  { id: 'yc-fn', label: 'Yandex Cloud Functions', url: 'https://functions.yandexcloud.net/' },
-  { id: 'yc-st', label: 'Yandex Object Storage', url: 'https://storage.yandexcloud.net/' },
   { id: 'gh', label: 'GitHub Pages (само приложение)', url: 'https://vreremenko.github.io/pixel-planner/version.json' },
 ];
 
@@ -20,8 +18,6 @@ const COLOR = { fast: 'var(--c-habit)', slow: 'var(--c-xp)', down: 'var(--c-warn
 export function NetworkPanel() {
   const [results, setResults] = useState<Record<string, ProbeResult>>({});
   const [busy, setBusy] = useState(false);
-  const [override, setOverride] = useState(getApiOverride() ?? '');
-  const active = getApiOverride();
 
   const run = async () => {
     setBusy(true);
@@ -33,16 +29,6 @@ export function NetworkPanel() {
       }),
     );
     setBusy(false);
-  };
-
-  const save = () => {
-    const v = override.trim();
-    if (v && !/^https:\/\/\S+$/.test(v)) {
-      toast('Адрес должен начинаться с https://', 'alert', 'var(--c-warn)');
-      return;
-    }
-    setApiOverride(v ? (v.endsWith('/') ? v : `${v}/`) : null);
-    toast(v ? 'Сервер изменён. Перезапустите приложение.' : 'Вернули сервер по умолчанию. Перезапустите приложение.', 'check', 'var(--c-habit)');
   };
 
   return (
@@ -70,17 +56,6 @@ export function NetworkPanel() {
           })}
         </ul>
       )}
-      <details style={{ marginTop: 16 }}>
-        <summary style={{ cursor: 'pointer', color: 'var(--c-text-dim)' }}>Другой сервер (для проверки)</summary>
-        <p style={{ color: 'var(--c-text-dim)', fontSize: 17 }}>
-          Сейчас: {active ?? defaultApiBase()}
-          {active ? ' (изменён вручную)' : ' (по умолчанию)'}. Пустое поле — вернуть по умолчанию.
-        </p>
-        <TextInput label="Адрес сервера" value={override} onChange={(e) => setOverride(e.target.value)} placeholder="https://…" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
-        <Button small onClick={save}>
-          Сохранить
-        </Button>
-      </details>
     </Panel>
   );
 }
