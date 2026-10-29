@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
 
 /** Камера + поиск QR-кода в кадре. Вызывает onText для каждого найденного кода (повторы фильтрует вызывающий). */
 export function QrScanner({ onText }: { onText: (text: string) => void }) {
@@ -26,7 +27,6 @@ export function QrScanner({ onText }: { onText: (text: string) => void }) {
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Камера не ответила за 15 секунд')), 15_000)),
       ]);
       stream = s;
-      const { default: jsQR } = await import('jsqr');
       if (stopped) {
         for (const t of s.getTracks()) t.stop();
         return;

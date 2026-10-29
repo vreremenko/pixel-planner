@@ -1,6 +1,7 @@
+import jsQR from 'jsqr';
+
 /** Найти QR-код на фотографии (запасной путь, когда живая камера не включается). Возвращает текст или null. */
 export async function decodeQrFromFile(file: File): Promise<string | null> {
-  const { default: jsQR } = await import('jsqr');
   const bitmap = await createImageBitmap(file);
   try {
     const canvas = document.createElement('canvas');
