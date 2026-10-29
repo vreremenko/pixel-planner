@@ -36,19 +36,31 @@ export function QuickAdd({ date, todayDate }: Props) {
 
   const submit = async () => {
     if (text.trim() === '') return;
-    const target = parsed.date ?? date;
-    await createTask({
-      title: parsed.title,
-      date: target,
-      priority: parsed.priority ?? 'medium',
-      tags: parsed.tags,
-      ...(parsed.time ? { time: parsed.time } : {}),
-      ...(parsed.reminder !== undefined ? { reminder: { offsetMin: parsed.reminder } } : {}),
-      ...(parsed.repeat ? { repeat: parsed.repeat } : {}),
-    });
+    // Поле очищаем сразу, до записи в базу: пока она идёт (на телефоне — заметное время),
+    // пользователь уже может печатать следующую задачу, и тексты не должны склеиться.
+    const sent = { text, ignored };
+    const p = parsed;
     setText('');
     setIgnored(new Set());
-    if (parsed.repeat) toast(`Повтор создан: ${describeRule({ ...parsed.repeat.pattern, start: target, end: parsed.repeat.end })}`, 'repeat', 'var(--c-task)');
+    const target = p.date ?? date;
+    try {
+      await createTask({
+        title: p.title,
+        date: target,
+        priority: p.priority ?? 'medium',
+        tags: p.tags,
+        ...(p.time ? { time: p.time } : {}),
+        ...(p.reminder !== undefined ? { reminder: { offsetMin: p.reminder } } : {}),
+        ...(p.repeat ? { repeat: p.repeat } : {}),
+      });
+    } catch {
+      // Не удалось сохранить — возвращаем текст, если поле ещё пустое
+      setText((cur) => (cur === '' ? sent.text : cur));
+      setIgnored(sent.ignored);
+      toast('Не удалось добавить задачу', 'alert', 'var(--c-warn)');
+      return;
+    }
+    if (p.repeat) toast(`Повтор создан: ${describeRule({ ...p.repeat.pattern, start: target, end: p.repeat.end })}`, 'repeat', 'var(--c-task)');
     else if (target !== date) toast(`Добавлено: ${formatDateLong(target)}`, 'calendar', 'var(--c-task)');
   };
 
