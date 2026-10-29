@@ -48,7 +48,3 @@ export async function snoozeReminder(key: string): Promise<void> {
   if (!log) return;
   await reminderLogRepo.put({ ...log, snoozedUntil: Date.now() + SNOOZE_MS, acknowledged: true });
 }
-
-export async function acknowledge(key: string): Promise<void> {
-  await reminderLogRepo.acknowledge([key]);
-}

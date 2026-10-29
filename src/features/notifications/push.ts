@@ -1,7 +1,7 @@
 /*
  * Этап Б: Web Push. Устройство подписывается через PushManager, а на сервер уходит
  * только расписание напоминаний на ближайшие дни (ключ, момент, текст) — не вся база.
- * Сервер (Cloudflare Worker) по cron присылает push, даже когда приложение закрыто.
+ * Сервер по расписанию присылает push, даже когда приложение закрыто.
  */
 import { metaRepo } from '../../data/repo';
 import type { PlannedReminder } from '../../domain/reminders';
@@ -135,16 +135,12 @@ export function forceNextSync(): void {
   lastSent = '';
 }
 
-/** Отправить расписание на сервер (если не изменилось — ничего не делает). */
+/** Результат последней отправки расписания (показывается в настройках). */
 export interface SyncStatus {
   at: number;
   ok: boolean;
   count: number;
   error?: string;
-}
-
-export async function getSyncStatus(): Promise<SyncStatus | undefined> {
-  return metaRepo.get<SyncStatus>('pushSync');
 }
 
 async function putSchedule(url: string, body: string): Promise<Response> {

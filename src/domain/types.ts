@@ -79,7 +79,7 @@ export interface RecurringSeries extends SyncMeta {
   splitFromId?: string;
 }
 
-export type OccurrencePatch = Partial<
+type OccurrencePatch = Partial<
   Pick<RecurringSeries, 'title' | 'notes' | 'checklist' | 'time' | 'priority' | 'reminder' | 'reminders'>
 >;
 
@@ -98,7 +98,7 @@ export interface OccurrenceOverride extends SyncMeta {
   checked?: string[];
 }
 
-export type OccurrenceStatus = 'pending' | 'done' | 'skipped' | 'missed';
+type OccurrenceStatus = 'pending' | 'done' | 'skipped' | 'missed';
 
 /** Экземпляр серии на конкретную дату — генерируется на лету, не хранится. */
 export interface Occurrence {

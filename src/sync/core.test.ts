@@ -131,14 +131,14 @@ describe('синхронизация двух устройств', () => {
 describe('chunkRecords', () => {
   const rec = (n: number, size: number): WireRecord => ({ t: 'tasks', id: String(n), u: n, d: 'x'.repeat(size) });
   it('делит по размеру и не теряет записи', () => {
-    const recs = Array.from({ length: 10 }, (_, i) => rec(i, 3000));
+    const recs = Array.from({ length: 30 }, (_, i) => rec(i, 20_000));
     const chunks = chunkRecords(recs);
-    expect(chunks.flat()).toHaveLength(10);
-    expect(chunks.every((c) => c.reduce((a, r) => a + r.d.length, 0) <= 9000)).toBe(true);
-    expect(chunks.length).toBeGreaterThan(2);
+    expect(chunks.flat()).toHaveLength(30);
+    expect(chunks.every((c) => c.reduce((a, r) => a + r.d.length, 0) <= 400_000)).toBe(true);
+    expect(chunks.length).toBeGreaterThan(1);
   });
   it('запись крупнее лимита уходит отдельной пачкой', () => {
-    const chunks = chunkRecords([rec(1, 100), rec(2, 20_000), rec(3, 100)]);
+    const chunks = chunkRecords([rec(1, 100), rec(2, 500_000), rec(3, 100)]);
     expect(chunks.map((c) => c.length)).toEqual([1, 1, 1]);
   });
   it('делит и по числу записей', () => {

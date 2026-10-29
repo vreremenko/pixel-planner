@@ -15,14 +15,6 @@ export function parseLocalDate(d: LocalDate): { y: number; m: number; day: numbe
   return { y, m, day };
 }
 
-export function isLocalDate(s: unknown): s is LocalDate {
-  return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-
-export function isLocalTime(s: unknown): s is LocalTime {
-  return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
-}
-
 function toUtcMs(d: LocalDate): number {
   const { y, m, day } = parseLocalDate(d);
   return Date.UTC(y, m - 1, day);
@@ -57,10 +49,6 @@ export function addDays(d: LocalDate, n: number): LocalDate {
 
 export function diffDays(a: LocalDate, b: LocalDate): number {
   return Math.round((toUtcMs(a) - toUtcMs(b)) / DAY_MS);
-}
-
-export function compareDates(a: LocalDate, b: LocalDate): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** 0 = Пн … 6 = Вс */
@@ -101,7 +89,7 @@ export function rangeDates(from: LocalDate, to: LocalDate): LocalDate[] {
   return out;
 }
 
-export function parseTime(t: LocalTime): { h: number; min: number } {
+function parseTime(t: LocalTime): { h: number; min: number } {
   const [h, min] = t.split(':').map(Number);
   return { h: h ?? 0, min: min ?? 0 };
 }
@@ -137,7 +125,7 @@ export const MONTHS = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
 ];
 export const WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-export const WEEKDAYS_FULL = [
+const WEEKDAYS_FULL = [
   'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье',
 ];
 

@@ -34,7 +34,7 @@ export async function revokeXp(source: XpSource, refKey: string) {
   await xpRepo.revoke(xpEventId(source, refKey));
 }
 
-export async function buildAchievementContext(): Promise<AchievementContext> {
+async function buildAchievementContext(): Promise<AchievementContext> {
   const [tasks, habits, logs, total] = await Promise.all([
     taskRepo.all(),
     habitRepo.all(),

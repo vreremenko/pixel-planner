@@ -2,7 +2,7 @@
 # Установка/обновление сервера PIXEL PLANNER на VPS с Ubuntu (Node.js 22 уже стоит в /opt/node).
 #   HOST=92.63.103.91 bash server-node/deploy.sh
 # Переменные: HOST (обязательно), DOMAIN (адрес для HTTPS через Caddy; по умолчанию <ip>.sslip.io),
-# KEY (ключ SSH, по умолчанию ~/.ssh/pp_selectel), ENV_FILE (файл с ключами VAPID).
+# KEY (ключ SSH, по умолчанию ~/.ssh/pp_selectel), ENV_FILE (файл с ключами VAPID, по умолчанию server-node/.env.vps).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,7 +10,7 @@ HOST="${HOST:?нужен HOST}"
 # Без своего домена берём адрес вида 92-63-103-91.sslip.io: он указывает на IP, и для него выдаётся настоящий сертификат
 DOMAIN="${DOMAIN:-${HOST//./-}.sslip.io}"
 KEY="${KEY:-$HOME/.ssh/pp_selectel}"
-ENV_FILE="${ENV_FILE:-server-deno/.env.deno}"
+ENV_FILE="${ENV_FILE:-server-node/.env.vps}"
 ORIGINS="${ALLOWED_ORIGINS:-https://vreremenko.github.io}"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "root@$HOST")
 

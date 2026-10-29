@@ -2,7 +2,7 @@ import type { Priority } from './types';
 
 export const XP_TASK: Record<Priority, number> = { low: 10, medium: 20, high: 30 };
 export const XP_OCCURRENCE = 15;
-export const XP_HABIT = 15;
+const XP_HABIT = 15;
 export const XP_ACHIEVEMENT = 50;
 
 /** Бонус за стрик привычки: +2 XP за каждый день ряда, максимум +20. */

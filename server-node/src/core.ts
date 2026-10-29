@@ -27,9 +27,9 @@ const MAX_ITEMS = 500;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
-/** Ответ синхронизации не больше ~10 КБ: провайдеры в России режут крупные ответы. */
-const MAX_SYNC_PULL = 40;
-const MAX_SYNC_PULL_BYTES = 10_000;
+/** За один запрос отдаём не больше 300 записей и ~500 КБ; остальное клиент заберёт следующим запросом (`more`). */
+const MAX_SYNC_PULL = 300;
+const MAX_SYNC_PULL_BYTES = 500_000;
 const STALE_MS = 6 * 3_600_000;
 const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements']);
 const SYNC_KEY = /^[A-Za-z0-9_-]{43}$/;
@@ -116,7 +116,7 @@ async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
   throw new HttpError(405, 'method not allowed');
 }
 
-export async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown): Promise<{ status: number; detail: string }> {
+async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown): Promise<{ status: number; detail: string }> {
   const vapid = { subject: env.VAPID_SUBJECT ?? '', publicKey: env.VAPID_PUBLIC_KEY ?? '', privateKey: env.VAPID_PRIVATE_KEY ?? '' };
   const subscription: PushSubscription = { endpoint: to.endpoint, expirationTime: null, keys: { p256dh: to.p256dh, auth: to.auth } };
   const payload = await buildPushPayload({ data: JSON.stringify(data), options: { ttl: 3600, urgency: 'high' } }, subscription, vapid);
@@ -133,10 +133,6 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
 
   if (req.method === 'GET' && parts[0] === 'config') {
     return json({ vapidPublicKey: d.env.VAPID_PUBLIC_KEY, push: Boolean(d.env.VAPID_PUBLIC_KEY && d.env.VAPID_PRIVATE_KEY) });
-  }
-  if (req.method === 'GET' && parts[0] === 'ping') {
-    const kb = Math.min(256, Math.max(0, Math.floor(Number(req.query.kb ?? 1)) || 0));
-    return { status: 200, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' }, body: 'x'.repeat(kb * 1024) };
   }
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
 

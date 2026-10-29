@@ -46,16 +46,3 @@ export class PlannerDB extends Dexie {
 }
 
 export const db = new PlannerDB();
-
-export const SYNC_TABLES = [
-  'tasks',
-  'series',
-  'overrides',
-  'habits',
-  'habitLogs',
-  'xp',
-  'achievements',
-  'reminderLogs',
-  'settings',
-] as const;
-export type SyncTable = (typeof SYNC_TABLES)[number];

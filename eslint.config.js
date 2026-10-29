@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist', 'node_modules', '.wrangler'] },
+  { ignores: ['dist', 'dev-dist', 'node_modules', 'server-node/dist', '.dev-data'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
     files: ['src/**/*.{ts,tsx}'],
@@ -26,21 +26,6 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
-    files: ['server/src/**/*.ts'],
-    languageOptions: {
-      parserOptions: { project: ['./tsconfig.server.json'], tsconfigRootDir: import.meta.dirname },
-    },
-  },
-  {
-    extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
-    files: ['server-netlify/src/**/*.ts', 'server-netlify/netlify/functions/*.ts'],
-    languageOptions: {
-      parserOptions: { project: ['./tsconfig.netlify.json'], tsconfigRootDir: import.meta.dirname },
-    },
-    rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
-  },
-  {
-    extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
     files: ['server-node/src/**/*.ts'],
     languageOptions: {
       parserOptions: { project: ['./tsconfig.node-server.json'], tsconfigRootDir: import.meta.dirname },
@@ -48,7 +33,7 @@ export default tseslint.config(
     rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
   },
   {
-    files: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
+    files: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 );

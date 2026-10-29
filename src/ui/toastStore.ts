@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { IconName } from './icons';
 
-export interface Toast {
+interface Toast {
   id: number;
   text: string;
   icon: IconName;

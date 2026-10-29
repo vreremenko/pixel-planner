@@ -5,15 +5,7 @@ dev-dist
 .env.local
 *.log
 .DS_Store
-.dev.vars
-.wrangler
 .claude
-
-# Local Netlify folder
-.netlify
-.netlify
-server-netlify/.env.netlify
-server-deno/.env.deno
-server-deno/.env.netlify
 server-node/dist
 server-node/.env.vps
+.dev-data

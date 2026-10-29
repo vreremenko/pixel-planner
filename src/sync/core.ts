@@ -38,9 +38,9 @@ export interface Transport {
   push(records: WireRecord[]): Promise<void>;
 }
 
-export const PUSH_CHUNK = 250;
-/** Запрос с отправкой не больше ~9 КБ: крупные запросы и ответы на российских провайдерах зависают. */
-export const PUSH_CHUNK_BYTES = 9_000;
+const PUSH_CHUNK = 250;
+/** Тело запроса не больше ~400 КБ (сервер принимает до 900 КБ). */
+const PUSH_CHUNK_BYTES = 400_000;
 
 /** Разбить записи на пачки по числу и по размеру; запись крупнее лимита уходит одна. */
 export function chunkRecords(records: WireRecord[], maxCount = PUSH_CHUNK, maxBytes = PUSH_CHUNK_BYTES): WireRecord[][] {
@@ -59,7 +59,7 @@ export function chunkRecords(records: WireRecord[], maxCount = PUSH_CHUNK, maxBy
   if (cur.length > 0) out.push(cur);
   return out;
 }
-export const KEY_PREFIX = 'pixelplanner-sync:';
+const KEY_PREFIX = 'pixelplanner-sync:';
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 
 export const isValidKey = (k: string): boolean => KEY_RE.test(k);

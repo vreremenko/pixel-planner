@@ -1,20 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, Checkbox, Modal, Panel, TextInput, rowClass, toast } from '../../ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Button, Checkbox, Panel, TextInput, rowClass, toast } from '../../ui';
 import { useSettings } from '../../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
 import { flushPush, testNotification, tick } from '../notifications/scheduler';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { metaRepo } from '../../data/repo';
 import { disablePush, enablePush, forceNextSync, getPushState, type SyncStatus, getServerKey, isIos as detectIos, isStandalone, pushSupported, pushUnavailableReason, testPush } from '../notifications/push';
-import { exportAll, importBackup, parseBackup, type Backup } from '../../data/backup';
-import { today } from '../../domain/dates';
 import { play } from '../../services/sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { SyncPanel } from '../sync/SyncPanel';
-import { NetworkPanel } from '../network/NetworkPanel';
-import { markEverythingDirty } from '../../sync/manager';
 import { fs } from '../../ui/fs';
 
 function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
@@ -254,77 +250,6 @@ function NotificationsPanel() {
   );
 }
 
-function DataPanel() {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [pending, setPending] = useState<Backup | null>(null);
-
-  const doExport = async () => {
-    const data = await exportAll();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pixel-planner-${today()}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Резервная копия сохранена', 'download', 'var(--c-habit)');
-  };
-
-  const onFile = async (f: File | undefined) => {
-    if (!f) return;
-    try {
-      setPending(parseBackup(await f.text()));
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Не удалось прочитать файл', 'alert', 'var(--c-warn)');
-    }
-    if (fileRef.current) fileRef.current.value = '';
-  };
-
-  const doImport = async (mode: 'replace' | 'merge') => {
-    if (!pending) return;
-    const n = await importBackup(pending, mode);
-    setPending(null);
-    await useSettings.getState().load();
-    void markEverythingDirty();
-    toast(`Импортировано записей: ${n}`, 'upload', 'var(--c-habit)');
-  };
-
-  return (
-    <Panel title="Сохранения" icon="chest" accent="var(--c-habit)">
-      <p style={{ marginTop: 0, color: 'var(--c-text-dim)' }}>Все данные хранятся только в этом браузере. Делайте резервную копию в JSON.</p>
-      <div className={rowClass}>
-        <Button variant="habit" icon="download" onClick={() => void doExport()}>
-          Экспорт JSON
-        </Button>
-        <Button icon="upload" onClick={() => fileRef.current?.click()}>
-          Импорт JSON
-        </Button>
-        <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
-      </div>
-      <Modal
-        open={pending !== null}
-        onClose={() => setPending(null)}
-        title="Загрузить сохранение?"
-        accent="var(--c-warn)"
-        footer={
-          <>
-            <Button onClick={() => setPending(null)}>Отмена</Button>
-            <Button onClick={() => void doImport('merge')}>Слить</Button>
-            <Button variant="danger" onClick={() => void doImport('replace')}>
-              Заменить всё
-            </Button>
-          </>
-        }
-      >
-        <p style={{ marginTop: 0 }}>Копия от {pending ? new Date(pending.exportedAt).toLocaleString('ru-RU') : ''}.</p>
-        <p>
-          <b>Слить</b> — добавить записи из файла, при конфликте победит более свежая. <b>Заменить всё</b> — текущие данные будут удалены (при включённой синхронизации они вернутся с сервера).
-        </p>
-      </Modal>
-    </Panel>
-  );
-}
-
 export function SettingsScreen() {
   const { settings, update } = useSettings();
   const install = useInstallPrompt();
@@ -349,8 +274,6 @@ export function SettingsScreen() {
           <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
         </Panel>
         <SyncPanel />
-        <NetworkPanel />
-        <DataPanel />
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (
             <p style={{ marginTop: 0 }}>

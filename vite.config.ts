@@ -48,11 +48,11 @@ export default defineConfig({
       },
     }),
   ],
-  // В разработке API отдаёт `npx wrangler dev` (порт 8787)
+  // В разработке API отдаёт локальный сервер: `npm run dev:api` (порт 8787)
   server: { proxy: { '/api': 'http://localhost:8787' } },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts', 'server-netlify/src/core.test.ts'],
+    include: ['src/**/*.test.ts', 'server-node/src/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
   },
 });

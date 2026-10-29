@@ -10,7 +10,7 @@ import type {
 } from './types';
 
 /** Подходит ли дата под шаблон правила (без учёта окончания и count). */
-export function matchesPattern(rule: RecurrenceRule, d: LocalDate): boolean {
+function matchesPattern(rule: RecurrenceRule, d: LocalDate): boolean {
   if (d < rule.start) return false;
   switch (rule.freq) {
     case 'daily':
@@ -63,7 +63,7 @@ export function expandRule(rule: RecurrenceRule, from: LocalDate, to: LocalDate)
   return out;
 }
 
-export function occursOn(rule: RecurrenceRule, d: LocalDate): boolean {
+function occursOn(rule: RecurrenceRule, d: LocalDate): boolean {
   return expandRule(rule, d, d).length === 1;
 }
 

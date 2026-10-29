@@ -19,7 +19,7 @@ import type {
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { currentTimeZone } from '../domain/dates';
 
-export const newId = (): string => crypto.randomUUID();
+const newId = (): string => crypto.randomUUID();
 const alive = <T extends SyncMeta>(x: T | undefined): x is T => x !== undefined && !x.deletedAt;
 
 export function stamp<T extends Partial<SyncMeta>>(x: T): T & SyncMeta {
