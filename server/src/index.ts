@@ -18,6 +18,11 @@ export interface Env {
 
 const MAX_ITEMS = 500;
 const MAX_BODY_BYTES = 256 * 1024;
+const MAX_SYNC_BODY_BYTES = 900 * 1024;
+const MAX_SYNC_RECORDS = 300;
+const MAX_SYNC_PULL = 300;
+const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements']);
+const SYNC_KEY = /^[A-Za-z0-9_-]{43}$/;
 /** Напоминания старше этого не отправляем: устарели. */
 const STALE_MS = 6 * 3_600_000;
 const KINDS = new Set(['task', 'occurrence', 'habit', 'summary']);
@@ -39,9 +44,9 @@ const json = (data: unknown, status = 200) =>
 const str = (v: unknown, max: number): string | null =>
   typeof v === 'string' && v.length > 0 ? v.slice(0, max) : null;
 
-async function readJson(req: Request): Promise<unknown> {
+async function readJson(req: Request, limit = MAX_BODY_BYTES): Promise<unknown> {
   const text = await req.text();
-  if (text.length > MAX_BODY_BYTES) throw new HttpError(413, 'too large');
+  if (text.length > limit) throw new HttpError(413, 'too large');
   try {
     return JSON.parse(text) as unknown;
   } catch {
@@ -76,12 +81,87 @@ async function deviceExists(env: Env, id: string) {
   return (await env.DB.prepare('SELECT 1 FROM devices WHERE id = ?').bind(id).first()) !== null;
 }
 
+/** Пространство данных = SHA-256 ключа из заголовка Authorization: Bearer <ключ>. */
+async function syncSpace(req: Request): Promise<string> {
+  const key = /^Bearer (\S+)$/.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (!key || !SYNC_KEY.test(key)) throw new HttpError(401, 'bad sync key');
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface SyncIn {
+  t: string;
+  id: string;
+  u: number;
+  d: string;
+}
+
+function parseSyncRecord(x: unknown): SyncIn | null {
+  if (typeof x !== 'object' || x === null) return null;
+  const o = x as Record<string, unknown>;
+  if (typeof o.t !== 'string' || !SYNC_TABLES.has(o.t)) return null;
+  if (typeof o.id !== 'string' || o.id.length === 0 || o.id.length > 200) return null;
+  if (typeof o.u !== 'number' || !Number.isFinite(o.u)) return null;
+  if (typeof o.d !== 'string' || o.d.length > 20_000) return null;
+  return { t: o.t, id: o.id, u: Math.floor(o.u), d: o.d };
+}
+
+async function handleSync(req: Request, env: Env, url: URL): Promise<Response> {
+  const space = await syncSpace(req);
+
+  // GET /api/sync?after=<seq> — всё, что изменилось после курсора
+  if (req.method === 'GET') {
+    const after = Math.max(0, Number(url.searchParams.get('after') ?? 0) || 0);
+    const { results } = await env.DB.prepare(
+      'SELECT seq, tbl AS t, rid AS id, updated_at AS u, data AS d FROM sync_records WHERE space = ? AND seq > ? ORDER BY seq LIMIT ?',
+    )
+      .bind(space, after, MAX_SYNC_PULL + 1)
+      .all<{ seq: number; t: string; id: string; u: number; d: string }>();
+    const more = results.length > MAX_SYNC_PULL;
+    const records = results.slice(0, MAX_SYNC_PULL);
+    return json({ records, cursor: records.at(-1)?.seq ?? after, more });
+  }
+
+  // PUT /api/sync — принять изменения; побеждает запись с большим updatedAt
+  if (req.method === 'PUT') {
+    const b = (await readJson(req, MAX_SYNC_BODY_BYTES)) as { records?: unknown[] };
+    if (!Array.isArray(b.records)) throw new HttpError(400, 'records required');
+    const records = b.records.slice(0, MAX_SYNC_RECORDS).map(parseSyncRecord).filter((x): x is SyncIn => x !== null);
+    if (records.length > 0) {
+      // Один запрос на всю пачку: у бесплатного плана ограничено число запросов к D1 на вызов
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO sync_records (space, tbl, rid, updated_at, data)
+         SELECT ?1, json_extract(j.value, '$.t'), json_extract(j.value, '$.id'), json_extract(j.value, '$.u'), json_extract(j.value, '$.d')
+         FROM json_each(?2) AS j
+         WHERE NOT EXISTS (
+           SELECT 1 FROM sync_records s
+           WHERE s.space = ?1 AND s.tbl = json_extract(j.value, '$.t') AND s.rid = json_extract(j.value, '$.id')
+             AND s.updated_at >= json_extract(j.value, '$.u')
+         )`,
+      )
+        .bind(space, JSON.stringify(records))
+        .run();
+    }
+    return json({ ok: true, count: records.length });
+  }
+
+  // DELETE /api/sync — стереть всё, что лежит на сервере для этого ключа
+  if (req.method === 'DELETE') {
+    await env.DB.prepare('DELETE FROM sync_records WHERE space = ?').bind(space).run();
+    return json({ ok: true });
+  }
+
+  throw new HttpError(405, 'method not allowed');
+}
+
 async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', ...]
 
   if (req.method === 'GET' && parts[1] === 'config') {
     return json({ vapidPublicKey: env.VAPID_PUBLIC_KEY, push: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) });
   }
+
+  if (parts[1] === 'sync' && parts.length === 2) return handleSync(req, env, url);
 
   if (parts[1] !== 'devices') throw new HttpError(404, 'not found');
   const id = parts[2];
@@ -241,7 +321,7 @@ function corsHeaders(req: Request, env: Env): Record<string, string> {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET, PUT, POST, DELETE, OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    'access-control-allow-headers': 'content-type, authorization',
     'access-control-max-age': '86400',
     vary: 'origin',
   };
