@@ -27,8 +27,11 @@ export function Modal({ open, onClose, title, children, footer, accent }: Props)
     if (!d) return;
     if (open && !d.open) {
       d.showModal();
-      const el = d.querySelector<HTMLElement>('[data-autofocus]');
-      el?.focus();
+      // Фокус — на поле, помеченное data-autofocus (его ставят только пустым полям: у заполненного
+      // фокус вызывал бы экранную клавиатуру при каждом открытии). Иначе — на саму панель окна,
+      // а не на кнопку «Закрыть», которую браузер выбрал бы сам.
+      const el = d.querySelector<HTMLElement>('[data-autofocus]') ?? d.querySelector<HTMLElement>('[data-dialog-root]');
+      el?.focus({ preventScroll: true });
       // data-select: выделить текст, чтобы ввод сразу заменял старое значение
       if (el instanceof HTMLInputElement && el.hasAttribute('data-select')) el.select();
     }
@@ -49,7 +52,7 @@ export function Modal({ open, onClose, title, children, footer, accent }: Props)
       }}
     >
       {open && (
-        <div className={`${s.panel} ${s.dialogInner}`} style={accent ? ({ '--bc': accent } as CSSProperties) : undefined}>
+        <div className={`${s.panel} ${s.dialogInner}`} tabIndex={-1} data-dialog-root style={accent ? ({ '--bc': accent } as CSSProperties) : undefined}>
           <div className={s.dialogHeader}>
             <h2 style={{ color: accent }}>{title}</h2>
             <Button variant="ghost" small icon="close" label="Закрыть" onClick={onClose} />

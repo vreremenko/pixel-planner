@@ -154,7 +154,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
 
   return (
     <form onSubmit={onSubmit}>
-      <TextInput label="Название" value={f.title} data-autofocus required maxLength={200} onChange={(e) => set('title', e.target.value)} placeholder="Победить босса…" />
+      <TextInput label="Название" value={f.title} data-autofocus={f.title.trim() === '' ? true : undefined} required maxLength={200} onChange={(e) => set('title', e.target.value)} placeholder="Победить босса…" />
       {!isOcc && (
         <Field label="Где">
           <Segmented

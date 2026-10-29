@@ -77,7 +77,7 @@ export function HabitEditor({ habit, onClose }: Props) {
           if (!invalid) void save();
         }}
       >
-        <TextInput label="Название" value={name} data-autofocus required maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Пить воду" />
+        <TextInput label="Название" value={name} data-autofocus={name.trim() === '' ? true : undefined} required maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Пить воду" />
         <Field label="Иконка">
           <div className={s.iconGrid} role="radiogroup" aria-label="Иконка">
             {HABIT_ICONS.map((ic) => (

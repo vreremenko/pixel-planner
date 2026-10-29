@@ -245,6 +245,9 @@ input[type='time'].input {
     rgba(255, 255, 255, 0.03) 4px 8px
   );
 }
+.dialogInner:focus {
+  outline: none; /* фокус на панели ставится программно, рамка не нужна */
+}
 .dialogInner {
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
