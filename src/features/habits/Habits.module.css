@@ -166,14 +166,17 @@
 }
 .countRow {
   display: flex;
-  flex-wrap: wrap;
+  /* Одна строка у всех привычек: кнопка не должна «прыгать» на другую строку из-за длинной единицы */
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--gap-2);
   margin-bottom: var(--gap-3);
 }
 .countInput {
-  width: min(100%, 190px);
+  /* Поле занимает свободное место, но не растягивается без меры; кнопка справа остаётся на месте */
+  flex: 1 1 110px;
   min-width: 0;
+  max-width: 260px;
   min-height: 40px;
   padding: 6px 10px;
   background: var(--c-bg);
@@ -191,8 +194,26 @@
   color: var(--c-warn);
 }
 .unit {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--c-text-dim);
   font-size: 18px;
+}
+@media (max-width: 359px) {
+  /* Совсем узкий экран: кнопке разрешено уйти на вторую строку, она остаётся справа */
+  .countRow {
+    flex-wrap: wrap;
+  }
+}
+/* Кнопка всегда у правого края карточки и одной ширины («Записать» / «Обновить») */
+.countBtn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-width: 132px;
 }
 .tiles {
   display: grid;

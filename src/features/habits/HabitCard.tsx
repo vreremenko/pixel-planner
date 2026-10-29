@@ -58,8 +58,10 @@ function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: str
         aria-invalid={invalid}
         onChange={(e) => setText(e.target.value)}
       />
-      <span className={s.unit}>{unit}</span>
-      <Button type="submit" small variant="habit" icon="check" disabled={invalid || !dirty}>
+      <span className={s.unit} title={unit}>
+        {unit}
+      </span>
+      <Button type="submit" small variant="habit" icon="check" className={s.countBtn} disabled={invalid || !dirty}>
         {value === undefined ? 'Записать' : 'Обновить'}
       </Button>
     </form>
