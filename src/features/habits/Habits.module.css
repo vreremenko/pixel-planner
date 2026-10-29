@@ -265,3 +265,8 @@
   font-size: 24px;
   color: var(--c-text);
 }
+
+.collapseBtn {
+  margin-left: auto;
+  align-self: center;
+}

@@ -8,6 +8,7 @@ import { habitStreak, isScheduled } from '../../domain/streaks';
 import { setHabitValue, toggleHabit } from '../../services/habits';
 import { dateOf } from '../../domain/dates';
 import { scheduleText } from './habitText';
+import { collapseKey, useCollapsed } from '../../stores/collapsed';
 
 interface Props {
   habit: Habit;
@@ -67,6 +68,9 @@ function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: str
 
 export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpen, onPickDay }: Props) {
   const count = isCountHabit(habit) ? habit.tracking : null;
+  const key = collapseKey.habit(habit.id);
+  const collapsed = useCollapsed((st) => st.collapsed[key] === true);
+  const toggleCollapsed = useCollapsed((st) => st.toggle);
   const streak = habitStreak(habit, done, todayDate);
   const scheduledToday = isScheduled(habit.schedule, todayDate);
   const doneToday = done.has(todayDate);
@@ -122,36 +126,49 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
           РЕКОРД
           <b>{streak.best}</b>
         </div>
+        <Button
+          small
+          variant="ghost"
+          className={s.collapseBtn}
+          icon={collapsed ? 'down' : 'up'}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Показать' : 'Свернуть'} календарь: ${habit.name}`}
+          onClick={() => toggleCollapsed(key)}
+        >
+          {collapsed ? 'Календарь' : 'Свернуть'}
+        </Button>
       </div>
-      <div className={s.grid} role="grid" aria-label="Выполнение за месяц">
-        {WEEKDAYS_SHORT.map((w) => (
-          <div key={w} className={s.dow}>
-            {w}
-          </div>
-        ))}
-        {cells.map((d, i) => {
-          if (!d) return <div key={`b${i}`} className={cx(s.cell, s.blank)} />;
-          const isDone = done.has(d);
-          const sched = isScheduled(habit.schedule, d);
-          const future = d > todayDate;
-          const miss = sched && !isDone && d < todayDate && d >= created;
-          const state = isDone ? 'выполнено' : future ? 'впереди' : miss ? 'пропущено' : sched ? 'не отмечено' : 'выходной';
-          return (
-            <button
-              key={d}
-              type="button"
-              disabled={future}
-              className={cx(s.cell, !sched && s.off, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
-              aria-label={`${parseLocalDate(d).day}: ${state}${count && values.has(d) ? `, ${formatValue(values.get(d) ?? 0)} ${count.unit}` : ''}`}
-              aria-pressed={isDone}
-              title={count && values.has(d) ? `${formatValue(values.get(d) ?? 0)} ${count.unit}` : undefined}
-              onClick={() => (count ? onPickDay(d) : void toggleHabit(habit, d, !isDone))}
-            >
-              {parseLocalDate(d).day}
-            </button>
-          );
-        })}
-      </div>
+      {!collapsed && (
+        <div className={s.grid} role="grid" aria-label="Выполнение за месяц">
+          {WEEKDAYS_SHORT.map((w) => (
+            <div key={w} className={s.dow}>
+              {w}
+            </div>
+          ))}
+          {cells.map((d, i) => {
+            if (!d) return <div key={`b${i}`} className={cx(s.cell, s.blank)} />;
+            const isDone = done.has(d);
+            const sched = isScheduled(habit.schedule, d);
+            const future = d > todayDate;
+            const miss = sched && !isDone && d < todayDate && d >= created;
+            const state = isDone ? 'выполнено' : future ? 'впереди' : miss ? 'пропущено' : sched ? 'не отмечено' : 'выходной';
+            return (
+              <button
+                key={d}
+                type="button"
+                disabled={future}
+                className={cx(s.cell, !sched && s.off, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
+                aria-label={`${parseLocalDate(d).day}: ${state}${count && values.has(d) ? `, ${formatValue(values.get(d) ?? 0)} ${count.unit}` : ''}`}
+                aria-pressed={isDone}
+                title={count && values.has(d) ? `${formatValue(values.get(d) ?? 0)} ${count.unit}` : undefined}
+                onClick={() => (count ? onPickDay(d) : void toggleHabit(habit, d, !isDone))}
+              >
+                {parseLocalDate(d).day}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </Panel>
   );
 }

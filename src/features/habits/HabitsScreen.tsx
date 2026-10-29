@@ -10,6 +10,7 @@ import { HabitCard } from './HabitCard';
 import { HabitEditor } from './HabitEditor';
 import { HabitDetail } from './HabitDetail';
 import { HabitValueDialog } from './HabitValueDialog';
+import { collapseKey, useCollapsed } from '../../stores/collapsed';
 
 export function HabitsScreen() {
   const habits = useHabits();
@@ -57,6 +58,11 @@ export function HabitsScreen() {
   const detail = find(detailId);
   const valueHabit = find(valueFor?.habitId ?? null);
 
+  const collapsedMap = useCollapsed((st) => st.collapsed);
+  const setManyCollapsed = useCollapsed((st) => st.setMany);
+  const habitKeys = (habits ?? []).map((h) => collapseKey.habit(h.id));
+  const allCollapsed = habitKeys.length > 0 && habitKeys.every((k) => collapsedMap[k] === true);
+
   const active = (habits ?? []).filter((h) => !h.archived);
   const archived = (habits ?? []).filter((h) => h.archived);
   const { y, m } = parseLocalDate(month);
@@ -73,6 +79,11 @@ export function HabitsScreen() {
           </h3>
           <Button small icon="right" label="Следующий месяц" onClick={() => setMonth(addMonths(month, 1))} />
         </div>
+        {habitKeys.length > 1 && (
+          <Button small icon={allCollapsed ? 'down' : 'up'} onClick={() => setManyCollapsed(habitKeys, !allCollapsed)}>
+            {allCollapsed ? 'Развернуть все' : 'Свернуть все'}
+          </Button>
+        )}
         <Button variant="habit" icon="plus" onClick={() => setEditing('new')}>
           Квест
         </Button>
