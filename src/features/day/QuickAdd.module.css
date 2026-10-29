@@ -52,7 +52,7 @@
   background: transparent;
   color: var(--c-text);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
 }
 .chip:hover {
@@ -73,6 +73,6 @@
   background: transparent;
 }
 .note {
-  font-size: 15px;
+  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }

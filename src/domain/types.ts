@@ -184,6 +184,8 @@ export interface Settings {
   morningSummary: { enabled: boolean; time: LocalTime };
   soundEnabled: boolean;
   crtEffect: boolean;
+  /** Режим «Для мамы»: светлая тема, крупный читаемый шрифт. Свой на каждом устройстве. */
+  momMode: boolean;
   timeZone: string;
 }
 
@@ -195,5 +197,6 @@ export const DEFAULT_SETTINGS: Settings = {
   morningSummary: { enabled: false, time: '08:00' },
   soundEnabled: false,
   crtEffect: true,
+  momMode: false,
   timeZone: 'UTC',
 };

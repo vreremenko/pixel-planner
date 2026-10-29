@@ -82,7 +82,7 @@
   gap: 4px 8px;
   margin-top: 4px;
   color: var(--c-text-dim);
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
 }
 .cardActions {
   display: flex;
@@ -90,7 +90,7 @@
 }
 .count {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 
@@ -113,7 +113,7 @@
   background: transparent;
   color: var(--c-backlog);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
 }
 .cardTag:hover {

@@ -6,13 +6,13 @@
   margin-bottom: var(--gap-4);
 }
 .dateBlock {
-  flex: 1 1 220px;
+  flex: 1 1 var(--date-basis, 220px);
   min-width: 0;
   text-align: center;
 }
 .stage {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-warn);
   letter-spacing: 1px;
 }
@@ -30,7 +30,7 @@
   gap: var(--gap-3);
   margin-bottom: var(--gap-3);
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 .progressRow > div {
@@ -108,7 +108,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 .meta span {
@@ -118,14 +118,14 @@
 }
 .badge {
   font-family: var(--font-title);
-  font-size: 7px;
+  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
   padding: 3px 4px;
   border: 2px solid currentColor;
   text-transform: uppercase;
 }
 .time {
   font-family: var(--font-digits);
-  font-size: 22px;
+  font-size: max(calc(22px * var(--fs-scale)), var(--fs-min));
   color: var(--c-task);
   min-width: 52px;
   text-align: right;
@@ -187,7 +187,7 @@
 .calDow {
   text-align: center;
   font-family: var(--font-title);
-  font-size: 7px;
+  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
   padding: 4px 0;
 }
@@ -199,7 +199,7 @@
   background: var(--c-bg);
   color: var(--c-text);
   font-family: var(--font-digits);
-  font-size: 20px;
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
 }
 .calDay:hover {
@@ -241,7 +241,7 @@
 }
 .clLegend {
   font-family: var(--font-title);
-  font-size: 8px;
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
   padding: 0 6px;
 }
@@ -258,7 +258,7 @@
   background: transparent;
   color: var(--c-text-dim);
   font-family: var(--font-digits);
-  font-size: 20px;
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
   white-space: nowrap;
 }
@@ -299,7 +299,7 @@
   padding-left: 8px;
   border-left: 4px solid var(--c-border);
   color: var(--c-text-dim);
-  font-size: 18px;
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -317,7 +317,7 @@
   background: transparent;
   color: var(--c-backlog);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
 }
 .tagChip:hover:not(:disabled) {
@@ -341,10 +341,10 @@
 .rHint {
   margin: 0 0 8px;
   color: var(--c-text-dim);
-  font-size: 17px;
+  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
 }
 .rCount {
   font-family: var(--font-digits);
-  font-size: 20px;
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }

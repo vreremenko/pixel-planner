@@ -11,6 +11,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PIXEL PLANNER</title>
+    <script>
+      // Режим «Для мамы» включаем до первой отрисовки, чтобы не мигала тёмная тема
+      try {
+        if (localStorage.getItem('pp-mode') === 'mom') {
+          document.documentElement.setAttribute('data-mode', 'mom');
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#fbf1e8');
+          document.documentElement.style.background = '#fbf1e8';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root">

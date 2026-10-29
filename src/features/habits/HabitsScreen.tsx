@@ -11,6 +11,7 @@ import { HabitEditor } from './HabitEditor';
 import { HabitDetail } from './HabitDetail';
 import { HabitValueDialog } from './HabitValueDialog';
 import { collapseKey, useCollapsed } from '../../stores/collapsed';
+import { fs } from '../../ui/fs';
 
 export function HabitsScreen() {
   const habits = useHabits();
@@ -111,7 +112,7 @@ export function HabitsScreen() {
       </div>
       {archived.length > 0 && (
         <details className={s.archived}>
-          <summary className="title" style={{ fontSize: 10, cursor: 'pointer', color: 'var(--c-text-dim)' }}>
+          <summary className="title" style={{ fontSize: fs(10), cursor: 'pointer', color: 'var(--c-text-dim)' }}>
             Архив ({archived.length})
           </summary>
           <div className={s.list} style={{ marginTop: 12 }}>

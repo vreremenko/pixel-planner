@@ -5,6 +5,7 @@ import { HABIT_ICONS } from '../../ui/icons';
 import { WEEKDAYS_SHORT } from '../../domain/dates';
 import { isCountHabit, type Habit, type HabitTracking, type Weekday } from '../../domain/types';
 import { createHabit, deleteHabit, setArchived, updateHabit, type HabitDraft } from '../../services/habits';
+import { fs } from '../../ui/fs';
 
 const WD = WEEKDAYS_SHORT.map((label, i) => ({ value: i as Weekday, label }));
 
@@ -98,7 +99,7 @@ export function HabitEditor({ habit, onClose }: Props) {
             ]}
           />
         </Field>
-        <p style={{ margin: '-4px 0 12px', color: 'var(--c-text-dim)', fontSize: 17 }}>
+        <p style={{ margin: '-4px 0 12px', color: 'var(--c-text-dim)', fontSize: fs(17) }}>
           {kind === 'check'
             ? 'Просто отмечаете, что сделали за день.'
             : 'Каждый день записываете число (например, отжимания) — приложение покажет историю и график.'}

@@ -15,14 +15,14 @@
 }
 .version {
   font-family: var(--font-title);
-  font-size: 9px;
+  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
   padding: 3px 6px;
   background: var(--c-xp);
   color: var(--c-on-accent);
 }
 .date {
   font-family: var(--font-digits);
-  font-size: 20px;
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }
 .title {

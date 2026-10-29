@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles/fonts';
 import './styles/base.css';
 import './styles/crt.css';
+import './styles/mom.css';
 import { App } from './app/App';
 import { ErrorBoundary } from './app/ErrorBoundary';
 import { useSettings } from './stores/settings';
