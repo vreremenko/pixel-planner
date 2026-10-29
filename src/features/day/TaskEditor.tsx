@@ -53,8 +53,9 @@ interface FormState {
 
 function initial(t: EditorTarget): FormState {
   if (t.kind === 'new') {
+    // У новой задачи сразу открыта вкладка «Заметки»; пустая заметка при сохранении не записывается
     return {
-      title: '', notes: '', extras: [], checklist: [], inBacklog: t.date === null, date: t.date ?? today(), time: '',
+      title: '', notes: '', extras: ['notes'], checklist: [], inBacklog: t.date === null, date: t.date ?? today(), time: '',
       priority: 'medium', reminder: 'none', tags: '', repeat: undefined,
     };
   }
