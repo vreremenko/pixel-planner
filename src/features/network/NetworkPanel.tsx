@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Panel, rowClass } from '../../ui';
+import { Button, Panel, rowClass, toast } from '../../ui';
 import { apiUrl } from '../../apiBase';
 import { probe, probeBody, verdict, type ProbeResult, type ProbeTarget } from './probe';
+import { PLATFORMS } from './platforms';
 
 const TARGETS = (): ProbeTarget[] => [
   { id: 'api', label: 'Текущий сервер приложения', url: apiUrl('config') },
@@ -19,11 +20,11 @@ export function NetworkPanel() {
   const [results, setResults] = useState<Record<string, ProbeResult>>({});
   const [busy, setBusy] = useState(false);
 
-  const run = async () => {
+  const run = async (targets: ProbeTarget[]) => {
     setBusy(true);
-    setResults(Object.fromEntries(TARGETS().map((t) => [t.id, PENDING])));
+    setResults((p) => ({ ...p, ...Object.fromEntries(targets.map((t) => [t.id, PENDING])) }));
     await Promise.all(
-      TARGETS().map(async (t) => {
+      targets.map(async (t) => {
         const r = await (t.body ? probeBody(t.url) : probe(t.url));
         setResults((p) => ({ ...p, [t.id]: r }));
       }),
@@ -31,19 +32,49 @@ export function NetworkPanel() {
     setBusy(false);
   };
 
+  const done = PLATFORMS.filter((t) => results[t.id] && results[t.id]?.error !== '…');
+  const open = done.filter((t) => results[t.id]?.ok);
+
+  const copy = () => {
+    const lines = [...TARGETS(), ...PLATFORMS].flatMap((t) => {
+      const r = results[t.id];
+      return r && r.error !== '…' ? [`${r.ok ? '+' : '-'} ${t.label}: ${r.ok ? `${String(r.ms)} мс` : (r.error ?? '')}`] : [];
+    });
+    void navigator.clipboard.writeText(lines.join('\n')).then(
+      () => toast('Результаты скопированы', 'check', 'var(--c-habit)'),
+      () => toast('Не удалось скопировать', 'alert', 'var(--c-warn)'),
+    );
+  };
+
   return (
     <Panel title="Сеть и сервер" icon="search" accent="var(--c-backlog)">
       <p style={{ marginTop: 0, color: 'var(--c-text-dim)' }}>
         Если синхронизация или уведомления не работают без VPN, нажмите «Проверить»: покажем, какие серверы открываются с этого устройства и как быстро.
+        {' '}
+        «Проверить платформы» пробует зарубежные хостинги, куда можно перенести сервер. Проверка показывает, доходит ли запрос, а крупные ответы не проверяет.
       </p>
       <div className={rowClass}>
-        <Button variant="habit" icon="search" disabled={busy} onClick={() => void run()}>
+        <Button variant="habit" icon="search" disabled={busy} onClick={() => void run(TARGETS())}>
           {busy ? 'Проверяем…' : 'Проверить'}
         </Button>
+        <Button icon="search" disabled={busy} onClick={() => void run(PLATFORMS)}>
+          Проверить платформы
+        </Button>
+        {Object.keys(results).length > 0 && (
+          <Button small variant="ghost" onClick={copy}>
+            Скопировать результаты
+          </Button>
+        )}
       </div>
       {Object.keys(results).length > 0 && (
         <ul className="digits" style={{ margin: '12px 0 0', paddingLeft: 0, listStyle: 'none' }}>
-          {TARGETS().map((t) => {
+          {done.length > 0 && (
+            <li style={{ marginBottom: 8 }}>
+              Платформы: открываются {open.length} из {done.length}
+              {done.length < PLATFORMS.length ? ' (проверка идёт…)' : ''}
+            </li>
+          )}
+          {[...TARGETS(), ...PLATFORMS].map((t) => {
             const r = results[t.id];
             if (!r) return null;
             const pending = r.error === '…';
