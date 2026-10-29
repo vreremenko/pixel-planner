@@ -210,3 +210,8 @@ export const metaRepo = {
     await db.meta.put({ key, value });
   },
 };
+
+/** Есть ли в базе данные пользователя (задачи, повторы, привычки) — чтобы отличить новую установку. */
+export async function hasUserData(): Promise<boolean> {
+  return (await db.tasks.count()) + (await db.series.count()) + (await db.habits.count()) > 0;
+}

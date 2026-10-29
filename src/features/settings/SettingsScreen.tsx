@@ -10,6 +10,8 @@ import { exportAll, importBackup, parseBackup, type Backup } from '../../data/ba
 import { today } from '../../domain/dates';
 import { play } from '../../services/sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
+import { APP_VERSION, CHANGELOG } from '../../changelog';
+import { ChangelogModal } from '../whatsnew/ChangelogModal';
 
 function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
   return (
@@ -321,6 +323,7 @@ function DataPanel() {
 export function SettingsScreen() {
   const { settings, update } = useSettings();
   const install = useInstallPrompt();
+  const [showLog, setShowLog] = useState(false);
   return (
     <>
       <h1 className="glow" style={{ marginBottom: 16 }}>
@@ -361,6 +364,14 @@ export function SettingsScreen() {
             </p>
           )}
         </Panel>
+        <Panel title="О приложении" icon="star" accent="var(--c-xp)">
+          <p style={{ marginTop: 0 }}>
+            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: 22, color: 'var(--c-xp)' }}>{APP_VERSION}</b>
+          </p>
+          <Button icon="book" onClick={() => setShowLog(true)}>
+            Что нового
+          </Button>
+        </Panel>
         <Panel title="Управление" icon="menu" accent="var(--c-text-dim)">
           <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
             <li><b>N</b> — новая задача (на экране квестов — новый квест)</li>
@@ -372,6 +383,7 @@ export function SettingsScreen() {
           </ul>
         </Panel>
       </div>
+      {showLog && <ChangelogModal entries={CHANGELOG.slice(0, 10)} title="История обновлений" closeLabel="Закрыть" onClose={() => setShowLog(false)} />}
     </>
   );
 }

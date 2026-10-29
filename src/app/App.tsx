@@ -11,6 +11,7 @@ import { TaskEditor } from '../features/day/TaskEditor';
 import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
 import { startNotifications } from '../features/notifications/scheduler';
+import { WhatsNew } from '../features/whatsnew/WhatsNew';
 
 const router = createHashRouter([
   {
@@ -38,6 +39,7 @@ export function App() {
     <>
       <RouterProvider router={router} />
       <TaskEditor />
+      <WhatsNew />
       <ToastHost />
     </>
   );
