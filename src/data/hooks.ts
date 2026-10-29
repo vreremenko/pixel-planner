@@ -28,16 +28,6 @@ export function useDay(date: LocalDate, todayDate: LocalDate) {
   );
 }
 
-export function useRange(from: LocalDate, to: LocalDate, todayDate: LocalDate) {
-  return useLiveQuery(
-    async () => ({
-      tasks: await taskRepo.byDateRange(from, to),
-      occurrences: await loadOccurrences(from, to, todayDate),
-    }),
-    [from, to, todayDate],
-  );
-}
-
 export function useBacklog(): Task[] | undefined {
   return useLiveQuery(() => taskRepo.backlog(), []);
 }

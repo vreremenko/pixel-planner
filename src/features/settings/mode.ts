@@ -1,5 +1,5 @@
 /** Режим «Для мамы»: ставит тему на <html> и запоминает выбор, чтобы следующий запуск открылся сразу в нужной теме. */
-export const MODE_KEY = 'pp-mode';
+const MODE_KEY = 'pp-mode';
 const THEME_COLOR = { normal: '#0b0a1a', mom: '#fbf1e8' } as const;
 
 export function applyMode(mom: boolean): void {

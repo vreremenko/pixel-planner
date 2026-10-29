@@ -5,7 +5,7 @@ export interface NotifyPayload {
   body: string;
 }
 
-export const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
+const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
 export function permission(): NotificationPermission | 'unsupported' {
   return notificationsSupported() ? Notification.permission : 'unsupported';

@@ -15,7 +15,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const DEBOUNCE_MS = 300;
 /** Пока приложение открыто, спрашиваем сервер о новом так часто. */
 const POLL_MS = 5_000;
-/** После неудачи (нет сети, Cloudflare не отвечает) пробуем снова через это время. */
+/** После неудачи (нет сети, сервер не отвечает) пробуем снова через это время. */
 const RETRY_MS = 8_000;
 const KEEPALIVE_MAX_BYTES = 60_000;
 
@@ -54,7 +54,7 @@ async function request(key: string, path: string, init: RequestInit = {}): Promi
     if (!res.ok) throw new Error(`Сервер ответил HTTP ${String(res.status)}`);
     return res;
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw new Error('Сервер не отвечает (в России Cloudflare иногда доступен только через VPN)', { cause: e });
+    if (e instanceof DOMException && e.name === 'AbortError') throw new Error('Сервер не отвечает', { cause: e });
     throw e;
   } finally {
     clearTimeout(timer);
@@ -136,14 +136,6 @@ export async function deleteRemoteAndDisable(): Promise<void> {
   if (!state) return;
   await request(state.key, 'sync', { method: 'DELETE' });
   await disableSync();
-}
-
-/** После импорта файла: отправить на сервер вообще всё, даже записи со старой датой. */
-export async function markEverythingDirty(): Promise<void> {
-  const state = await loadState();
-  if (!state) return;
-  await saveState({ ...state, pushedSince: 0 });
-  schedule(500);
 }
 
 /** Запустить фоновую синхронизацию; возвращает функцию остановки. */

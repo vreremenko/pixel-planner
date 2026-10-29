@@ -34,23 +34,23 @@ describe('синхронизация', () => {
     expect((await pull(d, OTHER)).records).toEqual([]);
   });
 
-  it('ответ делится на пачки ~10 КБ и курсор доводит до конца', async () => {
+  it('большой ответ делится на пачки, курсор доводит до конца', async () => {
     const d = mk();
-    await handle(req('PUT', 'sync', { key: KEY, body: { records: Array.from({ length: 100 }, (_, i) => rec(`r${String(i)}`, i + 1, 'x'.repeat(500))) } }), d);
+    for (const part of ['a', 'b']) await handle(req('PUT', 'sync', { key: KEY, body: { records: Array.from({ length: 300 }, (_, i) => rec(`${part}${String(i)}`, i + 1, 'x'.repeat(1500))) } }), d);
     let cursor = 0;
     let got = 0;
     let pages = 0;
     for (;;) {
       const res = await handle(req('GET', 'sync', { key: KEY, query: { after: String(cursor) } }), d);
-      expect(res.body.length).toBeLessThan(12_000);
+      expect(res.body.length).toBeLessThan(520_000);
       const j = JSON.parse(res.body) as { records: unknown[]; cursor: number; more: boolean };
       got += j.records.length;
       pages++;
       cursor = j.cursor;
       if (!j.more) break;
     }
-    expect(got).toBe(100);
-    expect(pages).toBeGreaterThan(3);
+    expect(got).toBe(600);
+    expect(pages).toBeGreaterThan(1);
   });
 
   it('удаление стирает данные пространства', async () => {
@@ -62,9 +62,8 @@ describe('синхронизация', () => {
 });
 
 describe('служебное', () => {
-  it('ping отдаёт нужный размер, config — ключ VAPID', async () => {
+  it('config отдаёт ключ VAPID', async () => {
     const d = mk();
-    expect((await handle(req('GET', 'ping', { query: { kb: '8' } }), d)).body.length).toBe(8192);
     expect(JSON.parse((await handle(req('GET', 'config'), d)).body)).toEqual({ vapidPublicKey: 'pub', push: true });
   });
 

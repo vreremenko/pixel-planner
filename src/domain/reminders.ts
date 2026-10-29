@@ -11,7 +11,7 @@ import type {
   Task,
 } from './types';
 
-export type ReminderKind = 'task' | 'occurrence' | 'habit' | 'summary';
+type ReminderKind = 'task' | 'occurrence' | 'habit' | 'summary';
 
 export interface PlannedReminder {
   key: string;

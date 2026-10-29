@@ -52,7 +52,7 @@ describe('SqliteStore', () => {
     s.close();
   });
 
-  it('через HTTP-слой: ключи, пачки ~10 КБ, рассылка', async () => {
+  it('через HTTP-слой: ключи, постраничная выдача, рассылка', async () => {
     const store = new SqliteStore(':memory:');
     const sent: string[] = [];
     const d: Deps = {
@@ -65,18 +65,21 @@ describe('SqliteStore', () => {
       method, path, query: o.query ?? {}, headers: o.key ? { authorization: `Bearer ${o.key}` } : {}, body: o.body === undefined ? '' : JSON.stringify(o.body),
     });
     expect((await handle(req('GET', 'sync'), d)).status).toBe(401);
-    await handle(req('PUT', 'sync', { key: KEY, body: { records: Array.from({ length: 100 }, (_, i) => rec(`r${String(i)}`, i + 1, 'x'.repeat(500))) } }), d);
+    for (const part of ['a', 'b']) await handle(req('PUT', 'sync', { key: KEY, body: { records: Array.from({ length: 300 }, (_, i) => rec(`${part}${String(i)}`, i + 1, 'x'.repeat(1500))) } }), d);
     let cursor = 0;
     let got = 0;
+    let pages = 0;
     for (;;) {
       const res = await handle(req('GET', 'sync', { key: KEY, query: { after: String(cursor) } }), d);
-      expect(res.body.length).toBeLessThan(12_000);
+      expect(res.body.length).toBeLessThan(520_000);
+      pages++;
       const j = JSON.parse(res.body) as { records: unknown[]; cursor: number; more: boolean };
       got += j.records.length;
       cursor = j.cursor;
       if (!j.more) break;
     }
-    expect(got).toBe(100);
+    expect(got).toBe(600);
+    expect(pages).toBeGreaterThan(1);
     expect((JSON.parse((await handle(req('GET', 'sync', { key: OTHER }), d)).body) as { records: unknown[] }).records).toEqual([]);
     await handle(req('PUT', `devices/${DEVICE}`, { body: { subscription: { endpoint: 'https://push.test/x', keys: { p256dh: 'k', auth: 'a' } } } }), d);
     await handle(req('PUT', `devices/${DEVICE}/schedule`, { body: { items: [item('a', 900_000), item('b', 2_000_000)] } }), d);

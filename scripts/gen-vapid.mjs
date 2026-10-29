@@ -1,5 +1,5 @@
 // Генерирует пару VAPID-ключей. Запуск: node scripts/gen-vapid.mjs
-// Публичный ключ — в wrangler.jsonc (vars.VAPID_PUBLIC_KEY), приватный — `npx wrangler secret put VAPID_PRIVATE_KEY`.
+// Оба ключа — в server-node/.env.vps (в git не попадает); сервер получает их при `bash server-node/deploy.sh`.
 const { publicKey, privateKey } = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
 const raw = new Uint8Array(await crypto.subtle.exportKey('raw', publicKey));
 const jwk = await crypto.subtle.exportKey('jwk', privateKey);

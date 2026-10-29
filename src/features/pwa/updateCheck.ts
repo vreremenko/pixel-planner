@@ -44,7 +44,7 @@ function read(): string | null {
 let last = 0;
 let retry: ReturnType<typeof setTimeout> | undefined;
 
-export async function checkForUpdate(): Promise<void> {
+async function checkForUpdate(): Promise<void> {
   if (import.meta.env.DEV) return;
   const now = Date.now();
   if (now - last < CHECK_MIN_GAP_MS) return;

@@ -1,7 +1,7 @@
 {
   "name": "pixel-planner",
   "private": true,
-  "version": "0.7.1",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,8 +11,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && wrangler d1 migrations apply pixel-planner-push --remote && wrangler deploy",
-    "dev:api": "wrangler d1 migrations apply pixel-planner-push --local && wrangler dev --port 8787",
+    "dev:api": "npm run build:node && PORT=8787 DB_PATH=./.dev-data/pixel-planner.sqlite node --disable-warning=ExperimentalWarning server-node/dist/server.mjs",
     "vapid": "node scripts/gen-vapid.mjs",
     "build:node": "esbuild server-node/src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/server.mjs --legal-comments=none"
   },
@@ -35,10 +34,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261028.1",
     "@eslint/js": "^10.0.1",
-    "@netlify/blobs": "^10.7.13",
-    "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -57,8 +53,7 @@
     "vitest": "^5.0.5",
     "workbox-core": "^7.4.1",
     "workbox-precaching": "^7.4.1",
-    "workbox-routing": "^7.4.1",
-    "wrangler": "^4.154.0"
+    "workbox-routing": "^7.4.1"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
