@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import s from './QuickAdd.module.css';
-import { PixelIcon, toast, cx } from '../../ui';
+import { Button, PixelIcon, toast, cx } from '../../ui';
 import { createTask } from '../../services/tasks';
 import { parseQuickAdd, type QuickKind } from '../../domain/quickAdd';
 import { describeRule } from '../../domain/recurrence';
@@ -15,7 +15,7 @@ interface Props {
   todayDate: LocalDate;
 }
 
-const HINT = 'Например: завтра в 15:00 позвонить маме #семья !  ·  каждый день зарядка';
+const HINT = 'Можно сразу с датой, временем и меткой: завтра в 15:00 позвонить маме #семья !';
 
 /** Быстрый ввод: разбирает дату, время, приоритет, метки, повтор и напоминание прямо из текста. */
 export function QuickAdd({ date, todayDate }: Props) {
@@ -92,18 +92,25 @@ export function QuickAdd({ date, todayDate }: Props) {
           void submit();
         }}
       >
-        <label htmlFor="quick-add" className="sr-only">
-          Быстро добавить задачу
+        <label htmlFor="quick-add" className={s.label}>
+          Быстрый ввод
         </label>
-        <input
-          id="quick-add"
-          className={s.input}
-          placeholder="Быстрая задача + Enter"
-          autoComplete="off"
-          aria-describedby="quick-add-hint"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+        {/* Поле и кнопка «Добавить» — один элемент: понятно, что кнопка отправляет написанное, а не открывает окно */}
+        <div className={s.field}>
+          <input
+            id="quick-add"
+            className={s.input}
+            placeholder="Что сделать?"
+            autoComplete="off"
+            enterKeyHint="send"
+            aria-describedby="quick-add-hint"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <Button type="submit" small variant="primary" icon="right" className={s.send} disabled={text.trim() === ''}>
+            Добавить
+          </Button>
+        </div>
       </form>
       {text.trim() === '' ? (
         <p id="quick-add-hint" className={s.hint}>

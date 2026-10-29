@@ -128,7 +128,12 @@ export function DayScreen() {
         icon="sword"
         accent="var(--c-task)"
         actions={
-          pendingTasks > 0 && (
+          <>
+            {/* Создание задачи в окне — отдельная кнопка, не связанная со строкой быстрого ввода ниже */}
+            <Button small variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
+              Новая задача
+            </Button>
+            {pendingTasks > 0 && (
             <Button
               small
               icon="skip"
@@ -141,7 +146,8 @@ export function DayScreen() {
             >
               {filtering ? 'Выбранные на завтра' : 'Перенести на завтра'}
             </Button>
-          )
+            )}
+          </>
         }
       >
         {visible.length > 0 && (
@@ -203,9 +209,6 @@ export function DayScreen() {
 
         <div className={s.addRow}>
           <QuickAdd date={date} todayDate={todayDate} />
-          <Button variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
-            Задача
-          </Button>
         </div>
       </Panel>
 
