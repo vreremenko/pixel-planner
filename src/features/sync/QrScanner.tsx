@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 export function QrScanner({ onText }: { onText: (text: string) => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(true);
   const cb = useRef(onText);
   useEffect(() => {
     cb.current = onText;
@@ -19,11 +20,13 @@ export function QrScanner({ onText }: { onText: (text: string) => void }) {
       // В небезопасном контексте (http) браузер не даёт доступ к камере
       const devices = (navigator as { mediaDevices?: MediaDevices }).mediaDevices;
       if (!devices) throw new Error('Камера недоступна в этом браузере');
-      const [{ default: jsQR }, s] = await Promise.all([
-        import('jsqr'),
-        devices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }),
+      // Сначала камера: запрос доступа должен идти сразу после нажатия, а библиотека догрузится следом
+      const s = await Promise.race([
+        devices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Камера не ответила за 15 секунд')), 15_000)),
       ]);
       stream = s;
+      const { default: jsQR } = await import('jsqr');
       if (stopped) {
         for (const t of s.getTracks()) t.stop();
         return;
@@ -32,6 +35,7 @@ export function QrScanner({ onText }: { onText: (text: string) => void }) {
       if (!v) return;
       v.srcObject = s;
       await v.play();
+      setWaiting(false);
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       let last = 0;
       const loop = (now: number) => {
@@ -58,7 +62,7 @@ export function QrScanner({ onText }: { onText: (text: string) => void }) {
           : name === 'NotFoundError'
             ? 'Камера не найдена. Введите код вручную.'
             : e instanceof Error
-              ? e.message
+              ? `Не удалось включить камеру: ${e.message}`
               : 'Не удалось включить камеру',
       );
     });
@@ -71,5 +75,10 @@ export function QrScanner({ onText }: { onText: (text: string) => void }) {
   }, []);
 
   if (error) return <p role="alert" style={{ color: 'var(--c-warn)', margin: 0 }}>{error}</p>;
-  return <video ref={video} muted playsInline aria-label="Камера для сканирования QR-кода" style={{ width: '100%', maxHeight: 320, objectFit: 'cover', background: '#000', display: 'block' }} />;
+  return (
+    <>
+      <video ref={video} muted playsInline autoPlay aria-label="Камера для сканирования QR-кода" style={{ width: '100%', maxHeight: 320, objectFit: 'cover', background: '#000', display: 'block' }} />
+      {waiting && <p style={{ margin: '8px 0 0', color: 'var(--c-text-dim)' }}>Включаем камеру… Если браузер спросит разрешение, нажмите «Разрешить».</p>}
+    </>
+  );
 }

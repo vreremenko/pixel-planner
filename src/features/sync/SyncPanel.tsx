@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Modal, Panel, TextInput, rowClass, toast } from '../../ui';
 import { keyToPairingText, parsePairingText } from '../../sync/core';
 import { deleteRemoteAndDisable, disableSync, enableSync, syncNow, useSync } from '../../sync/manager';
 import { QrCode } from './QrCode';
 import { QrScanner } from './QrScanner';
+import { decodeQrFromFile } from './decodeQr';
 
 const fmt = (t: number) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const fail = (e: unknown) => toast(e instanceof Error ? e.message : 'Что-то пошло не так', 'alert', 'var(--c-warn)');
@@ -16,6 +17,7 @@ export function SyncPanel() {
   const [candidate, setCandidate] = useState<string | null>(null);
   const [manual, setManual] = useState('');
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const start = async () => {
     try {
@@ -47,6 +49,18 @@ export function SyncPanel() {
   };
 
   const manualKey = parsePairingText(manual);
+
+  const onPhoto = async (f: File | undefined) => {
+    if (photoRef.current) photoRef.current.value = '';
+    if (!f) return;
+    try {
+      const text = await decodeQrFromFile(f);
+      if (text && parsePairingText(text)) onScanned(text);
+      else toast('QR-код на фото не найден. Снимите ближе и ровнее, чтобы код был в кадре целиком.', 'alert', 'var(--c-warn)');
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   return (
     <Panel title="Синхронизация" icon="repeat" accent="var(--c-habit)">
@@ -124,6 +138,12 @@ export function SyncPanel() {
       <Modal open={connect} onClose={() => setConnect(false)} title="Подключиться по QR-коду" accent="var(--c-habit)" footer={<Button onClick={() => setConnect(false)}>Отмена</Button>}>
         <p style={{ marginTop: 0 }}>Наведите камеру на QR-код, который показывает другое устройство.</p>
         {connect && <QrScanner onText={onScanned} />}
+        <p style={{ margin: '12px 0 0' }}>
+          <Button small icon="search" onClick={() => photoRef.current?.click()}>
+            Сфотографировать QR-код
+          </Button>
+          <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void onPhoto(e.target.files?.[0])} />
+        </p>
         <div style={{ marginTop: 16 }}>
           <TextInput label="Или вставьте ключ" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="43 символа" autoComplete="off" autoCapitalize="off" spellCheck={false} />
           <Button
