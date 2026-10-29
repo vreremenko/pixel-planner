@@ -1,27 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import qrcode from 'qrcode-generator';
 
 const QUIET = 4;
 
 /** QR-код: белая подложка и чёрные квадраты — так его читают камеры лучше всего. */
 export function QrCode({ text, label }: { text: string; label: string }) {
-  const [rows, setRows] = useState<boolean[][] | null>(null);
-
-  useEffect(() => {
-    let off = false;
-    void import('qrcode-generator').then(({ default: qrcode }) => {
-      const qr = qrcode(0, 'M');
-      qr.addData(text);
-      qr.make();
-      const n = qr.getModuleCount();
-      const m = Array.from({ length: n }, (_, y) => Array.from({ length: n }, (_, x) => qr.isDark(y, x)));
-      if (!off) setRows(m);
-    });
-    return () => {
-      off = true;
-    };
+  // Библиотеки подключены сразу, а не подгружаются: после обновления приложения
+  // подгружаемый файл старой версии мог пропасть с сервера, и код не показывался.
+  const rows = useMemo(() => {
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const n = qr.getModuleCount();
+    return Array.from({ length: n }, (_, y) => Array.from({ length: n }, (_, x) => qr.isDark(y, x)));
   }, [text]);
 
-  if (!rows) return <div style={{ width: 'min(100%, 280px)', aspectRatio: '1' }} />;
   const size = rows.length + QUIET * 2;
   const path = rows
     .flatMap((r, y) => r.map((dark, x) => (dark ? `M${String(x + QUIET)} ${String(y + QUIET)}h1v1h-1z` : '')))
