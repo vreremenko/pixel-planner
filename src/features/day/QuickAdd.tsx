@@ -15,7 +15,8 @@ interface Props {
   todayDate: LocalDate;
 }
 
-const HINT = 'Можно сразу с датой, временем и меткой: завтра в 15:00 позвонить маме #семья !';
+// Подсказка с примером — прямо в поле: на телефоне она просто обрежется, на компьютере видна целиком
+const PLACEHOLDER = 'Что сделать? Например: завтра в 15:00 позвонить маме #семья !';
 
 /** Быстрый ввод: разбирает дату, время, приоритет, метки, повтор и напоминание прямо из текста. */
 export function QuickAdd({ date, todayDate }: Props) {
@@ -96,8 +97,8 @@ export function QuickAdd({ date, todayDate }: Props) {
           void submit();
         }}
       >
-        <label htmlFor="quick-add" className={s.label}>
-          Быстрый ввод
+        <label htmlFor="quick-add" className="sr-only">
+          Быстрый ввод задачи
         </label>
         {/* Кнопка «Добавить» — рядом с полем, а на узком экране под ним: она отправляет написанное, а не открывает окно */}
         <div className={s.row}>
@@ -106,10 +107,10 @@ export function QuickAdd({ date, todayDate }: Props) {
               ref={inputRef}
               id="quick-add"
               className={s.input}
-              placeholder="Что сделать?"
+              placeholder={PLACEHOLDER}
               autoComplete="off"
               enterKeyHint="send"
-              aria-describedby="quick-add-hint"
+              aria-describedby={text.trim() === '' ? undefined : 'quick-add-hint'}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -119,11 +120,7 @@ export function QuickAdd({ date, todayDate }: Props) {
           </Button>
         </div>
       </form>
-      {text.trim() === '' ? (
-        <p id="quick-add-hint" className={s.hint}>
-          {HINT}
-        </p>
-      ) : (
+      {text.trim() === '' ? null : (
         <div id="quick-add-hint" className={s.chips} aria-live="polite">
           {hasFound ? <span className={s.note}>Распознано:</span> : null}
           {full.found.includes('date') && full.date && chip('date', 'calendar', formatDateLong(full.date))}
