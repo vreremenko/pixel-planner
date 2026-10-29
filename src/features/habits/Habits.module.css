@@ -20,7 +20,8 @@
 }
 .list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  /* Одна колонка на всех экранах: карточка занимает всю ширину, как на телефоне */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gap-4);
 }
 .head {
@@ -69,7 +70,6 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 3px;
-  max-width: 340px;
 }
 .dow {
   text-align: center;
@@ -269,4 +269,12 @@
 .collapseBtn {
   margin-left: auto;
   align-self: center;
+}
+
+/* В широкой карточке клетки календаря не квадратные, иначе они выходят огромными */
+@media (min-width: 640px) {
+  .cell {
+    aspect-ratio: auto;
+    height: 40px;
+  }
 }
