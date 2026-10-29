@@ -8,6 +8,11 @@ const TARGETS = (): ProbeTarget[] => [
   { id: 'api', label: 'Текущий сервер приложения', url: apiUrl('config') },
   { id: 'api8', label: 'Сервер приложения: ответ 8 КБ', url: apiUrl('ping?kb=8'), body: true },
   { id: 'api64', label: 'Сервер приложения: ответ 64 КБ', url: apiUrl('ping?kb=64'), body: true },
+  { id: 'n1', label: 'Netlify, адрес 1: главная', url: 'https://pp-api-83f524.netlify.app/' },
+  { id: 'n2', label: 'Netlify, адрес 1: /api/config', url: 'https://pp-api-83f524.netlify.app/api/config' },
+  { id: 'n3', label: 'Netlify, адрес 2: главная', url: 'https://planner-sync-47b7e4.netlify.app/' },
+  { id: 'n4', label: 'Netlify, адрес 2: /api/config', url: 'https://planner-sync-47b7e4.netlify.app/api/config' },
+  { id: 'n5', label: 'Netlify, адрес 2: ответ 64 КБ', url: 'https://planner-sync-47b7e4.netlify.app/api/ping?kb=64', body: true },
   { id: 'cf', label: 'Cloudflare (workers.dev)', url: 'https://pixel-planner.pixel-planner.workers.dev/api/config' },
   { id: 'gh', label: 'GitHub Pages (само приложение)', url: 'https://vreremenko.github.io/pixel-planner/version.json' },
 ];
