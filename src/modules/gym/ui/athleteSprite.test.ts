@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BACK, FRONT, PALETTE, PALETTE_KEYS, SPRITE_H, SPRITE_W } from './athleteSprite';
-import { MASKED } from './muscleGrid';
+import { BACK_GRID, FRONT_GRID } from './muscleGrid';
+
+const MASKED = { front: new Set(FRONT_GRID.flat()), back: new Set(BACK_GRID.flat()) };
 import { MUSCLE_IDS } from '../domain/muscles';
 
 describe('спрайт атлета и разметка мышц', () => {

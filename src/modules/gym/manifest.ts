@@ -6,7 +6,6 @@ export const gymModule: ModuleManifest = {
   title: 'Тренировки',
   icon: 'dumbbell',
   accent: 'var(--c-gym)',
-  status: 'draft',
   nav: [
     { to: '/gym', label: 'Тренировка', short: 'Трен.', icon: 'dumbbell', accent: 'var(--c-gym)' },
     { to: '/gym/programs', label: 'Программа', short: 'Прогр.', icon: 'book', accent: 'var(--c-gym)' },

@@ -48,6 +48,3 @@ export const BACK_GRID = maskGrid(BACK, BACK_MASKS);
 /** Мышцы, которые видны только со спины. */
 export const BACK_ONLY = new Set<MuscleId>(['rearDelts', 'lowerBack', 'glutes', 'hamstrings']);
 
-
-/** Какие мышцы размечены на каждой стороне (для тестов). */
-export const MASKED = { front: new Set(FRONT_GRID.flat().filter(Boolean)), back: new Set(BACK_GRID.flat().filter(Boolean)) };

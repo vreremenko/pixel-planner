@@ -139,6 +139,14 @@ describe('синхронизация', () => {
     expect((await pull(d, b)).records).toEqual([]);
   });
 
+  it('таблицы тренировок принимаются и отдаются, неизвестные — нет', async () => {
+    const d = mk();
+    const t = await register(d, 'a@b.ru');
+    const gym = (tbl: string, id: string) => ({ t: tbl, id, u: 1, d: JSON.stringify({ id, updatedAt: 1 }) });
+    await handle(req('PUT', 'sync', { token: t, body: { records: [gym('gym_workouts', 'w'), gym('gym_sets', 's'), gym('gym_programs', 'p'), gym('gym_exercises', 'e'), gym('gym_prefs', 'prefs'), gym('gym_unknown', 'z')] } }), d);
+    expect((await pull(d, t)).records.map((r) => r.id).sort()).toEqual(['e', 'p', 'prefs', 's', 'w']);
+  });
+
   it('вошёл с другого устройства — видит те же данные', async () => {
     const d = mk();
     const phone = await register(d, 'a@b.ru');

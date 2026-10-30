@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, nextProgram, summarize } from './logic';
 import type { Program, Workout, WorkoutSet } from './types';
-import { catalogExercise } from './catalog';
+import { CATALOG } from './catalog';
+
+const catalogExercise = (id: string) => CATALOG.find((e) => e.id === id);
 
 const meta = { createdAt: 0, updatedAt: 0 };
 const w = (id: string, startedAt: number, extra: Partial<Workout> = {}): Workout => ({ id, ...meta, date: '2026-10-30', startedAt, finishedAt: startedAt + 3_600_000, title: id, ...extra });

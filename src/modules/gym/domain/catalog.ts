@@ -81,6 +81,3 @@ export const CATALOG: readonly ExerciseDef[] = [
   ex('elliptical', 'Эллипс', 'cardio', ['quads', 'glutes'], ['hamstrings', 'calves'], ['Стопы целиком на педалях.', 'Корпус ровно.', 'Работайте и руками.'], 'distance_time'),
   ex('walking', 'Ходьба', 'cardio', ['calves'], ['quads', 'glutes'], ['Широкий шаг, руки в такт.', 'На наклоне — выше нагрузка.', 'Темп, при котором немного учащается дыхание.'], 'distance_time'),
 ];
-
-const BY_ID = new Map(CATALOG.map((e) => [e.id, e]));
-export const catalogExercise = (id: string): ExerciseDef | undefined => BY_ID.get(id);
