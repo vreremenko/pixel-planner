@@ -262,6 +262,7 @@ export function SettingsScreen() {
         Настройки
       </h1>
       <div style={{ display: 'grid', gap: 24 }}>
+        <AccountPanel />
         <NotificationsPanel />
         <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
           <ToggleRow
@@ -275,7 +276,6 @@ export function SettingsScreen() {
           />
           <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
         </Panel>
-        <AccountPanel />
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (
             <p style={{ marginTop: 0 }}>
