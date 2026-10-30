@@ -64,7 +64,8 @@ function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClos
 export function AccountPanel() {
   const session = useAuth((s) => s.session);
   const sync = useSync((s) => s.state);
-  const running = useSync((s) => s.running);
+  // Фоновые проходы идут каждые несколько секунд, поэтому о ходе синхронизации говорим только после нажатия кнопки
+  const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const doLogout = async (erase: boolean) => {
@@ -84,8 +85,8 @@ export function AccountPanel() {
           <p style={{ marginTop: 0 }}>
             Вы вошли как <b>{session.user.email}</b>. Задачи, привычки и награды сохраняются на сервере и доступны на всех устройствах, где вы вошли.
           </p>
-          <p className="digits" style={{ margin: '0 0 12px', color: sync?.lastError ? 'var(--c-warn)' : 'var(--c-text-dim)' }}>
-            {running
+          <p className="digits" style={{ margin: '0 0 12px', minHeight: '2.6em', color: sync?.lastError ? 'var(--c-warn)' : 'var(--c-text-dim)' }}>
+            {busy
               ? 'Синхронизируем…'
               : sync?.lastError
                 ? `Не удалось: ${sync.lastError}${sync.lastAt ? ` (последний успех ${fmt(sync.lastAt)})` : ''}`
@@ -94,7 +95,12 @@ export function AccountPanel() {
                   : 'Ещё не синхронизировались'}
           </p>
           <div className={rowClass}>
-            <Button variant="habit" icon="repeat" disabled={running} onClick={() => void syncNow()}>
+            <Button variant="habit" icon="repeat" disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void syncNow().finally(() => setBusy(false));
+              }}
+            >
               Синхронизировать
             </Button>
             <Button onClick={() => setDialog('logout')}>Выйти</Button>
