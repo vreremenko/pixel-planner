@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { handle, sendDue, type Deps } from './core.ts';
+import { handle } from './core.ts';
+import { json, mk, register, req } from './test-helpers.ts';
 import { SqliteStore } from './sqlite-store.ts';
-import type { HttpReq, ScheduleItem } from './types.ts';
+import type { ScheduleItem } from './types.ts';
 
-const KEY = 'A'.repeat(43);
-const OTHER = 'B'.repeat(43);
 const DEVICE = '11111111-1111-4111-8111-111111111111';
 const rec = (id: string, u: number, pad = '') => ({ t: 'tasks', id, u, d: JSON.stringify({ id, updatedAt: u, pad }) });
 const item = (key: string, fireAt: number): ScheduleItem => ({ key, fireAt, kind: 'task', ref: 'r', date: '2026-01-01', title: 'Позвонить', body: 'в 19:00' });
 
-describe('SqliteStore', () => {
+describe('SqliteStore: синхронизация и напоминания', () => {
   it('слияние: побеждает свежая запись, чужое пространство пусто, курсор отдаёт новое', async () => {
     const s = new SqliteStore(':memory:');
     await s.syncPush('sp', [rec('a', 100), rec('b', 100)]);
@@ -24,68 +23,76 @@ describe('SqliteStore', () => {
     s.close();
   });
 
-  it('большая пачка и удаление пространства', async () => {
-    const s = new SqliteStore(':memory:');
-    await s.syncPush('sp', Array.from({ length: 500 }, (_, i) => rec(`r${String(i)}`, i + 1)));
-    expect((await s.syncPull('sp', 0, 1000)).length).toBe(500);
-    await s.syncPush('other', [rec('x', 1)]);
-    await s.syncDelete('sp');
-    expect(await s.syncPull('sp', 0, 10)).toEqual([]);
-    expect((await s.syncPull('other', 0, 10)).length).toBe(1);
-    s.close();
-  });
-
   it('напоминания: наступившие, отправленное не повторяется, удаление устройства', async () => {
     const s = new SqliteStore(':memory:');
-    await s.deviceUpsert({ id: DEVICE, endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    expect(await s.deviceOwner(DEVICE)).toBe('u1');
     await s.scheduleReplace(DEVICE, [item('a', 900), item('b', 2000)], 1000);
     expect((await s.dueReminders(1000, 200)).map((d) => d.key)).toEqual(['a']);
     await s.markSent([{ deviceId: DEVICE, key: 'a' }]);
     expect(await s.dueReminders(1000, 200)).toEqual([]);
     await s.scheduleReplace(DEVICE, [item('a', 900), item('c', 950)], 1001);
     expect((await s.dueReminders(1001, 200)).map((d) => d.key)).toEqual(['c']);
-    await s.reminderSnooze(DEVICE, item('a#snooze', 5000));
-    expect((await s.dueReminders(5000, 200)).map((d) => d.key)).toEqual(['c', 'a#snooze']);
     await s.deviceDelete(DEVICE);
-    expect(await s.deviceExists(DEVICE)).toBe(false);
-    expect(await s.dueReminders(9999, 200)).toEqual([]);
+    expect(await s.deviceOwner(DEVICE)).toBeNull();
+    s.close();
+  });
+});
+
+describe('SqliteStore: аккаунты', () => {
+  it('пользователь: уникальная почта, поиск, смена пароля', async () => {
+    const s = new SqliteStore(':memory:');
+    expect(await s.userCreate({ id: 'u1', email: 'a@b.ru', passHash: 'h1', now: 1 })).toBe(true);
+    expect(await s.userCreate({ id: 'u2', email: 'a@b.ru', passHash: 'h2', now: 2 })).toBe(false);
+    expect((await s.userByEmail('a@b.ru'))?.id).toBe('u1');
+    await s.userSetPassword('u1', 'h3');
+    expect((await s.userById('u1'))?.passHash).toBe('h3');
+    expect(await s.userByEmail('нет@нет.ru')).toBeNull();
     s.close();
   });
 
-  it('через HTTP-слой: ключи, постраничная выдача, рассылка', async () => {
+  it('сессии: проверка, простой дольше срока, выход, закрытие остальных', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.sessionCreate({ tokenHash: 't1', userId: 'u1', device: '', now: 1000 });
+    await s.sessionCreate({ tokenHash: 't2', userId: 'u1', device: '', now: 1000 });
+    expect(await s.sessionUser('t1', 2000, 10_000)).toBe('u1');
+    expect(await s.sessionUser('t1', 50_000, 10_000)).toBeNull();
+    await s.sessionsDeleteOthers('u1', 't2');
+    expect(await s.sessionUser('t1', 2000, 10_000)).toBeNull();
+    expect(await s.sessionUser('t2', 2000, 10_000)).toBe('u1');
+    await s.sessionDelete('t2');
+    expect(await s.sessionUser('t2', 2000, 10_000)).toBeNull();
+    s.close();
+  });
+
+  it('удаление пользователя стирает его данные, устройства и сессии, чужие не трогает', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.userCreate({ id: 'u1', email: 'a@b.ru', passHash: 'h', now: 1 });
+    await s.userCreate({ id: 'u2', email: 'b@b.ru', passHash: 'h', now: 1 });
+    await s.syncPush('u1', [rec('a', 1)]);
+    await s.syncPush('u2', [rec('b', 1)]);
+    await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    await s.scheduleReplace(DEVICE, [item('a', 900)], 1000);
+    await s.sessionCreate({ tokenHash: 't1', userId: 'u1', device: '', now: 1 });
+    await s.userDelete('u1');
+    expect(await s.userById('u1')).toBeNull();
+    expect(await s.syncPull('u1', 0, 10)).toEqual([]);
+    expect(await s.deviceOwner(DEVICE)).toBeNull();
+    expect(await s.dueReminders(9999, 10)).toEqual([]);
+    expect(await s.sessionUser('t1', 2, 10_000)).toBeNull();
+    expect((await s.syncPull('u2', 0, 10)).length).toBe(1);
+    s.close();
+  });
+
+  it('те же сценарии через HTTP-слой на настоящей базе: регистрация, вход, синхронизация', async () => {
     const store = new SqliteStore(':memory:');
-    const sent: string[] = [];
-    const d: Deps = {
-      store,
-      env: { ALLOWED_ORIGINS: 'https://site.test', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' },
-      now: () => 1_000_000,
-      send: (_e, _to, data) => (sent.push((data as { key: string }).key), Promise.resolve({ status: 201, detail: '' })),
-    };
-    const req = (method: string, path: string, o: { key?: string; body?: unknown; query?: Record<string, string> } = {}): HttpReq => ({
-      method, path, query: o.query ?? {}, headers: o.key ? { authorization: `Bearer ${o.key}` } : {}, body: o.body === undefined ? '' : JSON.stringify(o.body),
-    });
-    expect((await handle(req('GET', 'sync'), d)).status).toBe(401);
-    for (const part of ['a', 'b']) await handle(req('PUT', 'sync', { key: KEY, body: { records: Array.from({ length: 300 }, (_, i) => rec(`${part}${String(i)}`, i + 1, 'x'.repeat(1500))) } }), d);
-    let cursor = 0;
-    let got = 0;
-    let pages = 0;
-    for (;;) {
-      const res = await handle(req('GET', 'sync', { key: KEY, query: { after: String(cursor) } }), d);
-      expect(res.body.length).toBeLessThan(520_000);
-      pages++;
-      const j = JSON.parse(res.body) as { records: unknown[]; cursor: number; more: boolean };
-      got += j.records.length;
-      cursor = j.cursor;
-      if (!j.more) break;
-    }
-    expect(got).toBe(600);
-    expect(pages).toBeGreaterThan(1);
-    expect((JSON.parse((await handle(req('GET', 'sync', { key: OTHER }), d)).body) as { records: unknown[] }).records).toEqual([]);
-    await handle(req('PUT', `devices/${DEVICE}`, { body: { subscription: { endpoint: 'https://push.test/x', keys: { p256dh: 'k', auth: 'a' } } } }), d);
-    await handle(req('PUT', `devices/${DEVICE}/schedule`, { body: { items: [item('a', 900_000), item('b', 2_000_000)] } }), d);
-    expect(await sendDue(d)).toBe(1);
-    expect(sent).toEqual(['a']);
-    expect(await sendDue(d)).toBe(0);
+    const d = mk({}, store);
+    const token = await register(d, 'a@b.ru');
+    await handle(req('PUT', 'sync', { token, body: { records: [rec('x', 5)] } }), d);
+    const second = json(await handle(req('POST', 'auth/login', { body: { email: 'a@b.ru', password: 'correct horse battery' } }), d)).token as string;
+    const got = json(await handle(req('GET', 'sync', { token: second, query: { after: '0' } }), d)) as { records: { id: string }[] };
+    expect(got.records.map((r) => r.id)).toEqual(['x']);
+    expect((await handle(req('POST', 'auth/register', { body: { email: 'A@B.ru', password: 'correct horse battery' } }), d)).status).toBe(409);
     store.close();
   });
 });

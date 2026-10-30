@@ -17,20 +17,14 @@ export interface WireRecord {
 }
 
 export interface SyncState {
-  key: string;
+  /** Аккаунт, с которым синхронизируемся. */
+  userId: string;
   /** Номер последней записи сервера, которую это устройство уже забрало. */
   cursor: number;
   /** Локальное время начала последней полной отправки: новее него — ещё не отправлено. */
   pushedSince: number;
   lastAt?: number;
   lastError?: string;
-  /** Адрес сервера, с которым синхронизировались: при смене сервера начинаем с нуля. */
-  server?: string;
-}
-
-/** Сервер сменился (или раньше не запоминали): забираем всё и отправляем всё заново, у нового сервера пусто. */
-export function forServer(state: SyncState, server: string): SyncState {
-  return state.server === server ? state : { ...state, server, cursor: 0, pushedSince: 0 };
 }
 
 export interface Transport {
@@ -59,27 +53,6 @@ export function chunkRecords(records: WireRecord[], maxCount = PUSH_CHUNK, maxBy
   if (cur.length > 0) out.push(cur);
   return out;
 }
-const KEY_PREFIX = 'pixelplanner-sync:';
-const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
-
-export const isValidKey = (k: string): boolean => KEY_RE.test(k);
-
-/** 32 случайных байта в base64url — 43 символа. */
-export function generateKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/** Что зашито в QR-код. */
-export const keyToPairingText = (key: string): string => KEY_PREFIX + key;
-
-/** Достаёт ключ из отсканированного или вставленного текста; null — это не ключ. */
-export function parsePairingText(text: string): string | null {
-  const t = text.trim();
-  const key = t.startsWith(KEY_PREFIX) ? t.slice(KEY_PREFIX.length) : t;
-  return isValidKey(key) ? key : null;
-}
-
 type Row = { id: string; updatedAt: number } & Record<string, unknown>;
 
 /** Записи, изменённые с момента since и ещё не отправленные. echo — записи, только что полученные с сервера. */

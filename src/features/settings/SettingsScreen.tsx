@@ -10,7 +10,8 @@ import { play } from '../../services/sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
-import { SyncPanel } from '../sync/SyncPanel';
+import { AccountPanel } from '../account/AccountPanel';
+import { useAuth } from '../../auth/store';
 import { fs } from '../../ui/fs';
 
 function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
@@ -42,6 +43,7 @@ function NotificationsPanel() {
   const [pushOn, setPushOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  const loggedIn = useAuth((a) => a.session) != null;
 
   useEffect(() => {
     void getServerKey().then((k) => {
@@ -77,7 +79,7 @@ function NotificationsPanel() {
       setBusy(false);
     }
   };
-  const pushReason = pushUnavailableReason(server);
+  const pushReason = pushUnavailableReason(server, loggedIn);
   const [diag, setDiag] = useState<string[]>([]);
   const sync = useLiveQuery(() => metaRepo.get<SyncStatus>('pushSync'), []);
   const runDiag = async () => {
@@ -273,7 +275,7 @@ export function SettingsScreen() {
           />
           <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
         </Panel>
-        <SyncPanel />
+        <AccountPanel />
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (
             <p style={{ marginTop: 0 }}>

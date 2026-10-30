@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PlannerDB } from '../data/db';
-import { applyRemote, chunkRecords, forServer, collectChanges, generateKey, isValidKey, keyToPairingText, parsePairingText, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
+import { applyRemote, chunkRecords, collectChanges, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
 import type { Task } from '../domain/types';
 
 /** Сервер в памяти с теми же правилами, что и у Worker. */
@@ -29,18 +29,7 @@ function fakeServer() {
 const task = (id: string, title: string, updatedAt: number, extra: Partial<Task> = {}): Task =>
   ({ id, createdAt: 1, updatedAt, title, date: '2026-01-05', priority: 'low', done: false, order: 0, tags: [], wasInBacklog: false, postponedCount: 0, ...extra });
 
-const fresh = (): SyncState => ({ key: generateKey(), cursor: 0, pushedSince: 0 });
-
-describe('ключ синхронизации', () => {
-  it('генерируется валидным и разбирается из QR-текста', () => {
-    const k = generateKey();
-    expect(isValidKey(k)).toBe(true);
-    expect(parsePairingText(keyToPairingText(k))).toBe(k);
-    expect(parsePairingText(`  ${k}\n`)).toBe(k);
-    expect(parsePairingText('hello')).toBeNull();
-    expect(parsePairingText(k.slice(1))).toBeNull();
-  });
-});
+const fresh = (): SyncState => ({ userId: 'user-1', cursor: 0, pushedSince: 0 });
 
 describe('синхронизация двух устройств', () => {
   let a: PlannerDB;
@@ -55,7 +44,7 @@ describe('синхронизация двух устройств', () => {
     await a.tasks.put(task('t1', 'купить хлеб', 100));
     const sa = (await syncOnce(a, fresh(), srv.transport)).state;
     expect(sa.lastAt).toBeDefined();
-    const sb = await syncOnce(b, { ...fresh(), key: sa.key }, srv.transport);
+    const sb = await syncOnce(b, fresh(), srv.transport);
     expect(sb.pulled).toBe(1);
     expect((await b.tasks.get('t1'))?.title).toBe('купить хлеб');
   });
@@ -143,15 +132,5 @@ describe('chunkRecords', () => {
   });
   it('делит и по числу записей', () => {
     expect(chunkRecords(Array.from({ length: 5 }, (_, i) => rec(i, 1)), 2)).toHaveLength(3);
-  });
-});
-
-describe('смена сервера', () => {
-  it('на новом сервере курсор и отправка начинаются заново', () => {
-    const st: SyncState = { key: generateKey(), cursor: 50, pushedSince: 1000, server: 'https://old.test/api/' };
-    expect(forServer(st, 'https://old.test/api/')).toBe(st);
-    expect(forServer(st, 'https://new.test/api/')).toEqual({ ...st, server: 'https://new.test/api/', cursor: 0, pushedSince: 0 });
-    // раньше адрес не запоминали — тоже начинаем с нуля один раз
-    expect(forServer({ key: st.key, cursor: 9, pushedSince: 5 }, 'https://x.test/api/').cursor).toBe(0);
   });
 });
