@@ -47,6 +47,13 @@ export function programsFor(programs: readonly Program[], date: LocalDate): Prog
   return [...programs].filter((p) => p.days?.includes(wd)).sort((a, b) => a.order - b.order);
 }
 
+/** Расписание на день: что ещё осталось сделать и что уже сделано (по завершённым тренировкам этого дня). */
+export function scheduleFor(programs: readonly Program[], workouts: readonly Workout[], date: LocalDate): { due: Program[]; done: Program[] } {
+  const finished = new Set(workouts.filter((w) => w.finishedAt && w.date === date && w.programId).map((w) => w.programId));
+  const planned = programsFor(programs, date);
+  return { due: planned.filter((p) => !finished.has(p.id)), done: planned.filter((p) => finished.has(p.id)) };
+}
+
 /** «Пн, Ср, Пт», «каждый день» или «без расписания». */
 export function daysLabel(days: readonly Weekday[] | undefined): string {
   if (!days?.length) return 'без расписания';

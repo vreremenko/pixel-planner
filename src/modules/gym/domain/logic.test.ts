@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, programsFor, summarize } from './logic';
+import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, programsFor, scheduleFor, summarize } from './logic';
 import type { Program, Workout, WorkoutSet } from './types';
 import type { Weekday } from '../../../core/domain/types';
 import { CATALOG } from './catalog';
@@ -31,6 +31,13 @@ describe('логика тренировок', () => {
     expect(programsFor(ps, '2026-11-02').map((p) => p.id)).toEqual(['B', 'A']); // понедельник
     expect(programsFor(ps, '2026-11-04').map((p) => p.id)).toEqual(['A']); // среда
     expect(programsFor(ps, '2026-11-03')).toEqual([]); // вторник
+  });
+  it('сделанный сегодня день программы уходит из «осталось» в «сделано»', () => {
+    const ps = [{ ...prog('A', 1), days: [0, 1, 2, 3, 4, 5, 6] as Weekday[] }, { ...prog('B', 2), days: [4] as Weekday[] }];
+    const ws = [w('w1', 1, { programId: 'A', date: '2026-10-30' }), w('w2', 2, { programId: 'B', date: '2026-10-29', finishedAt: 3 }), w('w3', 4, { programId: 'B', date: '2026-10-30', finishedAt: undefined })];
+    const r = scheduleFor(ps, ws, '2026-10-30'); // пятница
+    expect(r.due.map((p) => p.id)).toEqual(['B']); // B начата, но не завершена, а вчерашняя не считается
+    expect(r.done.map((p) => p.id)).toEqual(['A']);
   });
   it('порядок упражнений — по первому подходу', () => {
     expect(exerciseOrder([set('1', 'w', 'b', 5, 1, 1), set('2', 'w', 'a', 1, 1, 1), set('3', 'w', 'b', 2, 1, 1)])).toEqual(['a', 'b']);

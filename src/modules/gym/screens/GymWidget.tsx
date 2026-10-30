@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { Button } from '../../../core/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { usePrograms, useWorkouts } from '../data/hooks';
-import { programsFor } from '../domain/logic';
+import { scheduleFor } from '../domain/logic';
 import { startWorkout } from '../services/workouts';
 import s from './Gym.module.css';
 
@@ -15,8 +15,8 @@ export function GymWidget() {
   if (!programs || !workouts) return null;
   const active = workouts.find((w) => !w.finishedAt);
   const last = workouts.find((w) => w.finishedAt);
-  const today = programsFor(programs, todayDate);
-  const doneToday = workouts.some((w) => w.finishedAt && w.date === todayDate);
+  const { due: today, done } = scheduleFor(programs, workouts, todayDate);
+  const doneToday = done.length > 0 || workouts.some((w) => w.finishedAt && w.date === todayDate);
   return (
     <>
       {active ? (
@@ -27,12 +27,12 @@ export function GymWidget() {
           </Button>
         </>
       ) : today.length === 0 ? (
-        <p style={{ margin: 0 }}>{doneToday ? 'Тренировка на сегодня сделана.' : 'Сегодня тренировок нет.'}</p>
+        <p style={{ margin: 0 }}>{done.length ? `Сегодня сделано: ${done.map((p) => p.name).join(', ')} ✓` : doneToday ? 'Тренировка на сегодня сделана.' : 'Сегодня тренировок нет.'}</p>
       ) : (
         <>
           <p style={{ marginTop: 0 }}>
             Сегодня: {today.map((p) => p.name).join(', ')}
-            {doneToday && <span className={s.dim}> · уже была тренировка</span>}
+            {done.length > 0 && <span className={s.dim}> · сделано: {done.map((p) => p.name).join(', ')}</span>}
           </p>
           <div className={s.row} style={{ flexWrap: 'wrap', minHeight: 0 }}>
             {today.map((p) => (
