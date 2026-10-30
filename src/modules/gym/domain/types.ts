@@ -1,4 +1,4 @@
-import type { LocalDate, SyncMeta } from '../../../core/domain/types';
+import type { LocalDate, SyncMeta, Weekday } from '../../../core/domain/types';
 import type { MuscleId } from './muscles';
 
 /** Что записывается в подходе: вес×повторы, только повторы (свой вес), время, дистанция и время. */
@@ -45,6 +45,8 @@ export interface Program extends SyncMeta {
   name: string;
   order: number;
   items: ProgramItem[];
+  /** Дни недели тренировки (0 = Пн … 6 = Вс). Пусто или нет поля — без расписания («на будущее»). */
+  days?: Weekday[];
 }
 
 export interface Workout extends SyncMeta {

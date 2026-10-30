@@ -1,4 +1,6 @@
 /* Расчёты раздела тренировок: чистые функции без базы. */
+import { WEEKDAYS_SHORT, weekday } from '../../../core/domain/dates';
+import type { LocalDate, Weekday } from '../../../core/domain/types';
 import type { ExerciseDef, Program, Tracking, Workout, WorkoutSet } from './types';
 
 /** Расчётный максимум на одно повторение (формула Эпли); null — не силовой подход. */
@@ -39,13 +41,17 @@ export function lastSessionSets(sets: readonly WorkoutSet[], workouts: readonly 
   return last ? mine.filter((s) => s.workoutId === last.id).sort((a, b) => a.order - b.order) : [];
 }
 
-/** Следующий день программы: после последнего выполненного по кругу, иначе первый. */
-export function nextProgram(programs: readonly Program[], workouts: readonly Workout[]): Program | undefined {
-  const list = [...programs].sort((a, b) => a.order - b.order);
-  if (list.length === 0) return undefined;
-  const last = [...workouts].filter((w) => w.finishedAt && w.programId).sort((a, b) => b.startedAt - a.startedAt)[0];
-  const i = last ? list.findIndex((p) => p.id === last.programId) : -1;
-  return list[(i + 1) % list.length];
+/** Дни программы, назначенные на этот день недели. */
+export function programsFor(programs: readonly Program[], date: LocalDate): Program[] {
+  const wd = weekday(date);
+  return [...programs].filter((p) => p.days?.includes(wd)).sort((a, b) => a.order - b.order);
+}
+
+/** «Пн, Ср, Пт», «каждый день» или «без расписания». */
+export function daysLabel(days: readonly Weekday[] | undefined): string {
+  if (!days?.length) return 'без расписания';
+  if (days.length === 7) return 'каждый день';
+  return [...days].sort((a, b) => a - b).map((d) => WEEKDAYS_SHORT[d]).join(', ');
 }
 
 /** Упражнения тренировки по порядку их первого подхода. */
