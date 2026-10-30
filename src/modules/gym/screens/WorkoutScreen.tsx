@@ -1,7 +1,7 @@
 /* Идущая (или прошедшая) тренировка: упражнения и подходы, отметка запускает таймер отдыха. */
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { Button, Checkbox, Modal, Panel, cx, toast } from '../../../core/ui';
+import { Button, Checkbox, ConfirmDialog, Modal, Panel, cx, toast } from '../../../core/ui';
 import { parseValue, formatValue } from '../../../core/domain/numbers';
 import { useExercises } from '../data/exercises';
 import { useAllSets, usePrefs, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
@@ -85,6 +85,7 @@ export function WorkoutScreen() {
   const [picking, setPicking] = useState(false);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   if (workout === null) return <p className={s.dim}>Тренировка не найдена. <Link to="/gym">К тренировкам</Link></p>;
   if (!workout || !sets || !all || !workouts || !ex || !prefs) return null;
@@ -131,7 +132,7 @@ export function WorkoutScreen() {
               title={<Link className={s.link} to={`/gym/exercises/${exId}`}>{def?.name ?? 'Упражнение удалено'}</Link>}
               icon="dumbbell"
               accent="var(--c-gym)"
-              actions={active ? <Button small variant="ghost" icon="trash" label="Убрать упражнение" onClick={() => void removeExercise(workout.id, exId)} /> : undefined}
+              actions={active ? <Button small variant="ghost" icon="trash" label="Убрать упражнение" onClick={() => setRemoving(exId)} /> : undefined}
             >
               <p className={s.hint}>{last.length ? `В прошлый раз: ${last.map((x) => formatSet(x, tracking)).join(', ')}` : 'Первый раз — рекорд по умолчанию'}</p>
               {mine.map((set, i) => (
@@ -158,22 +159,18 @@ export function WorkoutScreen() {
         </div>
       </div>
       <ExercisePicker open={picking} onClose={() => setPicking(false)} onPick={(exId) => void addExercise(workout.id, exId)} />
-      <Modal
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        title="Удалить тренировку?"
-        accent="var(--c-warn)"
-        footer={
-          <>
-            <Button onClick={() => setConfirmDelete(false)}>Отмена</Button>
-            <Button variant="danger" onClick={() => void remove()}>
-              Удалить
-            </Button>
-          </>
-        }
+      <ConfirmDialog open={confirmDelete} title="Удалить тренировку?" onClose={() => setConfirmDelete(false)} onConfirm={() => void remove()}>
+        Все подходы этой тренировки будут удалены.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={removing !== null}
+        title="Убрать упражнение?"
+        action="Убрать"
+        onClose={() => setRemoving(null)}
+        onConfirm={() => removing && void removeExercise(workout.id, removing)}
       >
-        <p style={{ margin: 0 }}>Все подходы этой тренировки будут удалены.</p>
-      </Modal>
+        «{removing ? (ex.byId(removing)?.name ?? '') : ''}» и все его подходы в этой тренировке будут удалены.
+      </ConfirmDialog>
       <Modal open={summary !== null} onClose={() => void navigate('/gym')} title="Тренировка завершена" accent="var(--c-gym)" footer={<Button variant="primary" onClick={() => void navigate('/gym')}>Отлично</Button>}>
         {summary && (
           <>
