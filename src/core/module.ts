@@ -17,19 +17,33 @@ export interface ModuleNavItem {
 }
 
 export interface ModuleRoute {
-  /** Путь относительно корня ('habits', 'tag/:tag'); index — главная. */
-  path?: string;
-  index?: boolean;
+  /** Путь относительно корня ('habits', 'tag/:tag'). Главная — «Сводка» ядра. */
+  path: string;
+  Component: ComponentType;
+}
+
+/** Карточка раздела на «Сводке». */
+export interface ModuleWidget {
+  id: string;
+  title: string;
+  icon: IconName;
+  accent: string;
+  /** Куда ведёт заголовок карточки. */
+  to: string;
   Component: ComponentType;
 }
 
 export interface ModuleManifest {
   id: string;
   title: string;
+  icon: IconName;
+  accent: string;
   /** draft — раздел в разработке: виден только в dev-сборке. */
   status?: 'ready' | 'draft';
   nav: ModuleNavItem[];
   routes: ModuleRoute[];
+  /** Карточки раздела на «Сводке». */
+  widgets?: ModuleWidget[];
   /** Всегда смонтированные части раздела (общие окна, например редактор задачи). */
   globals?: ComponentType[];
 }

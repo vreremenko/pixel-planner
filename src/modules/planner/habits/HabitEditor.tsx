@@ -35,7 +35,7 @@ export function HabitEditor({ habit, onClose }: Props) {
     if (habit) await updateHabit(habit, d);
     else {
       await createHabit(d);
-      toast('Новый квест принят!', 'star', 'var(--c-habit)');
+      toast('Привычка добавлена', 'star', 'var(--c-habit)');
     }
     onClose();
   };
@@ -44,7 +44,7 @@ export function HabitEditor({ habit, onClose }: Props) {
     <Modal
       open
       onClose={onClose}
-      title={habit ? 'Квест' : 'Новый квест'}
+      title={habit ? 'Привычка' : 'Новая привычка'}
       accent="var(--c-habit)"
       footer={
         <>

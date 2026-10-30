@@ -130,7 +130,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
     const draft = toDraft(f);
     if (target.kind === 'new') {
       await createTask(draft);
-      toast(draft.repeat ? 'Повторяющаяся задача создана' : draft.date ? 'Задача добавлена' : 'Добавлено в инвентарь', 'plus', 'var(--c-task)');
+      toast(draft.repeat ? 'Повторяющаяся задача создана' : draft.date ? 'Задача добавлена' : 'Добавлено в бэклог', 'plus', 'var(--c-task)');
     } else if (target.kind === 'task') {
       await updateTask(target.task, draft);
     } else {
@@ -159,7 +159,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
 
   return (
     <form onSubmit={onSubmit}>
-      <TextInput label="Название" value={f.title} data-autofocus={f.title.trim() === '' ? true : undefined} required maxLength={200} onChange={(e) => set('title', e.target.value)} placeholder="Победить босса…" />
+      <TextInput label="Название" value={f.title} data-autofocus={f.title.trim() === '' ? true : undefined} required maxLength={200} onChange={(e) => set('title', e.target.value)} placeholder="Например: позвонить маме" />
       {!isOcc && (
         <Field label="Где">
           <Segmented
@@ -167,7 +167,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
             value={f.inBacklog ? 'backlog' : 'day'}
             options={[
               { value: 'day', label: 'На дату' },
-              { value: 'backlog', label: 'В инвентарь' },
+              { value: 'backlog', label: 'В бэклог' },
             ]}
             onChange={(v) => set('inBacklog', v === 'backlog')}
           />

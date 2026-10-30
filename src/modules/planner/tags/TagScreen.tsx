@@ -40,7 +40,7 @@ function Section({ title, color, children, count }: { title: string; color: stri
   );
 }
 
-/** Все задачи с одной меткой: по всем дням, из инвентаря, повторяющиеся и недавно выполненные. */
+/** Все задачи с одной меткой: по всем дням, из бэклога, повторяющиеся и недавно выполненные. */
 export function TagScreen() {
   const { tag: raw = '' } = useParams();
   const navigate = useNavigate();
@@ -56,7 +56,7 @@ export function TagScreen() {
   return (
     <>
       <div className={s.top}>
-        <Button icon="left" label="Назад к дню" onClick={() => void navigate('/')} />
+        <Button icon="left" label="Назад к дню" onClick={() => void navigate('/day')} />
         <h1 className="glow">#{tag}</h1>
         <span className={s.stats}>
           открыто: {openCount}
@@ -84,7 +84,7 @@ export function TagScreen() {
           <TaskRow key={t.id} task={t} />
         ))}
       </Section>
-      <Section title="Инвентарь" color="var(--c-backlog)" count={g.backlog.length}>
+      <Section title="Бэклог" color="var(--c-backlog)" count={g.backlog.length}>
         {g.backlog.map((t) => (
           <TaskRow key={t.id} task={t} />
         ))}

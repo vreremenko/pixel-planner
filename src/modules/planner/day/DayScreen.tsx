@@ -127,7 +127,7 @@ export function DayScreen() {
       </div>
 
       <Panel
-        title="Уровень дня"
+        title="День"
         icon="sword"
         accent="var(--c-task)"
         actions={
@@ -170,7 +170,7 @@ export function DayScreen() {
         {data && items.length === 0 && (
           <div className="empty" style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '24px 0' }}>
             <PixelIcon name="flag" size={48} />
-            <p>Уровень пуст. Нажмите N, чтобы добавить задачу.</p>
+            <p>На этот день задач нет. Нажмите N, чтобы добавить.</p>
           </div>
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -188,9 +188,9 @@ export function DayScreen() {
                     activeTags={tagFilter}
                     dragDisabled={filtering}
                     onEdit={() => openEditor({ kind: 'task', task: it.task })}
-                    onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в инвентарь', 'bag', 'var(--c-backlog)'))}
+                    onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)'))}
                     extraIcon="bag"
-                    extraLabel="Убрать в инвентарь"
+                    extraLabel="Убрать в бэклог"
                   />
                 ) : (
                   <TaskItem

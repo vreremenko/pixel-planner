@@ -1,0 +1,60 @@
+/* «Сводка» и «Ещё» */
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-4);
+}
+.date {
+  color: var(--c-text-dim);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--gap-4);
+  align-items: start;
+}
+.cardLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-text-dim);
+  text-decoration: none;
+  font-family: var(--font-title);
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
+  padding: 6px 4px;
+}
+.cardLink:hover {
+  color: var(--c-text);
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--gap-3);
+}
+.tile {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  min-height: 56px;
+  padding: var(--gap-3);
+  background: var(--c-panel);
+  border: var(--px) solid var(--accent, var(--c-border));
+  color: var(--c-text);
+  text-decoration: none;
+  font-family: var(--font-title);
+  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
+  line-height: 1.5;
+}
+.tile svg {
+  color: var(--accent, var(--c-text));
+}
+.tile:hover {
+  background: var(--c-panel-2);
+}
+.groupTitle {
+  margin: var(--gap-4) 0 var(--gap-2);
+  color: var(--c-text-dim);
+}

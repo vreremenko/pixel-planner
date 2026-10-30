@@ -87,7 +87,7 @@ export function StatsScreen() {
   return (
     <>
       <div className={s.top}>
-        <h1 className="glow">Таблица рекордов</h1>
+        <h1 className="glow">Статистика</h1>
         <Segmented
           label="Период"
           value={mode}
@@ -109,7 +109,7 @@ export function StatsScreen() {
             <Tile label="Задач закрыто" value={stats.cur.tasksClosed} accent="var(--c-task)">
               <Delta cur={stats.cur.tasksClosed} prev={stats.prev.tasksClosed} label={prevLabel} />
             </Tile>
-            <Tile label="Из инвентаря" value={stats.cur.fromBacklog} accent="var(--c-backlog)">
+            <Tile label="Из бэклога" value={stats.cur.fromBacklog} accent="var(--c-backlog)">
               <Delta cur={stats.cur.fromBacklog} prev={stats.prev.fromBacklog} label={prevLabel} />
             </Tile>
             <Tile label="Повторяющиеся" value={pct(stats.cur.recurringRate)} accent="var(--c-task)">
