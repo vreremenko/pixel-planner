@@ -4,9 +4,22 @@ import { REMINDER_OFFSETS, type ReminderOffset, type ReminderSpec } from './type
 export const MAX_REMINDERS = 5;
 
 /** Порядок, в котором предлагаются значения для нового напоминания (самые ходовые — первыми). */
-const SUGGEST_ORDER: readonly ReminderOffset[] = [15, 60, 5, 30, 0];
+const SUGGEST_ORDER: readonly ReminderOffset[] = [30, 60, 5, 1440, 0];
 
-export const reminderLabel = (offsetMin: number): string => (offsetMin === 0 ? 'В момент начала' : `За ${String(offsetMin)} минут`);
+export function reminderLabel(offsetMin: number): string {
+  if (offsetMin === 0) return 'В момент начала';
+  if (offsetMin === 60) return 'За час';
+  if (offsetMin === 1440) return 'За день';
+  return `За ${String(offsetMin)} минут`;
+}
+
+/** Коротко для строки задачи: «−30м», «−1ч», «−1д»; в момент начала — пусто. */
+export function reminderShort(offsetMin: number): string {
+  if (offsetMin === 0) return '';
+  if (offsetMin === 1440) return '−1д';
+  if (offsetMin === 60) return '−1ч';
+  return `−${String(offsetMin)}м`;
+}
 
 /**
  * Напоминания элемента. Раньше хранилось одно поле `reminder`; новые данные пишутся в `reminders`.

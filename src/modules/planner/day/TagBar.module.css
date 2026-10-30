@@ -1,9 +1,12 @@
+.wrap {
+  margin-bottom: var(--gap-3);
+}
 /* Одна строка меток; не помещаются — прокручиваются вбок до края экрана */
 .bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 calc(var(--gap-4) * -1) var(--gap-3);
+  margin: 0 calc(var(--gap-4) * -1);
   padding: 2px var(--gap-4);
   overflow-x: auto;
   scrollbar-width: none;
@@ -39,8 +42,8 @@
   opacity: 0.75;
 }
 .link {
-  flex: none;
-  white-space: nowrap;
+  display: inline-block;
+  margin-top: 8px;
   color: var(--c-task);
   font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   text-decoration: none;

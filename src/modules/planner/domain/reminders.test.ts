@@ -101,7 +101,12 @@ describe('planReminders', () => {
       '2026-01-10T09:00:00.000Z', // в момент начала
     ]);
     expect(new Set(r.map((x) => x.key)).size).toBe(3);
-    expect(r.map((x) => x.body)).toEqual(['Через 60 мин, в 10:00', 'Через 15 мин, в 10:00', 'Сейчас, 10:00']);
+    expect(r.map((x) => x.body)).toEqual(['Через час, в 10:00', 'Через 15 мин, в 10:00', 'Сейчас, 10:00']);
+  });
+  it('за день — срабатывает накануне в то же время', () => {
+    const tomorrow = { ...task, date: '2026-01-11', reminders: [{ offsetMin: 1440 }] } as Task;
+    const r = planReminders({ ...base, tasks: [tomorrow], settings: { ...settings, morningSummary: { enabled: false, time: '08:00' } } });
+    expect(r.map((x) => [new Date(x.fireAt).toISOString(), x.body])).toEqual([['2026-01-10T09:00:00.000Z', 'Завтра в 10:00']]);
   });
   it('старое поле reminder по-прежнему работает', () => {
     const legacy = { ...task, reminder: { offsetMin: 30 } } as Task;

@@ -40,7 +40,10 @@ export function reminderInstant(date: LocalDate, time: LocalTime, spec: Reminder
 }
 
 function offsetText(spec: ReminderSpec, time: LocalTime): string {
-  return spec.offsetMin === 0 ? `Сейчас, ${time}` : `Через ${spec.offsetMin} мин, в ${time}`;
+  if (spec.offsetMin === 0) return `Сейчас, ${time}`;
+  if (spec.offsetMin === 1440) return `Завтра в ${time}`;
+  if (spec.offsetMin === 60) return `Через час, в ${time}`;
+  return `Через ${spec.offsetMin} мин, в ${time}`;
 }
 
 export interface ReminderInput {

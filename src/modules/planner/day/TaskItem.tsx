@@ -7,7 +7,7 @@ import type { DayItem } from '../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL } from './labels';
 import { checklistProgress } from '../domain/checklist';
 import { normalizeTag } from '../domain/tags';
-import { reminderLabel, remindersOf } from '../domain/reminderSpecs';
+import { reminderLabel, reminderShort, remindersOf } from '../domain/reminderSpecs';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
 
 interface Props {
@@ -107,7 +107,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
             {data.reminders.length > 0 && (
               <span title={`Напоминания: ${data.reminders.map((r) => reminderLabel(r.offsetMin).toLowerCase()).join(', ')}`}>
                 <PixelIcon name="bell" size={12} />
-                {data.reminders.length > 1 ? `×${String(data.reminders.length)}` : data.reminders[0]?.offsetMin ? `−${String(data.reminders[0].offsetMin)}м` : ''}
+                {data.reminders.length > 1 ? `×${String(data.reminders.length)}` : reminderShort(data.reminders[0]?.offsetMin ?? 0)}
               </span>
             )}
             {data.missed && <span style={{ color: 'var(--c-warn)' }}>пропущено</span>}

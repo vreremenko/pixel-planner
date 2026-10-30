@@ -4,8 +4,11 @@ export type { Weekday } from '../../../core/domain/types';
 
 export type Priority = 'low' | 'medium' | 'high';
 
-export const REMINDER_OFFSETS = [0, 5, 15, 30, 60] as const;
+/** Все допустимые отступы напоминаний в минутах. 15 больше не предлагается, но в старых задачах работает. */
+export const REMINDER_OFFSETS = [0, 5, 15, 30, 60, 1440] as const;
 export type ReminderOffset = (typeof REMINDER_OFFSETS)[number];
+/** Что предлагается при выборе напоминания: в момент начала, за 5 и 30 минут, за час, за день. */
+export const REMINDER_CHOICES: readonly ReminderOffset[] = [0, 5, 30, 60, 1440];
 export interface ReminderSpec {
   offsetMin: ReminderOffset;
 }

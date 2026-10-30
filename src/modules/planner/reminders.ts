@@ -19,15 +19,17 @@ async function plan(from: Date, to: Date): Promise<PlannedReminder[]> {
   const settings = await settingsRepo.get();
   const fromDate = addDays(dateOf(from), -1);
   const toDate = dateOf(to);
+  // Напоминание «за день» срабатывает накануне: задачи берём с запасом на день вперёд
+  const taskTo = addDays(toDate, 1);
   const [tasks, series, overrides, habits, logs] = await Promise.all([
-    taskRepo.byDateRange(fromDate, toDate),
+    taskRepo.byDateRange(fromDate, taskTo),
     seriesRepo.all(),
     overrideRepo.all(),
     habitRepo.all(),
     habitLogRepo.byDateRange(fromDate, toDate),
   ]);
   // «Сегодня» = начало окна, чтобы экземпляры внутри окна были pending, а не missed.
-  const occurrences = buildOccurrences(series, overrides, fromDate, toDate, fromDate);
+  const occurrences = buildOccurrences(series, overrides, fromDate, taskTo, fromDate);
   const planned = planReminders({
     tasks,
     occurrences,

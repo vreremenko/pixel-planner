@@ -21,20 +21,34 @@ export function TagBar({ available, total, selected, onToggle, onClear }: Props)
   const only = selected.length === 1 ? selected[0] : undefined;
 
   return (
-    <div className={s.bar} role="group" aria-label="Фильтр по меткам">
-      <button type="button" className={s.tag} aria-pressed={selected.length === 0} onClick={onClear}>
-        Все
-        <span className={s.count}>{total}</span>
-      </button>
-      {chips.map(({ tag, count }) => (
-        <button key={tag} type="button" className={s.tag} aria-pressed={selected.includes(tag)} onClick={() => onToggle(tag)}>
-          #{tag}
-          <span className={s.count}>{count}</span>
+    <div className={s.wrap}>
+      <div className={s.bar} role="group" aria-label="Фильтр по меткам">
+        <button
+          type="button"
+          className={s.tag}
+          aria-pressed={selected.length === 0}
+          onClick={onClear}
+        >
+          Все
+          <span className={s.count}>{total}</span>
         </button>
-      ))}
+        {chips.map(({ tag, count }) => (
+          <button
+            key={tag}
+            type="button"
+            className={s.tag}
+            aria-pressed={selected.includes(tag)}
+            onClick={() => onToggle(tag)}
+          >
+            #{tag}
+            <span className={s.count}>{count}</span>
+          </button>
+        ))}
+      </div>
+      {/* Под строкой меток, а не в её конце: в прокрутке вбок ссылку не видно */}
       {only && (
         <Link className={s.link} to={`/tag/${encodeURIComponent(only)}`}>
-          Все дни и бэклог →
+          #{only}: все дни и бэклог →
         </Link>
       )}
     </div>

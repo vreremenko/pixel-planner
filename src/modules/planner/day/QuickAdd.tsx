@@ -7,6 +7,7 @@ import { describeRule } from '../domain/recurrence';
 import { formatDateLong } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import { PRIORITY_COLOR, PRIORITY_LABEL } from './labels';
+import { reminderLabel } from '../domain/reminderSpecs';
 
 interface Props {
   /** День, открытый на экране: сюда попадёт задача, если в тексте нет другой даты. */
@@ -124,7 +125,7 @@ export function QuickAdd({ date, todayDate }: Props) {
           {hasFound ? <span className={s.note}>Распознано:</span> : null}
           {full.found.includes('date') && full.date && chip('date', 'calendar', formatDateLong(full.date))}
           {full.found.includes('time') && full.time && chip('time', 'clock', full.time)}
-          {full.found.includes('reminder') && full.reminder !== undefined && chip('reminder', 'bell', `за ${full.reminder === 60 ? '1 ч' : `${String(full.reminder)} мин`}`)}
+          {full.found.includes('reminder') && full.reminder !== undefined && chip('reminder', 'bell', reminderLabel(full.reminder).toLowerCase())}
           {full.found.includes('repeat') && full.repeat && chip('repeat', 'repeat', describeRule({ ...full.repeat.pattern, start: full.date ?? date, end: full.repeat.end }))}
           {full.found.includes('priority') && full.priority && chip('priority', 'flag', PRIORITY_LABEL[full.priority], PRIORITY_COLOR[full.priority])}
           {parsed.tags.map((t) => (

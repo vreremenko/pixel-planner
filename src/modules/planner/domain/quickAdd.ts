@@ -1,6 +1,6 @@
 import { addDays, addMonths, daysInMonth, makeDate, parseLocalDate, weekday } from '../../../core/domain/dates';
 import { normalizeTag } from './tags';
-import { REMINDER_OFFSETS } from './types';
+import { REMINDER_CHOICES } from './types';
 import type { LocalDate, LocalTime } from '../../../core/domain/types';
 import type { Priority, RecurrenceEnd, RecurrencePattern, ReminderOffset, Weekday } from './types';
 
@@ -103,18 +103,19 @@ export function parseQuickAdd(input: string, todayDate: LocalDate, ignore: Reado
     if (repeatSpec) found.add('repeat');
   }
 
-  // 2. Напоминание: «напомни за 15 минут», «напомнить за час» (только с «за», иначе это обычное слово)
+  // 2. Напоминание: «напомни за 30 минут», «напомнить за час», «напомни за день» (только с «за», иначе это обычное слово)
   let reminder: ReminderOffset | undefined;
   if (!skip('reminder')) {
     const minutesOf = (x: RegExpMatchArray): number | null => {
+      if (x[4]) return 1440;
       if (x[3]) return 60;
       const n = Number(x[1]);
       if (!Number.isFinite(n)) return null;
       const unit = (x[2] ?? '').toLowerCase();
       return unit.startsWith('ч') ? n * 60 : n;
     };
-    const ok = (x: RegExpMatchArray) => (REMINDER_OFFSETS as readonly number[]).includes(minutesOf(x) ?? -1);
-    const m = grab(re(`${NB}напомни(?:ть)?\\s+за\\s+(?:(\\d{1,3})\\s*(мин[\\p{L}]*|ч[\\p{L}]*)?|(час))${NA}`), ok);
+    const ok = (x: RegExpMatchArray) => (REMINDER_CHOICES as readonly number[]).includes(minutesOf(x) ?? -1);
+    const m = grab(re(`${NB}напомни(?:ть)?\\s+за\\s+(?:(\\d{1,3})\\s*(мин[\\p{L}]*|ч[\\p{L}]*)?|(час)|(день|сутки))${NA}`), ok);
     if (m) {
       reminder = minutesOf(m) as ReminderOffset;
       found.add('reminder');

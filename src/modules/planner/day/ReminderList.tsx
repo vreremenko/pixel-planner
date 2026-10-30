@@ -1,7 +1,7 @@
 import s from './Day.module.css';
 import { Button, Field, inputClass } from '../../../core/ui';
 import { MAX_REMINDERS, nextFreeOffset, reminderLabel } from '../domain/reminderSpecs';
-import { REMINDER_OFFSETS, type ReminderOffset } from '../domain/types';
+import { REMINDER_CHOICES, type ReminderOffset } from '../domain/types';
 
 interface Props {
   value: ReminderOffset[];
@@ -29,12 +29,15 @@ export function ReminderList({ value, onChange, disabled }: Props) {
               aria-label={`Напоминание ${String(i + 1)}`}
               onChange={(e) => onChange(value.map((x, j) => (j === i ? (Number(e.target.value) as ReminderOffset) : x)))}
             >
-              {/* Уже выбранные в других полях значения не предлагаем: повтор не имеет смысла */}
-              {REMINDER_OFFSETS.filter((o) => o === offset || !value.includes(o)).map((o) => (
-                <option key={o} value={o}>
-                  {reminderLabel(o)}
-                </option>
-              ))}
+              {/* Уже выбранные в других полях значения не предлагаем: повтор не имеет смысла.
+                  Старое значение, которого больше нет в списке (за 15 минут), показываем, пока его не сменят */}
+              {(REMINDER_CHOICES.includes(offset) ? REMINDER_CHOICES : [...REMINDER_CHOICES, offset].sort((a, b) => a - b))
+                .filter((o) => o === offset || !value.includes(o))
+                .map((o) => (
+                  <option key={o} value={o}>
+                    {reminderLabel(o)}
+                  </option>
+                ))}
             </select>
             <Button small variant="ghost" icon="close" label={`Убрать напоминание ${String(i + 1)}`} disabled={disabled} onClick={() => onChange(value.filter((_, j) => j !== i))} />
           </div>
