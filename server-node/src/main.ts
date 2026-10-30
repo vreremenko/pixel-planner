@@ -1,6 +1,6 @@
 /*
  * Точка входа обычного сервера: HTTP-API на node:http (за Caddy, который даёт HTTPS), хранилище SQLite
- * и рассылка push-напоминаний раз в минуту. Настройки — переменные окружения (см. server-node/README.md).
+ * и рассылка push-напоминаний каждые несколько секунд. Настройки — переменные окружения (см. server-node/README.md).
  */
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -20,6 +20,8 @@ mkdirSync(dirname(dbPath), { recursive: true });
 const store = new SqliteStore(dbPath);
 
 const MAX_BODY = 1_000_000;
+/** Как часто проверять наступившие напоминания: отправка идёт почти в момент срока. */
+const TICK_MS = 5_000;
 
 /** Адрес клиента: за Caddy он приходит в X-Forwarded-For (последний адрес дописал сам Caddy). */
 function clientIp(forwarded: string | string[] | undefined, remote: string | undefined): string {
@@ -74,7 +76,7 @@ setInterval(() => {
     .finally(() => {
       ticking = false;
     });
-}, 60_000);
+}, TICK_MS);
 
 const stop = () => {
   server.close();

@@ -37,6 +37,10 @@ export class MemoryStore implements Store {
     return Promise.resolve(this.devices.get(id)?.userId ?? null);
   }
 
+  devicesOfUser(userId: string): Promise<string[]> {
+    return Promise.resolve([...this.devices].filter(([, v]) => v.userId === userId).map(([id]) => id));
+  }
+
   deviceGet(id: string) {
     const d = this.devices.get(id);
     return Promise.resolve(d ? { endpoint: d.endpoint, p256dh: d.p256dh, auth: d.auth } : null);

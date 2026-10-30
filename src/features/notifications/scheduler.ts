@@ -23,6 +23,7 @@ import { db } from '../../data/db';
 import { toast } from '../../ui';
 import { showSystemNotification } from './notify';
 import { isPushActive, syncSchedule } from './push';
+import { loadSession } from '../../auth/session';
 
 const TICK_MS = 60_000;
 /** Напоминание старше этого считается пропущенным (приложение было закрыто). */
@@ -101,9 +102,14 @@ async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promi
   });
 }
 
+/** Расписание уходит на сервер, пока мы вошли в аккаунт и напоминания включены: его получат и другие устройства аккаунта. */
+async function shouldSendSchedule(): Promise<boolean> {
+  return useSettings.getState().settings.notificationsEnabled && (await loadSession()) !== null;
+}
+
 /** Немедленно отправить расписание push-серверу (при сворачивании приложения). */
 export async function flushPush(): Promise<void> {
-  if (useSettings.getState().loaded && (await isPushActive())) await pushSchedule(Date.now());
+  if (useSettings.getState().loaded && (await shouldSendSchedule())) await pushSchedule(Date.now());
 }
 
 async function pushSchedule(now: number): Promise<void> {
@@ -140,7 +146,7 @@ export async function tick(): Promise<void> {
       if (settings.timeZone !== 'UTC') toast(`Часовой пояс: ${tz}. Напоминания пересчитаны.`, 'clock', 'var(--c-xp)');
     }
     const pushActive = await isPushActive();
-    if (pushActive) await pushSchedule(now);
+    if (await shouldSendSchedule()) await pushSchedule(now);
     if (!settings.notificationsEnabled) return;
 
     const last = (await metaRepo.get<number>('lastReminderCheck')) ?? now;

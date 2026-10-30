@@ -72,6 +72,8 @@ export interface Store {
 
   /** Кому принадлежит устройство (null — такого устройства нет). */
   deviceOwner(id: string): Promise<string | null>;
+  /** Все устройства пользователя. */
+  devicesOfUser(userId: string): Promise<string[]>;
   deviceGet(id: string): Promise<{ endpoint: string; p256dh: string; auth: string } | null>;
   deviceUpsert(d: Device): Promise<void>;
   /** Удалить устройство и всё его расписание. */
