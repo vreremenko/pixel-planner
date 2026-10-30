@@ -1,7 +1,7 @@
 /* Карточка упражнения: атлет с работающими мышцами, техника, мои результаты. */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { Button, Panel, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, Panel, toast } from '../../../core/ui';
 import { useExercises } from '../data/exercises';
 import { useAllSets, useWorkouts } from '../data/hooks';
 import { bestSet, e1rm, formatSet } from '../domain/logic';
@@ -22,6 +22,7 @@ export function ExerciseCard() {
   const sets = useAllSets();
   const workouts = useWorkouts();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [anim, setAnim] = useState<{ id: string; data: Anim } | null>(null);
   useEffect(() => {
     const load = ANIMS[id];
@@ -66,7 +67,7 @@ export function ExerciseCard() {
             <Button small icon="edit" onClick={() => setEditing(true)}>
               Изменить
             </Button>
-            <Button small variant="ghost" icon="trash" label="Удалить упражнение" onClick={() => void deleteExercise(def.id).then(() => { toast('Упражнение удалено', 'trash', 'var(--c-warn)'); void navigate('/gym/exercises'); })} />
+            <Button small variant="ghost" icon="trash" label="Удалить упражнение" onClick={() => setDeleting(true)} />
           </div>
         )}
       </div>
@@ -129,6 +130,19 @@ export function ExerciseCard() {
           )}
         </Panel>
       </div>
+      <ConfirmDialog
+        open={deleting}
+        title="Удалить упражнение?"
+        onClose={() => setDeleting(false)}
+        onConfirm={() =>
+          void deleteExercise(def.id).then(() => {
+            toast('Упражнение удалено', 'trash', 'var(--c-warn)');
+            void navigate('/gym/exercises');
+          })
+        }
+      >
+        «{def.name}» пропадёт из списка упражнений.
+      </ConfirmDialog>
       {def.custom && editing && <ExerciseEditor open onClose={() => setEditing(false)} exercise={def} />}
     </>
   );

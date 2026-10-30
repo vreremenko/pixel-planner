@@ -1,6 +1,6 @@
 /* Программа: дни тренировок со списком упражнений и целевыми подходами. */
 import { useState } from 'react';
-import { Button, Field, Modal, MultiToggle, Panel, TextInput, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, Field, Modal, MultiToggle, Panel, TextInput, toast } from '../../../core/ui';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
 import { parseValue } from '../../../core/domain/numbers';
@@ -103,6 +103,7 @@ export function ProgramsScreen() {
   const programs = usePrograms();
   const ex = useExercises();
   const [editing, setEditing] = useState<Program | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<Program | null>(null);
   if (!programs) return null;
   return (
     <>
@@ -131,7 +132,7 @@ export function ProgramsScreen() {
                 <Button small variant="ghost" icon="up" label="Выше" disabled={i === 0} onClick={() => void moveProgram(p.id, -1)} />
                 <Button small variant="ghost" icon="down" label="Ниже" disabled={i === programs.length - 1} onClick={() => void moveProgram(p.id, 1)} />
                 <Button small icon="edit" label="Изменить" onClick={() => setEditing(p)} />
-                <Button small variant="ghost" icon="trash" label="Удалить" onClick={() => void deleteProgram(p.id)} />
+                <Button small variant="ghost" icon="trash" label="Удалить" onClick={() => setDeleting(p)} />
               </>
             }
           >
@@ -153,6 +154,14 @@ export function ProgramsScreen() {
           </Panel>
         ))}
       </div>
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Удалить день программы?"
+        onClose={() => setDeleting(null)}
+        onConfirm={() => deleting && void deleteProgram(deleting.id).then(() => toast('День программы удалён', 'trash', 'var(--c-warn)'))}
+      >
+        «{deleting?.name}» пропадёт из программы. Прошлые тренировки по нему останутся в истории.
+      </ConfirmDialog>
       {editing && <ProgramEditor program={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
     </>
   );

@@ -5,6 +5,7 @@ export { inputClass, rowClass } from './classes';
 export { Checkbox } from './Checkbox';
 export { Segmented, MultiToggle } from './Segmented';
 export { Modal } from './Modal';
+export { ConfirmDialog } from './ConfirmDialog';
 export { ToastHost } from './Toasts';
 export { toast } from './toastStore';
 export { PixelIcon } from './PixelIcon';
