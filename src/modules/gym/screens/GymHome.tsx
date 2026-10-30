@@ -2,7 +2,8 @@
 import { Link, useNavigate } from 'react-router';
 import { Button, Panel, PixelIcon } from '../../../core/ui';
 import { usePrograms, useWorkouts } from '../data/hooks';
-import { nextProgram } from '../domain/logic';
+import { daysLabel, programsFor } from '../domain/logic';
+import { useToday } from '../../../core/shell/useToday';
 import type { Program } from '../domain/types';
 import { startWorkout } from '../services/workouts';
 import s from './Gym.module.css';
@@ -11,11 +12,13 @@ const dateLabel = (t: number) => new Date(t).toLocaleDateString('ru-RU', { day: 
 
 export function GymHome() {
   const navigate = useNavigate();
+  const todayDate = useToday();
   const programs = usePrograms();
   const workouts = useWorkouts();
   if (!programs || !workouts) return null;
   const active = workouts.find((w) => !w.finishedAt);
-  const next = nextProgram(programs, workouts);
+  const today = programsFor(programs, todayDate);
+  const others = programs.filter((p) => !today.includes(p));
   const start = (p?: Program) => void startWorkout(p).then((id) => navigate(`/gym/workout/${id}`));
   const history = workouts.filter((w) => w.finishedAt).slice(0, 10);
 
@@ -38,42 +41,34 @@ export function GymHome() {
           </Panel>
         ) : (
           <Panel title="Начать" icon="dumbbell" accent="var(--c-gym)">
-            {next && (
-              <p style={{ marginTop: 0 }}>
-                Следующая по программе: <b>{next.name}</b>
-                <br />
-                <span className={s.hint}>Дни программы идут по кругу, после последнего — снова первый.</span>
-              </p>
-            )}
+            <p style={{ marginTop: 0 }}>{today.length ? `Сегодня по расписанию: ${today.map((p) => p.name).join(', ')}` : 'Сегодня тренировок по расписанию нет.'}</p>
             <div className={s.row} style={{ flexWrap: 'wrap' }}>
-              {next && (
-                <Button variant="primary" icon="right" onClick={() => start(next)}>
-                  {next.name}
+              {today.map((p) => (
+                <Button key={p.id} variant="primary" icon="right" onClick={() => start(p)}>
+                  {p.name}
                 </Button>
-              )}
+              ))}
               <Button icon="plus" onClick={() => start()}>
                 Пустая тренировка
               </Button>
             </div>
-            {programs.length > 1 && (
+            {others.length > 0 && (
               <>
                 <p className={s.hint} style={{ marginTop: 12 }}>
-                  Или другой день программы:
+                  Другие дни программы:
                 </p>
                 <div className={s.row} style={{ flexWrap: 'wrap' }}>
-                  {programs
-                    .filter((p) => p.id !== next?.id)
-                    .map((p) => (
-                      <Button key={p.id} small onClick={() => start(p)}>
-                        {p.name}
-                      </Button>
-                    ))}
+                  {others.map((p) => (
+                    <Button key={p.id} small onClick={() => start(p)}>
+                      {p.name} · {daysLabel(p.days)}
+                    </Button>
+                  ))}
                 </div>
               </>
             )}
             {programs.length === 0 && (
               <p className={s.hint} style={{ marginBottom: 0 }}>
-                Составьте <Link to="/gym/programs">программу</Link> — тогда тренировка начнётся с готовым списком упражнений.
+                Составьте <Link to="/gym/programs">программу</Link> и назначьте дни недели — тогда здесь и на «Сводке» появится тренировка на сегодня.
               </p>
             )}
           </Panel>

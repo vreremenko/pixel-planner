@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, nextProgram, summarize } from './logic';
+import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, programsFor, summarize } from './logic';
 import type { Program, Workout, WorkoutSet } from './types';
+import type { Weekday } from '../../../core/domain/types';
 import { CATALOG } from './catalog';
 
 const catalogExercise = (id: string) => CATALOG.find((e) => e.id === id);
@@ -25,11 +26,11 @@ describe('логика тренировок', () => {
     const sets = [set('1', 'w1', 'x', 1, 50, 10), set('2', 'w2', 'x', 1, 55, 8), set('3', 'w2', 'x', 2, 55, 7), set('4', 'now', 'x', 1, 60, 5)];
     expect(lastSessionSets(sets, ws, 'x', 'now').map((s) => s.id)).toEqual(['2', '3']);
   });
-  it('следующий день программы идёт по кругу', () => {
-    const ps = [prog('A', 1), prog('B', 2)];
-    expect(nextProgram(ps, [])?.id).toBe('A');
-    expect(nextProgram(ps, [w('w1', 1, { programId: 'A' })])?.id).toBe('B');
-    expect(nextProgram(ps, [w('w1', 1, { programId: 'A' }), w('w2', 2, { programId: 'B' })])?.id).toBe('A');
+  it('на день недели — только назначенные дни программы, без расписания — никогда', () => {
+    const ps = [{ ...prog('A', 2), days: [0, 2] as Weekday[] }, { ...prog('B', 1), days: [0] as Weekday[] }, prog('C', 3)];
+    expect(programsFor(ps, '2026-11-02').map((p) => p.id)).toEqual(['B', 'A']); // понедельник
+    expect(programsFor(ps, '2026-11-04').map((p) => p.id)).toEqual(['A']); // среда
+    expect(programsFor(ps, '2026-11-03')).toEqual([]); // вторник
   });
   it('порядок упражнений — по первому подходу', () => {
     expect(exerciseOrder([set('1', 'w', 'b', 5, 1, 1), set('2', 'w', 'a', 1, 1, 1), set('3', 'w', 'b', 2, 1, 1)])).toEqual(['a', 'b']);

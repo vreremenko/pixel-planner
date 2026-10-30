@@ -1,18 +1,25 @@
 /* Программа: дни тренировок со списком упражнений и целевыми подходами. */
 import { useState } from 'react';
-import { Button, Modal, Panel, TextInput, toast } from '../../../core/ui';
+import { Button, Field, Modal, MultiToggle, Panel, TextInput, toast } from '../../../core/ui';
+import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
+import type { Weekday } from '../../../core/domain/types';
 import { parseValue } from '../../../core/domain/numbers';
 import { useExercises } from '../data/exercises';
 import { usePrograms } from '../data/hooks';
 import type { Program, ProgramItem } from '../domain/types';
+import { daysLabel } from '../domain/logic';
 import { deleteProgram, moveProgram, saveProgram } from '../services/programs';
 import { ExercisePicker } from './ExercisePicker';
 import s from './Gym.module.css';
+
+const WEEKDAYS = WEEKDAYS_SHORT.map((label, i) => ({ value: i as Weekday, label }));
+const ALL_DAYS = WEEKDAYS.map((d) => d.value);
 
 function ProgramEditor({ program, onClose }: { program?: Program; onClose: () => void }) {
   const ex = useExercises();
   const [name, setName] = useState(program?.name ?? '');
   const [items, setItems] = useState<ProgramItem[]>(program?.items ?? []);
+  const [days, setDays] = useState<Weekday[]>(program?.days ?? []);
   const [picking, setPicking] = useState(false);
   const patch = (i: number, p: Partial<ProgramItem>) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const move = (i: number, d: -1 | 1) =>
@@ -31,7 +38,7 @@ function ProgramEditor({ program, onClose }: { program?: Program; onClose: () =>
       toast('Назовите день программы', 'alert', 'var(--c-warn)');
       return;
     }
-    await saveProgram({ ...(program ? { id: program.id, order: program.order } : {}), name: name.trim(), items });
+    await saveProgram({ ...(program ? { id: program.id, order: program.order } : {}), name: name.trim(), items, days: [...days].sort((a, b) => a - b) });
     onClose();
   };
 
@@ -43,6 +50,18 @@ function ProgramEditor({ program, onClose }: { program?: Program; onClose: () =>
       </>
     }>
       <TextInput label="Название" value={name} maxLength={60} placeholder="Например: Грудь и трицепс" onChange={(e) => setName(e.target.value)} data-autofocus />
+      <Field label="Дни недели">
+        <MultiToggle values={days} options={WEEKDAYS} onChange={setDays} label="Дни недели" />
+      </Field>
+      <div className={s.row} style={{ minHeight: 0, marginBottom: 8 }}>
+        <Button small onClick={() => setDays(ALL_DAYS)}>
+          Каждый день
+        </Button>
+        <Button small variant="ghost" onClick={() => setDays([])}>
+          Без расписания
+        </Button>
+      </div>
+      <p className={s.hint}>{days.length ? `По расписанию: ${daysLabel(days)}` : 'Без расписания — день не появится на «Сводке», но его можно начать вручную.'}</p>
       <ul className={s.list} style={{ margin: '8px 0' }}>
         {items.map((it, i) => (
           <li key={`${it.exerciseId}-${String(i)}`} style={{ borderBottom: 'var(--px) solid var(--c-border)', paddingBottom: 8 }}>
@@ -98,13 +117,13 @@ export function ProgramsScreen() {
       <div className={s.stack}>
         {programs.length === 0 && (
           <p className={s.dim}>
-            Программа — это дни тренировок по кругу, например «Грудь», «Спина», «Ноги». Приложение подскажет, какой день следующий, и подставит веса из прошлого раза.
+            Программа — это дни тренировок, например «Грудь», «Спина», «Ноги». Каждому дню можно назначить дни недели — тогда «Сводка» покажет, что сегодня по плану, а вес подставится из прошлого раза.
           </p>
         )}
         {programs.map((p, i) => (
           <Panel
             key={p.id}
-            title={`${String(i + 1)}. ${p.name}`}
+            title={`${String(i + 1)}. ${p.name} · ${daysLabel(p.days)}`}
             icon="dumbbell"
             accent="var(--c-gym)"
             actions={
