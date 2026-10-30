@@ -2,7 +2,7 @@
 import { Link, useNavigate } from 'react-router';
 import { Button, Panel, PixelIcon } from '../../../core/ui';
 import { usePrograms, useWorkouts } from '../data/hooks';
-import { daysLabel, programsFor } from '../domain/logic';
+import { daysLabel, scheduleFor } from '../domain/logic';
 import { useToday } from '../../../core/shell/useToday';
 import type { Program } from '../domain/types';
 import { startWorkout } from '../services/workouts';
@@ -17,7 +17,7 @@ export function GymHome() {
   const workouts = useWorkouts();
   if (!programs || !workouts) return null;
   const active = workouts.find((w) => !w.finishedAt);
-  const today = programsFor(programs, todayDate);
+  const { due: today, done } = scheduleFor(programs, workouts, todayDate);
   const others = programs.filter((p) => !today.includes(p));
   const start = (p?: Program) => void startWorkout(p).then((id) => navigate(`/gym/workout/${id}`));
   const history = workouts.filter((w) => w.finishedAt).slice(0, 10);
@@ -41,7 +41,15 @@ export function GymHome() {
           </Panel>
         ) : (
           <Panel title="Начать" icon="dumbbell" accent="var(--c-gym)">
-            <p style={{ marginTop: 0 }}>{today.length ? `Сегодня по расписанию: ${today.map((p) => p.name).join(', ')}` : 'Сегодня тренировок по расписанию нет.'}</p>
+            <p style={{ marginTop: 0 }}>
+              {today.length ? `Сегодня по расписанию: ${today.map((p) => p.name).join(', ')}` : done.length ? 'На сегодня всё по расписанию сделано.' : 'Сегодня тренировок по расписанию нет.'}
+              {done.length > 0 && (
+                <>
+                  <br />
+                  <span className={s.hint}>Сделано сегодня: {done.map((p) => p.name).join(', ')} ✓</span>
+                </>
+              )}
+            </p>
             <div className={s.row} style={{ flexWrap: 'wrap' }}>
               {today.map((p) => (
                 <Button key={p.id} variant="primary" icon="right" onClick={() => start(p)}>
