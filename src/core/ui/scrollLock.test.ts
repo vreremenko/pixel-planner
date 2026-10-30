@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isScrollLocked, lockScroll, unlockScroll } from './scrollLock';
+import { lockScroll, unlockScroll } from './scrollLock';
 
 describe('блокировка прокрутки под окнами', () => {
   const scrollTo = vi.fn();
@@ -10,7 +10,8 @@ describe('блокировка прокрутки под окнами', () => {
     scrollTo.mockClear();
   });
   afterEach(() => {
-    while (isScrollLocked()) unlockScroll();
+    // Снять оставшиеся блокировки (лишние вызовы безопасны)
+    for (let i = 0; i < 5; i++) unlockScroll();
   });
 
   it('приклеивает body со сдвигом и возвращает позицию', () => {

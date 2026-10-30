@@ -10,7 +10,7 @@ export const plannerModule: ModuleManifest = {
     { to: '/', label: 'Уровень дня', short: 'День', icon: 'calendar', accent: 'var(--c-task)' },
     { to: '/backlog', label: 'Инвентарь', short: 'Инвент.', icon: 'bag', accent: 'var(--c-backlog)' },
     { to: '/habits', label: 'Квесты', short: 'Квесты', icon: 'star', accent: 'var(--c-habit)' },
-    { to: '/stats', label: 'Рекорды', short: 'Рекорды', icon: 'bars', accent: 'var(--c-xp)' },
+    { to: '/stats', label: 'Рекорды', short: 'Рекорды', icon: 'bars', accent: 'var(--c-gold)' },
   ],
   routes: [
     { index: true, Component: DayScreen },

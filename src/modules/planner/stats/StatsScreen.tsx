@@ -122,7 +122,7 @@ export function StatsScreen() {
                 {stats.cur.habitsDone} из {stats.cur.habitsScheduled} · было {pct(stats.prev.habitRate)}
               </div>
             </Tile>
-            <Tile label="Всего действий" value={stats.cur.total} accent="var(--c-xp)">
+            <Tile label="Всего действий" value={stats.cur.total} accent="var(--c-gold)">
               <Delta cur={stats.cur.total} prev={stats.prev.total} label={prevLabel} />
             </Tile>
           </div>

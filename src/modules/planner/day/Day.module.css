@@ -20,10 +20,6 @@
   color: var(--c-task);
   margin-top: 6px;
 }
-.subtitle {
-  color: var(--c-text-dim);
-  font-size: var(--fs-small);
-}
 .progressRow {
   display: flex;
   align-items: center;
@@ -61,7 +57,7 @@
   z-index: 10;
   background: var(--c-panel-3);
   box-shadow: 8px 8px 0 var(--c-shadow);
-  outline: var(--px) dashed var(--c-xp);
+  outline: var(--px) dashed var(--c-gold);
 }
 .item.done .title {
   text-decoration: line-through;
@@ -166,11 +162,6 @@
     padding: 0 12px 8px;
   }
 }
-.quick {
-  flex: 1 1 240px;
-  display: flex;
-  gap: var(--gap-2);
-}
 
 /* Календарь */
 .calHead {
@@ -210,7 +201,7 @@
   opacity: 0.6;
 }
 .calDay.today {
-  border-color: var(--c-xp);
+  border-color: var(--c-gold);
 }
 .calDay.selected {
   background: var(--c-task);

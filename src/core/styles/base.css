@@ -78,7 +78,7 @@ a {
 
 /* Пиксельный фокус: ступенчатая рамка-«курсор» */
 :focus-visible {
-  outline: var(--px) solid var(--c-xp);
+  outline: var(--px) solid var(--c-gold);
   outline-offset: 2px;
 }
 

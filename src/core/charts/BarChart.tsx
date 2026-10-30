@@ -72,7 +72,7 @@ export function BarChart({ bars, color = 'var(--c-task)', rows = 24, title }: Pr
               </text>
               {active && (
                 <g>
-                  <rect x={x - 6} y={chartH - h * B - 26} width={colW * B + 12} height={20} fill="var(--c-bg)" stroke="var(--c-xp)" strokeWidth={2} />
+                  <rect x={x - 6} y={chartH - h * B - 26} width={colW * B + 12} height={20} fill="var(--c-bg)" stroke="var(--c-gold)" strokeWidth={2} />
                   <text x={x + (colW * B) / 2} y={chartH - h * B - 11} textAnchor="middle" fill="var(--c-text)" fontFamily="var(--font-digits)" fontSize="18">
                     {b.value}
                   </text>

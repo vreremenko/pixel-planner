@@ -52,7 +52,7 @@ export function Heatmap({ values, end, weeks = 20, title }: Props) {
           width={C}
           height={C}
           fill={`var(--c-heat-${heatLevel(n, max)})`}
-          stroke={hover?.d === date ? 'var(--c-xp)' : 'none'}
+          stroke={hover?.d === date ? 'var(--c-gold)' : 'none'}
           strokeWidth={2}
           onMouseEnter={() => setHover({ d: date, n, x, y })}
           onMouseLeave={() => setHover(null)}
@@ -75,7 +75,7 @@ export function Heatmap({ values, end, weeks = 20, title }: Props) {
         {cells}
         {hover && (
           <g pointerEvents="none">
-            <rect x={Math.min(hover.x - 20, width - 92)} y={Math.max(0, hover.y - 26)} width={90} height={22} fill="var(--c-bg)" stroke="var(--c-xp)" strokeWidth={2} />
+            <rect x={Math.min(hover.x - 20, width - 92)} y={Math.max(0, hover.y - 26)} width={90} height={22} fill="var(--c-bg)" stroke="var(--c-gold)" strokeWidth={2} />
             <text x={Math.min(hover.x - 20, width - 92) + 45} y={Math.max(0, hover.y - 26) + 16} textAnchor="middle" fill="var(--c-text)" fontFamily="var(--font-digits)" fontSize="16">
               {formatDateShort(hover.d)}: {hover.n}
             </text>

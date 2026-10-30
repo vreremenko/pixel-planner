@@ -20,9 +20,9 @@ export function ChangelogModal({ entries, title, closeLabel, collapseOlder = fal
       open
       onClose={onClose}
       title={title}
-      accent="var(--c-xp)"
+      accent="var(--c-gold)"
       footer={
-        <Button variant="xp" icon="check" data-autofocus onClick={onClose}>
+        <Button variant="gold" icon="check" data-autofocus onClick={onClose}>
           {closeLabel}
         </Button>
       }

@@ -78,7 +78,7 @@ export function AccountPanel() {
       {session ? (
         <>
           <p style={{ marginTop: 0 }}>
-            Вы вошли как <b>{session.user.email}</b>. Задачи, привычки и награды сохраняются на сервере и доступны на всех устройствах, где вы вошли.
+            Вы вошли как <b>{session.user.email}</b>. Задачи и привычки сохраняются на сервере и доступны на всех устройствах, где вы вошли.
           </p>
           <div className={rowClass}>
             <Button icon="left" onClick={() => setDialog('logout')}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeStats, heatLevel, percentDelta, weekRange } from './stats';
+import { computeStats, heatLevel, percentDelta } from './stats';
 import type { Habit, HabitLog, Occurrence, Task } from './types';
 
 const t = (p: Partial<Task>): Task => ({
@@ -34,9 +34,6 @@ describe('computeStats', () => {
 });
 
 describe('утилиты', () => {
-  it('weekRange начинается с понедельника', () => {
-    expect(weekRange('2026-01-08')).toEqual({ from: '2026-01-05', to: '2026-01-11' });
-  });
   it('percentDelta', () => {
     expect(percentDelta(15, 10)).toBe(50);
     expect(percentDelta(5, 10)).toBe(-50);

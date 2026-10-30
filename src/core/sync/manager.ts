@@ -29,7 +29,7 @@ interface SyncStore {
   running: boolean;
 }
 
-export const useSync = create<SyncStore>(() => ({ state: undefined, running: false }));
+const useSync = create<SyncStore>(() => ({ state: undefined, running: false }));
 
 class SessionLost extends Error {}
 
@@ -85,7 +85,7 @@ function httpTransport(token: string): Transport {
   };
 }
 
-/** Стереть с устройства задачи, привычки и награды (настройки остаются). */
+/** Стереть с устройства данные разделов (настройки остаются). */
 async function wipeLocalData(): Promise<void> {
   await db.transaction('rw', [...SYNCED_TABLES.map((t) => db.table(t)), db.reminderLogs], async () => {
     for (const t of SYNCED_TABLES) await db.table(t).clear();

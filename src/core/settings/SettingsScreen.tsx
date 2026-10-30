@@ -133,7 +133,7 @@ function NotificationsPanel() {
   };
 
   return (
-    <Panel title="Уведомления" icon="bell" accent="var(--c-xp)">
+    <Panel title="Уведомления" icon="bell" accent="var(--c-gold)">
       <p style={{ marginTop: 0 }}>
         Статус в браузере: <b style={{ color: perm === 'granted' ? 'var(--c-habit)' : 'var(--c-warn)' }}>{PERM_TEXT[perm]}</b>
       </p>
@@ -143,7 +143,7 @@ function NotificationsPanel() {
             Разрешение нужно, чтобы присылать напоминания о задачах и квестах в момент их начала и утреннюю сводку.
             Мы спросим браузер только после нажатия кнопки.
           </p>
-          <Button variant="xp" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
+          <Button variant="gold" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
             Разрешить уведомления
           </Button>
           {perm === 'denied' && <p style={{ color: 'var(--c-warn)' }}>Разрешение отклонено — включите его в настройках сайта в браузере.</p>}
@@ -166,14 +166,14 @@ function NotificationsPanel() {
         }
         checked={settings.notificationsEnabled && perm === 'granted'}
         onChange={(v) => void enable(v)}
-        color="var(--c-xp)"
+        color="var(--c-gold)"
       />
       <ToggleRow
         label="Утренняя сводка"
         hint="Сколько задач и квестов на сегодня"
         checked={settings.morningSummary.enabled}
         onChange={(v) => void update({ morningSummary: { ...settings.morningSummary, enabled: v } })}
-        color="var(--c-xp)"
+        color="var(--c-gold)"
       />
       {settings.morningSummary.enabled && (
         <div style={{ maxWidth: 200 }}>
@@ -185,7 +185,7 @@ function NotificationsPanel() {
         hint="Напоминания в это время переносятся на конец тихих часов"
         checked={settings.quietHours.enabled}
         onChange={(v) => void update({ quietHours: { ...settings.quietHours, enabled: v } })}
-        color="var(--c-xp)"
+        color="var(--c-gold)"
       />
       {settings.quietHours.enabled && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 360 }}>
@@ -224,7 +224,7 @@ export function SettingsScreen() {
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (
             <p style={{ marginTop: 0 }}>
-              <Button variant="xp" icon="upload" onClick={install.applyUpdate}>
+              <Button variant="gold" icon="upload" onClick={install.applyUpdate}>
                 Обновить приложение
               </Button>
             </p>
@@ -241,9 +241,9 @@ export function SettingsScreen() {
             </p>
           )}
         </Panel>
-        <Panel title="О приложении" icon="star" accent="var(--c-xp)">
+        <Panel title="О приложении" icon="star" accent="var(--c-gold)">
           <p style={{ marginTop: 0 }}>
-            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-xp)' }}>{APP_VERSION}</b>
+            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-gold)' }}>{APP_VERSION}</b>
           </p>
           <Button icon="book" onClick={() => setShowLog(true)}>
             Что нового

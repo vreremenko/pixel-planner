@@ -62,7 +62,7 @@
   font-family: var(--font-digits);
   font-size: max(calc(28px * var(--fs-scale-lg)), var(--fs-min));
   font-weight: 400;
-  color: var(--c-xp);
+  color: var(--c-gold);
   line-height: 1;
   margin-top: 4px;
 }
@@ -108,7 +108,7 @@
   color: var(--c-warn);
 }
 .cell.today {
-  outline: 2px solid var(--c-xp);
+  outline: 2px solid var(--c-gold);
   outline-offset: 1px;
 }
 .cell.blank {
@@ -187,7 +187,7 @@
   outline: none;
 }
 .countInput:focus-visible {
-  border-color: var(--c-xp);
+  border-color: var(--c-gold);
 }
 .countInput[aria-invalid='true'] {
   border-color: var(--c-warn);
@@ -242,7 +242,7 @@
   font-size: max(calc(32px * var(--fs-scale-lg)), var(--fs-min));
   font-weight: 400;
   line-height: 1;
-  color: var(--c-xp);
+  color: var(--c-gold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -87,7 +87,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
             </g>
           );
         })}
-        <path d={path} fill="none" stroke="var(--c-xp)" strokeWidth={2} strokeLinejoin="miter" />
+        <path d={path} fill="none" stroke="var(--c-gold)" strokeWidth={2} strokeLinejoin="miter" />
         <rect x={LEFT} y={yOf(0)} width={plotW} height={2} fill="var(--c-border)" />
         {labelIdx.map((i, k) => (
           <text key={i} x={LEFT + i * slot + slot / 2} y={H - 4} textAnchor={k === 0 ? 'start' : k === labelIdx.length - 1 ? 'end' : 'middle'} fill="var(--c-text-muted)" fontFamily="var(--font-digits)" fontSize="15">
@@ -102,7 +102,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
               const x = Math.min(Math.max(LEFT, xOf(hover) - w / 2), W - w - 2);
               return (
                 <>
-                  <rect x={x} y={0} width={w} height={22} fill="var(--c-bg)" stroke="var(--c-xp)" strokeWidth={2} />
+                  <rect x={x} y={0} width={w} height={22} fill="var(--c-bg)" stroke="var(--c-gold)" strokeWidth={2} />
                   <text x={x + w / 2} y={16} textAnchor="middle" fill="var(--c-text)" fontFamily="var(--font-digits)" fontSize="17">
                     {label}
                   </text>
@@ -118,7 +118,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
           за день, {unit}
         </span>
         <span>
-          <span style={{ display: 'inline-block', width: 12, height: 3, background: 'var(--c-xp)', marginRight: 6, verticalAlign: 'middle' }} />
+          <span style={{ display: 'inline-block', width: 12, height: 3, background: 'var(--c-gold)', marginRight: 6, verticalAlign: 'middle' }} />
           среднее за 7 дней
         </span>
       </figcaption>

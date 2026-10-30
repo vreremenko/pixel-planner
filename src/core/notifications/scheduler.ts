@@ -36,7 +36,7 @@ async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promi
   if (!stale && !pushActive) {
     shown = await showSystemNotification({ key: r.key, kind: r.kind, title: r.title, body });
     if (!shown && document.visibilityState === 'visible') {
-      toast(`${r.title} — ${body}`, 'bell', 'var(--c-xp)');
+      toast(`${r.title} — ${body}`, 'bell', 'var(--c-gold)');
       shown = true;
     }
   }
@@ -63,7 +63,7 @@ async function shouldSendSchedule(): Promise<boolean> {
 }
 
 /** Немедленно отправить расписание push-серверу (при сворачивании приложения). */
-export async function flushPush(): Promise<void> {
+async function flushPush(): Promise<void> {
   if (useSettings.getState().loaded && (await shouldSendSchedule())) await pushSchedule(Date.now());
 }
 
@@ -86,7 +86,7 @@ export async function tick(): Promise<void> {
     const { settings, update } = useSettings.getState();
     if (settings.timeZone !== tz) {
       await update({ timeZone: tz });
-      if (settings.timeZone !== 'UTC') toast(`Часовой пояс: ${tz}. Напоминания пересчитаны.`, 'clock', 'var(--c-xp)');
+      if (settings.timeZone !== 'UTC') toast(`Часовой пояс: ${tz}. Напоминания пересчитаны.`, 'clock', 'var(--c-gold)');
     }
     const pushActive = await isPushActive();
     if (await shouldSendSchedule()) await pushSchedule(now);

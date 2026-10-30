@@ -62,7 +62,7 @@
   top: 50%;
   transform: translateY(-50%);
   line-height: 1;
-  color: var(--c-xp);
+  color: var(--c-gold);
   font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
   animation: blink 1s steps(1) infinite;
 }

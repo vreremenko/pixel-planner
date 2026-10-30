@@ -15,7 +15,7 @@
   border: 4px solid var(--c-border);
 }
 .field:focus-within {
-  border-color: var(--c-xp);
+  border-color: var(--c-gold);
 }
 .input {
   display: block;

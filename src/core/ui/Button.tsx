@@ -4,7 +4,7 @@ import { cx } from './cx';
 import { PixelIcon } from './PixelIcon';
 import type { IconName } from './icons';
 
-type Variant = 'default' | 'primary' | 'habit' | 'xp' | 'danger' | 'ghost';
+type Variant = 'default' | 'primary' | 'habit' | 'gold' | 'danger' | 'ghost';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;

@@ -8,7 +8,7 @@ interface Props {
 }
 
 /** Пиксельная полоса прогресса из сегментов (как полоска HP в NES-играх). */
-export function ProgressBar({ value, color = 'var(--c-xp)', segments = 40, height = 12, label }: Props) {
+export function ProgressBar({ value, color = 'var(--c-gold)', segments = 40, height = 12, label }: Props) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * segments);
   return (
     <svg

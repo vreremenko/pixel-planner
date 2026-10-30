@@ -1,4 +1,4 @@
-import { addDays, dateOf, rangeDates, startOfWeek, weekday } from '../../../core/domain/dates';
+import { dateOf, rangeDates, weekday } from '../../../core/domain/dates';
 import { isScheduled } from './streaks';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit, HabitLog, Occurrence, Task } from './types';
@@ -107,11 +107,6 @@ export function computeStats(input: StatsInput): PeriodStats {
     byWeekday,
     total,
   };
-}
-
-export function weekRange(d: LocalDate): { from: LocalDate; to: LocalDate } {
-  const from = startOfWeek(d);
-  return { from, to: addDays(from, 6) };
 }
 
 /** Изменение в процентах относительно прошлого периода; null если прошлый был нулевым. */

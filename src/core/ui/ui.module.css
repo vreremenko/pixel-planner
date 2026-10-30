@@ -80,13 +80,13 @@
 .habit:hover:not(:disabled) {
   --bg: color-mix(in srgb, var(--c-habit) 80%, white);
 }
-.xp {
-  --bc: var(--c-xp);
-  --bg: var(--c-xp);
+.gold {
+  --bc: var(--c-gold);
+  --bg: var(--c-gold);
   --fg: var(--c-on-accent);
 }
-.xp:hover:not(:disabled) {
-  --bg: color-mix(in srgb, var(--c-xp) 80%, white);
+.gold:hover:not(:disabled) {
+  --bg: color-mix(in srgb, var(--c-gold) 80%, white);
 }
 .danger {
   --bc: var(--c-warn);
@@ -140,7 +140,7 @@
   outline: none;
 }
 .input:focus-visible {
-  border-color: var(--c-xp);
+  border-color: var(--c-gold);
   outline: none;
 }
 .input::placeholder {
@@ -194,7 +194,7 @@ input[type='time'].input {
   background: var(--cc);
 }
 .check input:focus-visible + .checkBox {
-  outline: var(--px) solid var(--c-xp);
+  outline: var(--px) solid var(--c-gold);
   outline-offset: 2px;
 }
 
@@ -294,7 +294,7 @@ input[type='time'].input {
   animation: toast-in 0.3s steps(4);
 }
 .toast > :first-child {
-  color: var(--c-xp);
+  color: var(--c-gold);
 }
 @keyframes toast-in {
   from {
@@ -310,17 +310,4 @@ input[type='time'].input {
   flex-wrap: wrap;
 }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gap-3);
-  padding: var(--gap-6) var(--gap-4);
-  color: var(--c-text-dim);
-  text-align: center;
-}
 
-.progress {
-  display: block;
-  width: 100%;
-}

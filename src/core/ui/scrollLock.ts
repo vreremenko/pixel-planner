@@ -31,5 +31,3 @@ export function unlockScroll(): void {
   b.width = '';
   window.scrollTo(0, savedY);
 }
-
-export const isScrollLocked = (): boolean => locks > 0;
