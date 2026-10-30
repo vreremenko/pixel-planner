@@ -18,7 +18,7 @@ const CORE_TABLES = {
  * Версия схемы IndexedDB. Поднимать при любом изменении таблиц или индексов (свой модуль добавил
  * таблицу и т.п.) — иначе браузер не создаст новые таблицы. Тест-снимок схемы напомнит.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export function schema(): Record<string, string> {
   return { ...CORE_TABLES, ...MODULE_TABLES };
@@ -31,7 +31,8 @@ export class AppDB extends Dexie {
 
   constructor(name = 'pixel-planner') {
     super(name);
-    // История версий: 1 — первая схема, 2 — убрана геймификация (таблицы xp и achievements удаляются)
+    // История версий: 1 — первая схема, 2 — убрана геймификация (таблицы xp и achievements удаляются),
+    // 3 — модули, 4 — таблицы тренировок
     this.version(1).stores({
       tasks: 'id, date, updatedAt',
       series: 'id, updatedAt',

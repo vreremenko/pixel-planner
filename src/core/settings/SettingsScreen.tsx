@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Button, Panel, TextInput, toast } from '../ui';
 import { useSettings } from '../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
@@ -11,6 +11,7 @@ import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { AccountPanel } from '../account/AccountPanel';
 import { ModulesPanel } from './ModulesPanel';
 import { ToggleRow } from './ToggleRow';
+import { useModules } from '../shell/nav';
 import { useAuth } from '../auth/store';
 import { fs } from '../ui/fs';
 
@@ -188,6 +189,7 @@ function NotificationsPanel() {
 }
 
 export function SettingsScreen() {
+  const panels = useModules().flatMap((m) => (m.settingsPanel ? [m.settingsPanel] : []));
   const { settings, update } = useSettings();
   const install = useInstallPrompt();
   const [showLog, setShowLog] = useState(false);
@@ -199,6 +201,11 @@ export function SettingsScreen() {
       <div style={{ display: 'grid', gap: 24 }}>
         <AccountPanel />
         <ModulesPanel />
+        {panels.map((P, i) => (
+          <Suspense key={i} fallback={null}>
+            <P />
+          </Suspense>
+        ))}
         <NotificationsPanel />
         <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
           <ToggleRow
