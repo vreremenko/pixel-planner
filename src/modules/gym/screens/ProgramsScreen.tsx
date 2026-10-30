@@ -71,7 +71,7 @@ function ProgramEditor({ program, onClose }: { program?: Program; onClose: () =>
               <Button small variant="ghost" icon="down" label="Ниже" disabled={i === items.length - 1} onClick={() => move(i, 1)} />
               <Button small variant="ghost" icon="close" label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
               <TextInput
                 label="Подходы"
                 inputMode="numeric"

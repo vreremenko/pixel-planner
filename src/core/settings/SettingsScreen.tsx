@@ -179,7 +179,7 @@ function NotificationsPanel() {
         color="var(--c-gold)"
       />
       {settings.quietHours.enabled && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 360 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, maxWidth: 360 }}>
           <TextInput label="С" type="time" value={settings.quietHours.from} onChange={(e) => e.target.value && void update({ quietHours: { ...settings.quietHours, from: e.target.value } })} />
           <TextInput label="До" type="time" value={settings.quietHours.to} onChange={(e) => e.target.value && void update({ quietHours: { ...settings.quietHours, to: e.target.value } })} />
         </div>
