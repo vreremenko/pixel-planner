@@ -1,14 +1,15 @@
 /* Пароли, токены сессий и ограничитель попыток — без привязки к хранилищу. */
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
-const N = 16_384;
+/** Стоимость scrypt: 2^16 (64 МБ памяти на один хеш) — выше минимума OWASP и ещё умещается в 1 ГБ сервера. */
+const N = 65_536;
 const R = 8;
 const P = 1;
 const KEYLEN = 64;
 
 function derive(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    scrypt(password, salt, KEYLEN, { N: n, r, p }, (err, key) => {
+    scrypt(password, salt, KEYLEN, { N: n, r, p, maxmem: 256 * n * r }, (err, key) => {
       if (err) reject(err);
       else resolve(key);
     });
@@ -21,6 +22,9 @@ export async function hashPassword(password: string): Promise<string> {
   const key = await derive(password, salt, N, R, P);
   return `scrypt$${String(N)}$${String(R)}$${String(P)}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
+
+/** Хеш несуществующего пароля с теми же параметрами: нужен, чтобы вход с чужой почтой занимал столько же времени. */
+export const dummyHash: Promise<string> = hashPassword(randomBytes(16).toString('hex'));
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [alg, n, r, p, salt, hash] = stored.split('$');

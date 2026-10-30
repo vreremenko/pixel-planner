@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
-import { PASSWORD_MAX, RateLimiter, TOKEN_RE, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
+import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import type { DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 
 export interface Env {
@@ -55,10 +55,10 @@ class HttpError extends Error {
 }
 
 const defaultLimiter = new RateLimiter();
-/** Хеш заведомо не существующего пароля: нужен, чтобы проверка занимала одинаковое время для любой почты. */
-const DUMMY_HASH = 'scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$' + 'AA'.repeat(63) + 'A==';
 
-const json = (data: unknown, status = 200): HttpRes => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+/** Ответы с данными не должны оседать ни в чьём кэше. */
+const SAFE_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
+const json = (data: unknown, status = 200): HttpRes => ({ status, headers: { ...SAFE_HEADERS }, body: JSON.stringify(data) });
 const str = (v: unknown, max: number): string | null => (typeof v === 'string' && v.length > 0 ? v.slice(0, max) : null);
 
 function readJson(body: string, limit = MAX_BODY_BYTES): unknown {
@@ -186,7 +186,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     }
     const user = await d.store.userByEmail(email);
     // Пароль проверяем и когда почты нет (по заготовленному хешу), чтобы по времени ответа нельзя было узнать, есть ли такая почта
-    const ok = user ? await verifyPassword(password, user.passHash) : (await verifyPassword(password, DUMMY_HASH), false);
+    const ok = user ? await verifyPassword(password, user.passHash) : (await verifyPassword(password, await dummyHash), false);
     if (!user || !ok) {
       limiter.add(keyEmail, now);
       limiter.add(keyIp, now);
@@ -317,9 +317,9 @@ export async function handle(req: HttpReq, d: Deps): Promise<HttpRes> {
     const res = await handleApi(req, d);
     return { ...res, headers: { ...res.headers, ...cors } };
   } catch (e) {
-    if (e instanceof HttpError) return { ...json({ error: e.message }, e.status), headers: { 'content-type': 'application/json', ...cors } };
+    if (e instanceof HttpError) return { ...json({ error: e.message }, e.status), headers: { ...SAFE_HEADERS, ...cors } };
     console.error(e);
-    return { ...json({ error: 'internal' }, 500), headers: { 'content-type': 'application/json', ...cors } };
+    return { ...json({ error: 'internal' }, 500), headers: { ...SAFE_HEADERS, ...cors } };
   }
 }
 

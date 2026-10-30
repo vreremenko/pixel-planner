@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle, sendDue, type Deps } from './core.ts';
+import { MemoryStore } from './memory-store.ts';
 import { json, mk, register, req } from './test-helpers.ts';
 
 const DEVICE = '11111111-1111-4111-8111-111111111111';
@@ -88,6 +89,35 @@ describe('аккаунты', () => {
     expect((await handle(req('GET', 'auth/me', { token }), d)).status).toBe(200);
     now += 366 * 86_400_000;
     expect((await handle(req('GET', 'auth/me', { token }), d)).status).toBe(401);
+  });
+});
+
+describe('защита', () => {
+  it('ответы не кэшируются и не разрешают угадывать тип', async () => {
+    const d = mk();
+    for (const res of [await handle(req('GET', 'config'), d), await handle(req('GET', 'sync'), d), await handle(req('POST', 'auth/login', { body: { email: 'нет@нет.ru', password: PASSWORD } }), d)]) {
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    }
+  });
+
+  it('пароль хранится только как хеш scrypt с солью; одинаковые пароли дают разные хеши', async () => {
+    const store = new MemoryStore();
+    const d = mk({}, store);
+    await register(d, 'a@b.ru');
+    await register(d, 'c@b.ru');
+    const a = (await store.userByEmail('a@b.ru'))?.passHash ?? '';
+    const c = (await store.userByEmail('c@b.ru'))?.passHash ?? '';
+    expect(a).toMatch(/^scrypt\$65536\$8\$1\$/);
+    expect(a).not.toContain(PASSWORD);
+    expect(a).not.toBe(c);
+  });
+
+  it('токены на сервере хранятся только в виде хеша', async () => {
+    const store = new MemoryStore();
+    const d = mk({}, store);
+    const token = await register(d, 'a@b.ru');
+    expect(JSON.stringify([...(store as unknown as { sessions: Map<string, unknown> }).sessions.keys()])).not.toContain(token);
   });
 });
 
