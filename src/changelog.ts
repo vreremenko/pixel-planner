@@ -14,6 +14,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.9.3',
+    date: '2026-10-30',
+    title: 'Напоминание само',
+    items: ['Если у задачи есть время, напоминание «в момент начала» ставится автоматически. Его можно убрать или изменить в задаче.'],
+  },
+  {
     version: '0.9.2',
     date: '2026-10-30',
     title: 'Уведомления проще',

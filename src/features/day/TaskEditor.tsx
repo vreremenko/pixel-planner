@@ -97,6 +97,9 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
   const [ruleText, setRuleText] = useState<string | null>(null);
   const isOcc = target.kind === 'occurrence';
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
+  // Задали время впервые — сразу ставим напоминание «в момент начала»; убрать или изменить его можно ниже
+  const setTime = (time: string) =>
+    setF((p) => ({ ...p, time, reminders: time && !p.time && p.reminders.length === 0 ? [0] : p.reminders }));
   // Подсказки: самые используемые метки, которых в этой задаче ещё нет
   const tagCounts = useTagCounts();
   const chosen = parseTagInput(f.tags);
@@ -172,7 +175,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
       {!f.inBacklog && (
         <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, 1fr 1fr)', gap: 12 }}>
           <TextInput label="Дата" type="date" value={f.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
-          <TextInput label="Время" type="time" value={f.time} onChange={(e) => set('time', e.target.value)} />
+          <TextInput label="Время" type="time" value={f.time} onChange={(e) => setTime(e.target.value)} />
         </div>
       )}
       <Field label="Приоритет">
