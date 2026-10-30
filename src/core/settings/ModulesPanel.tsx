@@ -36,7 +36,7 @@ export function ModulesPanel() {
       ))}
       <h3 style={{ margin: '16px 0 8px' }}>Нижнее меню на телефоне</h3>
       <p style={{ marginTop: 0, color: 'var(--c-text-dim)' }}>
-        «Сводка» и «Ещё» есть всегда. Между ними — до {MOBILE_SLOTS} разделов на выбор, остальные в «Ещё».
+        «Сводка» и «Ещё» есть всегда. Между ними — отмеченные разделы, не больше {MOBILE_SLOTS}; все разделы есть в «Ещё».
       </p>
       {items.map((n) => (
         <ToggleRow

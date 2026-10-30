@@ -14,7 +14,10 @@ describe('нижнее меню телефона', () => {
   it('не больше трёх разделов', () => {
     expect(paths(mobileItems([planner, gym], ['/day', '/backlog', '/habits', '/stats']))).toHaveLength(5);
   });
-  it('пункт выключенного раздела заменяется первым из оставшихся', () => {
-    expect(paths(mobileItems([planner], ['/gym', '/day']))).toEqual(['/', '/day', '/backlog', '/habits', '/more']);
+  it('пункт выключенного раздела пропадает, ничем не заменяясь', () => {
+    expect(paths(mobileItems([planner], ['/gym', '/day']))).toEqual(['/', '/day', '/more']);
+  });
+  it('ничего не выбрано — только «Сводка» и «Ещё»', () => {
+    expect(paths(mobileItems([planner, gym], []))).toEqual(['/', '/more']);
   });
 });

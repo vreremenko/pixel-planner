@@ -19,10 +19,9 @@ export function useModules(): readonly ModuleManifest[] {
 /** Пункты нижнего меню телефона: «Сводка», выбранные разделы (до MOBILE_SLOTS), «Ещё». */
 export function mobileItems(modules: readonly Pick<ModuleManifest, 'nav'>[], chosen: readonly string[]): ModuleNavItem[] {
   const all = modules.flatMap((m) => m.nav);
+  // Ровно то, что выбрано в настройках: пункты выключенных разделов просто пропадают
   const picked = chosen.map((to) => all.find((n) => n.to === to)).filter((n): n is ModuleNavItem => n !== undefined);
-  // Выбранный пункт пропал (раздел выключен) — добираем первыми из оставшихся
-  const rest = all.filter((n) => !picked.includes(n));
-  return [HOME, ...[...picked, ...rest].slice(0, MOBILE_SLOTS), MORE];
+  return [HOME, ...picked.slice(0, MOBILE_SLOTS), MORE];
 }
 
 export function useMobileNav(): ModuleNavItem[] {
