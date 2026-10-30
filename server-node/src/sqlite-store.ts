@@ -99,6 +99,11 @@ export class SqliteStore implements Store {
     return Promise.resolve(r?.user_id ?? null);
   }
 
+  devicesOfUser(userId: string): Promise<string[]> {
+    const rows = this.db.prepare('SELECT id FROM devices WHERE user_id = ?').all(userId) as unknown as { id: string }[];
+    return Promise.resolve(rows.map((r) => r.id));
+  }
+
   deviceGet(id: string) {
     const r = this.db.prepare('SELECT endpoint, p256dh, auth FROM devices WHERE id = ?').get(id) as { endpoint: string; p256dh: string; auth: string } | undefined;
     return Promise.resolve(r ?? null);

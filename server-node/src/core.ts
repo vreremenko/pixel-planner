@@ -238,6 +238,14 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   throw bad(404, 'not found');
 }
 
+/** Заменить расписание на всех устройствах пользователя; возвращает число принятых напоминаний. */
+async function replaceUserSchedule(d: Deps, userId: string, raw: unknown[] | undefined, now: number): Promise<number> {
+  if (!Array.isArray(raw)) throw new HttpError(400, 'items required');
+  const items = raw.slice(0, MAX_ITEMS).map(parseItem).filter((x): x is ScheduleItem => x !== null);
+  for (const deviceId of await d.store.devicesOfUser(userId)) await d.store.scheduleReplace(deviceId, items, now);
+  return items.length;
+}
+
 async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   const parts = req.path.split('/').filter(Boolean);
   const now = (d.now ?? Date.now)();
@@ -247,6 +255,13 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   }
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
+  // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
+  if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {
+    const { userId } = await requireUser(req, d);
+    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown };
+    const known = typeof b.deviceId === 'string' && UUID.test(b.deviceId) ? (await d.store.deviceOwner(b.deviceId)) === userId : null;
+    return json({ ok: true, count: await replaceUserSchedule(d, userId, b.items, now), known });
+  }
 
   if (parts[0] !== 'devices') throw new HttpError(404, 'not found');
   const { userId } = await requireUser(req, d);
@@ -275,10 +290,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
 
   if (parts[2] === 'schedule' && req.method === 'PUT') {
     const b = readJson(req.body) as { items?: unknown[] };
-    if (!Array.isArray(b.items)) throw new HttpError(400, 'items required');
-    const items = b.items.slice(0, MAX_ITEMS).map(parseItem).filter((x): x is ScheduleItem => x !== null);
-    await d.store.scheduleReplace(id, items, now);
-    return json({ ok: true, count: items.length });
+    return json({ ok: true, count: await replaceUserSchedule(d, userId, b.items, now) });
   }
   if (parts[2] === 'snooze' && req.method === 'POST') {
     const it = parseItem(readJson(req.body));
@@ -316,7 +328,7 @@ export async function handle(req: HttpReq, d: Deps): Promise<HttpRes> {
   }
 }
 
-/** Рассылка наступивших напоминаний (запускается таймером раз в минуту). */
+/** Рассылка наступивших напоминаний (запускается таймером каждые несколько секунд). */
 export async function sendDue(d: Deps): Promise<number> {
   const now = (d.now ?? Date.now)();
   const send = d.send ?? sendOne;

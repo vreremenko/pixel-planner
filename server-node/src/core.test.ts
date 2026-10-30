@@ -212,6 +212,27 @@ describe('push', () => {
     expect(await sendDue(d)).toBe(0);
   });
 
+  it('расписание, присланное одним устройством, получают все устройства аккаунта, но не чужие', async () => {
+    const sent: string[] = [];
+    const d = mk({ send: (_e, to, data) => (sent.push(`${to.endpoint}:${(data as { key: string }).key}`), Promise.resolve({ status: 201, detail: '' })) });
+    const token = await register(d, 'a@b.ru');
+    const other = await register(d, 'b@b.ru');
+    const PHONE = '22222222-2222-4222-8222-222222222222';
+    const THEIRS = '33333333-3333-4333-8333-333333333333';
+    const dev = (host: string) => ({ subscription: { endpoint: `https://${host}/x`, keys: { p256dh: 'k', auth: 'a' } } });
+    await handle(req('PUT', `devices/${DEVICE}`, { token, body: dev('computer.test') }), d);
+    await handle(req('PUT', `devices/${PHONE}`, { token, body: dev('phone.test') }), d);
+    await handle(req('PUT', `devices/${THEIRS}`, { token: other, body: dev('theirs.test') }), d);
+    // Расписание присылает компьютер, телефон приложение не открывал
+    const res = await handle(req('PUT', 'schedule', { token, body: { deviceId: DEVICE, items: [item('a', 900_000)] } }), d);
+    expect(res.body).toContain('"count":1');
+    expect(res.body).toContain('"known":true');
+    expect(await sendDue(d)).toBe(2);
+    expect(sent.sort()).toEqual(['https://computer.test/x:a', 'https://phone.test/x:a']);
+    expect((await handle(req('PUT', 'schedule', { token: other, body: { deviceId: DEVICE, items: [] } }), d)).body).toContain('"known":false');
+    expect((await handle(req('PUT', 'schedule', { body: { items: [] } }), d)).status).toBe(401);
+  });
+
   it('чужое устройство не видно и не меняется', async () => {
     const d = mk();
     const owner = await register(d, 'a@b.ru');

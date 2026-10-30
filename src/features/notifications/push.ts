@@ -137,17 +137,18 @@ async function putSchedule(url: string, body: string): Promise<Response> {
   return fetch(url, init);
 }
 
-/** Отправить расписание на сервер (если не изменилось — ничего не делает). */
+/**
+ * Отправить расписание аккаунта на сервер (если не изменилось — ничего не делает). Сервер разошлёт его на все
+ * устройства аккаунта, поэтому задача, созданная на компьютере, приходит на телефон, даже если там приложение не открывали.
+ */
 export async function syncSchedule(items: ScheduleItem[]): Promise<void> {
+  if ((await loadSession()) === null) return;
   const st = await getPushState();
-  if (!st?.enabled) return;
-  const body = JSON.stringify({ items });
+  const body = JSON.stringify({ items, ...(st?.enabled ? { deviceId: st.deviceId } : {}) });
   if (body === lastSent) return;
-  const res = await putSchedule(api(`devices/${st.deviceId}/schedule`), body);
-  if (res.status === 404) {
-    // Сервер забыл устройство (подписка истекла) — переподписываемся
-    await enablePush();
-    return;
-  }
-  if (res.ok) lastSent = body;
+  const res = await putSchedule(api('schedule'), body);
+  if (!res.ok) return;
+  lastSent = body;
+  // Сервер забыл это устройство (подписка истекла) — переподписываемся
+  if (st?.enabled && ((await res.json()) as { known?: boolean | null }).known === false) await enablePush();
 }
