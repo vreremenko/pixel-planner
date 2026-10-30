@@ -1,0 +1,129 @@
+/* Программа: дни тренировок со списком упражнений и целевыми подходами. */
+import { useState } from 'react';
+import { Button, Modal, Panel, TextInput, toast } from '../../../core/ui';
+import { parseValue } from '../../../core/domain/numbers';
+import { useExercises } from '../data/exercises';
+import { usePrograms } from '../data/hooks';
+import type { Program, ProgramItem } from '../domain/types';
+import { deleteProgram, moveProgram, saveProgram } from '../services/programs';
+import { ExercisePicker } from './ExercisePicker';
+import s from './Gym.module.css';
+
+function ProgramEditor({ program, onClose }: { program?: Program; onClose: () => void }) {
+  const ex = useExercises();
+  const [name, setName] = useState(program?.name ?? '');
+  const [items, setItems] = useState<ProgramItem[]>(program?.items ?? []);
+  const [picking, setPicking] = useState(false);
+  const patch = (i: number, p: Partial<ProgramItem>) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const move = (i: number, d: -1 | 1) =>
+    setItems((xs) => {
+      const a = xs[i];
+      const b = xs[i + d];
+      if (!a || !b) return xs;
+      const next = [...xs];
+      next[i] = b;
+      next[i + d] = a;
+      return next;
+    });
+
+  const save = async () => {
+    if (!name.trim()) {
+      toast('Назовите день программы', 'alert', 'var(--c-warn)');
+      return;
+    }
+    await saveProgram({ ...(program ? { id: program.id, order: program.order } : {}), name: name.trim(), items });
+    onClose();
+  };
+
+  return (
+    <Modal open onClose={onClose} title={program ? 'День программы' : 'Новый день программы'} accent="var(--c-gym)" footer={
+      <>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button variant="primary" onClick={() => void save()}>Сохранить</Button>
+      </>
+    }>
+      <TextInput label="Название" value={name} maxLength={60} placeholder="Например: Грудь и трицепс" onChange={(e) => setName(e.target.value)} data-autofocus />
+      <ul className={s.list} style={{ margin: '8px 0' }}>
+        {items.map((it, i) => (
+          <li key={`${it.exerciseId}-${String(i)}`} style={{ borderBottom: 'var(--px) solid var(--c-border)', paddingBottom: 8 }}>
+            <div className={s.row}>
+              <span className={s.grow}>{ex?.byId(it.exerciseId)?.name ?? it.exerciseId}</span>
+              <Button small variant="ghost" icon="up" label="Выше" disabled={i === 0} onClick={() => move(i, -1)} />
+              <Button small variant="ghost" icon="down" label="Ниже" disabled={i === items.length - 1} onClick={() => move(i, 1)} />
+              <Button small variant="ghost" icon="close" label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <TextInput label="Подходы" inputMode="numeric" value={String(it.sets)} onChange={(e) => patch(i, { sets: Math.max(1, Math.min(20, Number.parseInt(e.target.value, 10) || 1)) })} />
+              <TextInput label="Повторы" value={it.reps ?? ''} placeholder="8–12" maxLength={10} onChange={(e) => patch(i, { reps: e.target.value || undefined })} />
+              <TextInput label="Вес, кг" inputMode="decimal" defaultValue={it.weight ?? ''} onBlur={(e) => patch(i, { weight: parseValue(e.target.value) ?? undefined })} />
+              <TextInput label="Отдых, с" inputMode="numeric" defaultValue={it.restSec ?? ''} placeholder="авто" onBlur={(e) => patch(i, { restSec: parseValue(e.target.value) ?? undefined })} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Button icon="plus" onClick={() => setPicking(true)}>
+        Упражнение
+      </Button>
+      <ExercisePicker open={picking} onClose={() => setPicking(false)} onPick={(exerciseId) => setItems((xs) => [...xs, { exerciseId, sets: 3, reps: '8–12' }])} />
+    </Modal>
+  );
+}
+
+export function ProgramsScreen() {
+  const programs = usePrograms();
+  const ex = useExercises();
+  const [editing, setEditing] = useState<Program | 'new' | null>(null);
+  if (!programs) return null;
+  return (
+    <>
+      <div className={s.head}>
+        <h1 className="glow" style={{ color: 'var(--c-gym)' }}>
+          Программа
+        </h1>
+        <Button icon="plus" onClick={() => setEditing('new')}>
+          День
+        </Button>
+      </div>
+      <div className={s.stack}>
+        {programs.length === 0 && (
+          <p className={s.dim}>
+            Программа — это дни тренировок по кругу, например «Грудь», «Спина», «Ноги». Приложение подскажет, какой день следующий, и подставит веса из прошлого раза.
+          </p>
+        )}
+        {programs.map((p, i) => (
+          <Panel
+            key={p.id}
+            title={`${String(i + 1)}. ${p.name}`}
+            icon="dumbbell"
+            accent="var(--c-gym)"
+            actions={
+              <>
+                <Button small variant="ghost" icon="up" label="Выше" disabled={i === 0} onClick={() => void moveProgram(p.id, -1)} />
+                <Button small variant="ghost" icon="down" label="Ниже" disabled={i === programs.length - 1} onClick={() => void moveProgram(p.id, 1)} />
+                <Button small icon="edit" label="Изменить" onClick={() => setEditing(p)} />
+                <Button small variant="ghost" icon="trash" label="Удалить" onClick={() => void deleteProgram(p.id)} />
+              </>
+            }
+          >
+            {p.items.length === 0 ? (
+              <p className={s.dim} style={{ margin: 0 }}>Пока без упражнений.</p>
+            ) : (
+              <ul className={s.list}>
+                {p.items.map((it, j) => (
+                  <li key={`${it.exerciseId}-${String(j)}`} className={s.row} style={{ minHeight: 32 }}>
+                    <span className={s.grow}>{ex?.byId(it.exerciseId)?.name ?? it.exerciseId}</span>
+                    <span className={s.dim}>
+                      {it.sets} × {it.reps ?? '—'}
+                      {it.weight ? ` · ${String(it.weight)} кг` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        ))}
+      </div>
+      {editing && <ProgramEditor program={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
+    </>
+  );
+}

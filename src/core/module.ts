@@ -44,6 +44,8 @@ export interface ModuleManifest {
   routes: ModuleRoute[];
   /** Карточки раздела на «Сводке». */
   widgets?: ModuleWidget[];
+  /** Панель раздела в «Настройках». */
+  settingsPanel?: ComponentType;
   /** Всегда смонтированные части раздела (общие окна, например редактор задачи). */
   globals?: ComponentType[];
 }

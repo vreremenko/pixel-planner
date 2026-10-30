@@ -1,0 +1,101 @@
+/* Главная раздела: идущая тренировка, следующая по программе, дни программы, история. */
+import { Link, useNavigate } from 'react-router';
+import { Button, Panel, PixelIcon } from '../../../core/ui';
+import { usePrograms, useWorkouts } from '../data/hooks';
+import { nextProgram } from '../domain/logic';
+import type { Program } from '../domain/types';
+import { startWorkout } from '../services/workouts';
+import s from './Gym.module.css';
+
+const dateLabel = (t: number) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' });
+
+export function GymHome() {
+  const navigate = useNavigate();
+  const programs = usePrograms();
+  const workouts = useWorkouts();
+  if (!programs || !workouts) return null;
+  const active = workouts.find((w) => !w.finishedAt);
+  const next = nextProgram(programs, workouts);
+  const start = (p?: Program) => void startWorkout(p).then((id) => navigate(`/gym/workout/${id}`));
+  const history = workouts.filter((w) => w.finishedAt).slice(0, 10);
+
+  return (
+    <>
+      <div className={s.head}>
+        <h1 className="glow" style={{ color: 'var(--c-gym)' }}>
+          Тренировка
+        </h1>
+      </div>
+      <div className={s.stack}>
+        {active ? (
+          <Panel title="Идёт тренировка" icon="dumbbell" accent="var(--c-gym)">
+            <p style={{ marginTop: 0 }}>
+              {active.title} · начата {new Date(active.startedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+            <Button variant="primary" icon="right" onClick={() => void navigate(`/gym/workout/${active.id}`)}>
+              Продолжить
+            </Button>
+          </Panel>
+        ) : (
+          <Panel title="Начать" icon="dumbbell" accent="var(--c-gym)">
+            {next && (
+              <p style={{ marginTop: 0 }}>
+                По программе сегодня: <b>{next.name}</b>
+              </p>
+            )}
+            <div className={s.row} style={{ flexWrap: 'wrap' }}>
+              {next && (
+                <Button variant="primary" icon="right" onClick={() => start(next)}>
+                  {next.name}
+                </Button>
+              )}
+              <Button icon="plus" onClick={() => start()}>
+                Пустая тренировка
+              </Button>
+            </div>
+            {programs.length > 1 && (
+              <>
+                <p className={s.hint} style={{ marginTop: 12 }}>
+                  Или другой день программы:
+                </p>
+                <div className={s.row} style={{ flexWrap: 'wrap' }}>
+                  {programs
+                    .filter((p) => p.id !== next?.id)
+                    .map((p) => (
+                      <Button key={p.id} small onClick={() => start(p)}>
+                        {p.name}
+                      </Button>
+                    ))}
+                </div>
+              </>
+            )}
+            {programs.length === 0 && (
+              <p className={s.hint} style={{ marginBottom: 0 }}>
+                Составьте <Link to="/gym/programs">программу</Link> — тогда тренировка начнётся с готовым списком упражнений.
+              </p>
+            )}
+          </Panel>
+        )}
+        <Panel title="История" icon="book" accent="var(--c-gym)">
+          {history.length === 0 ? (
+            <p className={s.dim} style={{ margin: 0 }}>
+              Здесь появятся завершённые тренировки.
+            </p>
+          ) : (
+            <ul className={s.list}>
+              {history.map((w) => (
+                <li key={w.id}>
+                  <Link className={`${s.row} ${s.link}`} to={`/gym/workout/${w.id}`}>
+                    <span className={s.grow}>{w.title}</span>
+                    <span className={s.dim}>{dateLabel(w.startedAt)}</span>
+                    <PixelIcon name="right" size={16} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+    </>
+  );
+}

@@ -14,6 +14,11 @@ describe('схема IndexedDB', () => {
     expect({ version: SCHEMA_VERSION, schema: schema() }).toMatchInlineSnapshot(`
       {
         "schema": {
+          "gym_exercises": "id, updatedAt",
+          "gym_prefs": "id, updatedAt",
+          "gym_programs": "id, updatedAt",
+          "gym_sets": "id, workoutId, exerciseId, date, updatedAt",
+          "gym_workouts": "id, date, updatedAt",
           "habitLogs": "id, habitId, date, updatedAt",
           "habits": "id, updatedAt",
           "meta": "key",
@@ -23,7 +28,7 @@ describe('схема IndexedDB', () => {
           "settings": "id",
           "tasks": "id, date, updatedAt",
         },
-        "version": 3,
+        "version": 4,
       }
     `);
   });
