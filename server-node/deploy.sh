@@ -12,7 +12,13 @@ DOMAIN="${DOMAIN:-${HOST//./-}.sslip.io}"
 KEY="${KEY:-$HOME/.ssh/pp_selectel}"
 ENV_FILE="${ENV_FILE:-server-node/.env.vps}"
 ORIGINS="${ALLOWED_ORIGINS:-https://vreremenko.github.io}"
-SSH=(ssh -i "$KEY" -o BatchMode=yes "root@$HOST")
+# Одно SSH-соединение на весь деплой: каждая отдельная попытка входа видна fail2ban, а сеть до сервера
+# временами рвётся — повторные подключения на коротком отрезке приводили к бану адреса на час.
+CTL="${TMPDIR:-/tmp}/pp-deploy-%r@%h:%p"
+OPTS=(-i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o ConnectionAttempts=4 -o ServerAliveInterval=10
+  -o ControlMaster=auto -o "ControlPath=$CTL" -o ControlPersist=120)
+SSH=(ssh "${OPTS[@]}" "root@$HOST")
+trap 'ssh "${OPTS[@]}" -O exit "root@$HOST" 2>/dev/null || true' EXIT
 
 echo "== сборка"
 npm run build:node >/dev/null
@@ -20,8 +26,8 @@ npm run build:node >/dev/null
 echo "== пользователь, папки, сервер"
 "${SSH[@]}" 'id pp >/dev/null 2>&1 || useradd --system --home /var/lib/pixel-planner --shell /usr/sbin/nologin pp
 mkdir -p /opt/pixel-planner /var/lib/pixel-planner && chown pp:pp /var/lib/pixel-planner'
-scp -q -i "$KEY" server-node/dist/server.mjs "root@$HOST:/opt/pixel-planner/server.mjs"
-scp -q -i "$KEY" server-node/backup.mjs "root@$HOST:/opt/pixel-planner/backup.mjs"
+scp -q "${OPTS[@]}" server-node/dist/server.mjs "root@$HOST:/opt/pixel-planner/server.mjs"
+scp -q "${OPTS[@]}" server-node/backup.mjs "root@$HOST:/opt/pixel-planner/backup.mjs"
 
 echo "== настройки (ключи не выводятся)"
 # shellcheck disable=SC1090
