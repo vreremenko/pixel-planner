@@ -55,7 +55,8 @@ export function QuickAdd({ date, todayDate }: Props) {
         priority: p.priority ?? 'medium',
         tags: p.tags,
         ...(p.time ? { time: p.time } : {}),
-        ...(p.reminder !== undefined ? { reminders: [{ offsetMin: p.reminder }] } : {}),
+        // Время без явного «напомни за…» — напоминание в момент начала
+        ...(p.reminder !== undefined || p.time ? { reminders: [{ offsetMin: p.reminder ?? 0 }] } : {}),
         ...(p.repeat ? { repeat: p.repeat } : {}),
       });
     } catch {
