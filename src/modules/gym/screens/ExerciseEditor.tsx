@@ -13,7 +13,7 @@ const TRACKING: { value: Tracking; label: string }[] = [
 ];
 const MUSCLE_OPTIONS = MUSCLE_IDS.map((m) => ({ value: m, label: MUSCLES[m].label }));
 
-export function ExerciseEditor({ open, onClose, exercise }: { open: boolean; onClose: () => void; exercise?: ExerciseDef }) {
+export function ExerciseEditor({ open, onClose, exercise, onSaved }: { open: boolean; onClose: () => void; exercise?: ExerciseDef; onSaved?: (id: string) => void }) {
   const [name, setName] = useState(exercise?.name ?? '');
   const [group, setGroup] = useState<ExerciseGroup>(exercise?.group ?? 'chest');
   const [tracking, setTracking] = useState<Tracking>(exercise?.tracking ?? 'weight_reps');
@@ -26,7 +26,7 @@ export function ExerciseEditor({ open, onClose, exercise }: { open: boolean; onC
       toast('Нужны название и хотя бы одна основная мышца', 'alert', 'var(--c-warn)');
       return;
     }
-    await saveExercise({
+    const saved = await saveExercise({
       ...(exercise?.custom ? { id: exercise.id } : {}),
       name: name.trim(),
       group,
@@ -37,6 +37,7 @@ export function ExerciseEditor({ open, onClose, exercise }: { open: boolean; onC
     });
     toast(exercise ? 'Упражнение сохранено' : 'Упражнение добавлено', 'dumbbell', 'var(--c-gym)');
     onClose();
+    onSaved?.(saved.id);
   };
 
   return (
