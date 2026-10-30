@@ -20,11 +20,8 @@ describe('журнал изменений', () => {
       expect(entry.items.every((x) => x.trim() !== '')).toBe(true);
     }
   });
-  it('версия в package.json совпадает с последней записью (патч-релизы без записи допустимы)', () => {
+  it('версия в package.json совпадает с последней записью (не забыли поднять версию)', () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
-    const [maj, min, patch] = pkg.version.split('.').map(Number);
-    const [aMaj, aMin, aPatch] = APP_VERSION.split('.').map(Number);
-    expect([maj, min]).toEqual([aMaj, aMin]);
-    expect(patch).toBeGreaterThanOrEqual(aPatch ?? 0);
+    expect(pkg.version).toBe(APP_VERSION);
   });
 });
