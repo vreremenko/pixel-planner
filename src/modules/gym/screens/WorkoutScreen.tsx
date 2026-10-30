@@ -81,6 +81,7 @@ export function WorkoutScreen() {
   const ex = useExercises();
   const prefs = usePrefs();
   const startRest = useRestTimer((t) => t.start);
+  const stopRest = useRestTimer((t) => t.stop);
   const [picking, setPicking] = useState(false);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -90,8 +91,17 @@ export function WorkoutScreen() {
   const active = !workout.finishedAt;
 
   const finish = async () => {
+    // Тренировки больше нет — отдыхать не от чего
+    stopRest();
     await finishWorkout(workout.id);
     setSummary(summarize({ ...workout, finishedAt: Date.now() }, sets.filter((x) => x.done), all, workouts, ex.byId));
+  };
+
+  const remove = async () => {
+    stopRest();
+    await deleteWorkout(workout.id);
+    toast('Тренировка удалена', 'trash', 'var(--c-warn)');
+    void navigate('/gym');
   };
 
   return (
@@ -148,14 +158,20 @@ export function WorkoutScreen() {
         </div>
       </div>
       <ExercisePicker open={picking} onClose={() => setPicking(false)} onPick={(exId) => void addExercise(workout.id, exId)} />
-      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Удалить тренировку?" accent="var(--c-warn)" footer={
-        <>
-          <Button onClick={() => setConfirmDelete(false)}>Отмена</Button>
-          <Button variant="danger" onClick={() => void deleteWorkout(workout.id).then(() => { toast('Тренировка удалена', 'trash', 'var(--c-warn)'); void navigate('/gym'); })}>
-            Удалить
-          </Button>
-        </>
-      }>
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Удалить тренировку?"
+        accent="var(--c-warn)"
+        footer={
+          <>
+            <Button onClick={() => setConfirmDelete(false)}>Отмена</Button>
+            <Button variant="danger" onClick={() => void remove()}>
+              Удалить
+            </Button>
+          </>
+        }
+      >
         <p style={{ margin: 0 }}>Все подходы этой тренировки будут удалены.</p>
       </Modal>
       <Modal open={summary !== null} onClose={() => void navigate('/gym')} title="Тренировка завершена" accent="var(--c-gym)" footer={<Button variant="primary" onClick={() => void navigate('/gym')}>Отлично</Button>}>
