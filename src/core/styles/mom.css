@@ -1,0 +1,91 @@
+/*
+ * Режим «Для мамы»: светлая тёплая палитра (кремовый, персиковый, розовый, алый), читаемый шрифт
+ * и крупнее текст. Всё действует только при <html data-mode="mom">; без него интерфейс прежний.
+ * Цвета акцентов подобраны так, чтобы и сами они, и белый текст на них читались (контраст ≥ 4.5:1).
+ */
+html[data-mode='mom'] {
+  color-scheme: light;
+
+  --c-bg: #fbf1e8;
+  --c-panel: #fffaf5;
+  --c-panel-2: #f7e8dd;
+  --c-panel-3: #efd9cc;
+  --c-border: #c98b84;
+  --c-shadow: #dcbdb0;
+
+  --c-text: #3a2626;
+  --c-text-dim: #5c4040;
+  --c-text-muted: #6e4f4f;
+  --c-placeholder: #8a6e68;
+  --c-on-accent: #ffffff;
+
+  --c-task: #b3354b; /* задачи — алый */
+  --c-habit: #2f7d4f; /* привычки — мягкий зелёный */
+  --c-gold: #8f6400; /* акцент — тёплое золото */
+  --c-warn: #c2185b; /* предупреждения — малиновый */
+  --c-backlog: #7b4fa8; /* инвентарь — сиреневый */
+
+  --c-prio-low: #7a6a68;
+  --c-prio-medium: #8f6400;
+  --c-prio-high: #c2185b;
+
+  --c-heat-0: #f3e3d8;
+  --c-heat-1: #f6cfc6;
+  --c-heat-2: #ec9e96;
+  --c-heat-3: #d4616a;
+  --c-heat-4: #b3354b;
+
+  --c-overlay: rgba(74, 44, 44, 0.55);
+  --c-overlay-stripe: transparent;
+
+  --font-title: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-digits: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --fs-scale: 1.2;
+  --fs-scale-lg: 1;
+  --fs-min: 15px;
+  --fs-title: 22px;
+  --fs-title-sm: 18px;
+  --fs-body: 24px;
+  --fs-small: 20px;
+
+  /* Дата в шапке дня: меньше «желаемая ширина», чтобы кнопки не переносились на вторую строку */
+  --date-basis: 140px;
+  --unit-max: 104px;
+  --cols-2: minmax(0, 1fr); /* дата и время друг под другом */
+}
+
+html[data-mode='mom'] body {
+  font-weight: 500;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: auto;
+  font-smooth: auto;
+  image-rendering: auto;
+  background-image: none;
+}
+
+html[data-mode='mom'] h1,
+html[data-mode='mom'] h2,
+html[data-mode='mom'] h3,
+html[data-mode='mom'] .title {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+html[data-mode='mom'] b,
+html[data-mode='mom'] strong {
+  font-weight: 700;
+}
+
+/* Капс и разрядка — часть пиксельного стиля; в читаемом режиме текст обычным регистром и короче */
+html[data-mode='mom'] * {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Подписи осей на графиках были рассчитаны на пиксельный шрифт 8px — в Nunito они слишком мелкие */
+html[data-mode='mom'] svg text[font-size='8'] {
+  font-size: 12px;
+}

@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["server-node/src"]
+  "include": ["server-node/src", "src/shared"]
 }

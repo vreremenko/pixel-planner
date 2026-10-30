@@ -1,0 +1,301 @@
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-4);
+}
+.top h1 {
+  color: var(--c-habit);
+  margin-right: auto;
+}
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+}
+.monthNav h3 {
+  min-width: 150px;
+  text-align: center;
+}
+.list {
+  display: grid;
+  /* Одна колонка на всех экранах: карточка занимает всю ширину, как на телефоне */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap-4);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  margin-bottom: var(--gap-3);
+}
+.iconBox {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: var(--c-bg);
+  border: var(--px) solid var(--c-habit);
+  color: var(--c-habit);
+  flex-shrink: 0;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sched {
+  color: var(--c-text-dim);
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
+}
+.streaks {
+  display: flex;
+  gap: var(--gap-4);
+  margin-bottom: var(--gap-3);
+  font-family: var(--font-title);
+  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-dim);
+}
+.streaks b {
+  display: block;
+  font-family: var(--font-digits);
+  font-size: max(calc(28px * var(--fs-scale-lg)), var(--fs-min));
+  font-weight: 400;
+  color: var(--c-gold);
+  line-height: 1;
+  margin-top: 4px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.dow {
+  text-align: center;
+  font-family: var(--font-title);
+  font-size: max(calc(6px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+}
+.cell {
+  aspect-ratio: 1;
+  min-height: 28px;
+  border: 2px solid var(--c-panel-3);
+  background: var(--c-bg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-digits);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+  padding: 0;
+  cursor: pointer;
+}
+.cell:disabled {
+  cursor: default;
+}
+.cell.off {
+  background: transparent;
+  border-style: dotted;
+  opacity: 0.5;
+}
+.cell.done {
+  background: var(--c-habit);
+  border-color: var(--c-habit);
+  color: var(--c-on-accent);
+}
+.cell.miss {
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+}
+.cell.today {
+  outline: 2px solid var(--c-gold);
+  outline-offset: 1px;
+}
+.cell.blank {
+  visibility: hidden;
+}
+.todayRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  margin-left: auto;
+}
+.rest {
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+}
+.iconGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+.iconPick {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 2px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text-dim);
+  cursor: pointer;
+}
+.iconPick[aria-checked='true'] {
+  border-color: var(--c-habit);
+  color: var(--c-habit);
+  background: var(--c-panel-2);
+}
+.archived {
+  margin-top: var(--gap-6);
+}
+
+/* Счётные привычки */
+.nameBtn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.nameBtn:hover {
+  color: var(--c-habit);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.countRow {
+  display: flex;
+  /* Одна строка у всех привычек: кнопка не должна «прыгать» на другую строку из-за длинной единицы */
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-3);
+}
+.countInput {
+  /* Поле занимает свободное место, но не растягивается без меры; кнопка справа остаётся на месте */
+  flex: 1 1 110px;
+  min-width: 0;
+  max-width: 260px;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: var(--c-bg);
+  border: var(--px) solid var(--c-habit);
+  color: var(--c-text);
+  font-family: var(--font-digits);
+  font-size: max(calc(26px * var(--fs-scale-lg)), var(--fs-min));
+  outline: none;
+}
+.countInput:focus-visible {
+  border-color: var(--c-gold);
+}
+.countInput[aria-invalid='true'] {
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+}
+.unit {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: var(--unit-max, 72px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-text-dim);
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
+}
+@media (max-width: 359px) {
+  /* Совсем узкий экран: кнопке разрешено уйти на вторую строку, она остаётся справа */
+  .countRow {
+    flex-wrap: wrap;
+  }
+}
+/* Кнопка всегда у правого края карточки и одной ширины («Записать» / «Обновить») */
+.countBtn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-width: 132px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--gap-2);
+}
+.tile {
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--c-bg);
+  border: var(--px) solid var(--c-border);
+  border-top-color: var(--c-habit);
+}
+.tileLabel {
+  font-family: var(--font-title);
+  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
+  line-height: 1.6;
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+}
+.tile b {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-digits);
+  font-size: max(calc(32px * var(--fs-scale-lg)), var(--fs-min));
+  font-weight: 400;
+  line-height: 1;
+  color: var(--c-gold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile .suffix {
+  margin-left: 4px;
+  font-family: var(--font-body);
+  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-dim);
+}
+.tile span {
+  display: block;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-dim);
+  overflow-wrap: anywhere;
+}
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.history li {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding: 2px 0;
+  border-bottom: 2px dotted var(--c-panel-3);
+}
+.historyDate {
+  flex: 1;
+  min-width: 0;
+  color: var(--c-text-dim);
+}
+.historyValue {
+  max-width: 55%;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-family: var(--font-digits);
+  font-size: max(calc(24px * var(--fs-scale-lg)), var(--fs-min));
+  color: var(--c-text);
+}
+
+.collapseBtn {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* В широкой карточке клетки календаря не квадратные, иначе они выходят огромными */
+@media (min-width: 640px) {
+  .cell {
+    aspect-ratio: auto;
+    height: 40px;
+  }
+}

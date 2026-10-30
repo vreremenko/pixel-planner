@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import type { DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
+import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
 
 export interface Env {
   VAPID_PUBLIC_KEY?: string;
@@ -34,7 +35,7 @@ const MAX_SYNC_RECORDS = 300;
 const MAX_SYNC_PULL = 300;
 const MAX_SYNC_PULL_BYTES = 500_000;
 const STALE_MS = 6 * 3_600_000;
-const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements']);
+const SYNC_TABLE_SET = new Set<string>(SYNC_TABLES);
 /** Сессия живёт, пока ею пользуются: не заходили больше года — нужно войти заново. */
 const SESSION_MAX_IDLE_MS = 365 * 86_400_000;
 const LOGIN_WINDOW_MS = 15 * 60_000;
@@ -42,7 +43,8 @@ const LOGIN_MAX_PER_EMAIL = 8;
 const LOGIN_MAX_PER_IP = 40;
 const REGISTER_WINDOW_MS = 3_600_000;
 const REGISTER_MAX_PER_IP = 10;
-const KINDS = new Set(['task', 'occurrence', 'habit', 'summary']);
+/** Вид напоминания задаёт модуль клиента ('task', 'habit'…) — проверяем только форму. */
+const KIND_RE = /^[a-z][a-zA-Z0-9_-]{0,31}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class HttpError extends Error {
@@ -80,14 +82,14 @@ function parseItem(x: unknown): ScheduleItem | null {
   const fireAt = typeof o.fireAt === 'number' && Number.isFinite(o.fireAt) ? Math.floor(o.fireAt) : null;
   const ref = typeof o.ref === 'string' ? o.ref.slice(0, 200) : '';
   const date = typeof o.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.date) ? o.date : '';
-  if (!key || !title || !kind || !KINDS.has(kind) || fireAt === null) return null;
+  if (!key || !title || !kind || !KIND_RE.test(kind) || fireAt === null) return null;
   return { key, title, body, kind, fireAt, ref, date };
 }
 
 function parseSyncRecord(x: unknown): SyncIn | null {
   if (typeof x !== 'object' || x === null) return null;
   const o = x as Record<string, unknown>;
-  if (typeof o.t !== 'string' || !SYNC_TABLES.has(o.t)) return null;
+  if (typeof o.t !== 'string' || !SYNC_TABLE_SET.has(o.t)) return null;
   if (typeof o.id !== 'string' || o.id.length === 0 || o.id.length > 200) return null;
   if (typeof o.u !== 'number' || !Number.isFinite(o.u)) return null;
   if (typeof o.d !== 'string' || o.d.length > 20_000) return null;
