@@ -59,7 +59,7 @@ export default defineConfig({
     },
     VitePWA({
       strategies: 'injectManifest',
-      srcDir: 'src/sw',
+      srcDir: 'src/core/sw',
       filename: 'sw.ts',
       registerType: 'prompt',
       injectRegister: false,
