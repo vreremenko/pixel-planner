@@ -25,7 +25,7 @@ export function GymWidget() {
         </>
       ) : (
         <>
-          <p style={{ marginTop: 0 }}>{next ? `Сегодня по программе: ${next.name}` : 'Программы пока нет — можно начать свободную тренировку.'}</p>
+          <p style={{ marginTop: 0 }}>{next ? `Следующая по программе: ${next.name}` : 'Программы пока нет — можно начать свободную тренировку.'}</p>
           <Button small icon="right" onClick={() => void startWorkout(next).then((id) => navigate(`/gym/workout/${id}`))}>
             Начать
           </Button>

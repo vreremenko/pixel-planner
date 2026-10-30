@@ -40,7 +40,9 @@ export function GymHome() {
           <Panel title="Начать" icon="dumbbell" accent="var(--c-gym)">
             {next && (
               <p style={{ marginTop: 0 }}>
-                По программе сегодня: <b>{next.name}</b>
+                Следующая по программе: <b>{next.name}</b>
+                <br />
+                <span className={s.hint}>Дни программы идут по кругу, после последнего — снова первый.</span>
               </p>
             )}
             <div className={s.row} style={{ flexWrap: 'wrap' }}>
