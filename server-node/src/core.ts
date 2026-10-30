@@ -241,7 +241,6 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
 async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   const parts = req.path.split('/').filter(Boolean);
   const now = (d.now ?? Date.now)();
-  const send = d.send ?? sendOne;
 
   if (req.method === 'GET' && parts[0] === 'config') {
     return json({ vapidPublicKey: d.env.VAPID_PUBLIC_KEY, push: Boolean(d.env.VAPID_PUBLIC_KEY && d.env.VAPID_PRIVATE_KEY) });
@@ -280,12 +279,6 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
     const items = b.items.slice(0, MAX_ITEMS).map(parseItem).filter((x): x is ScheduleItem => x !== null);
     await d.store.scheduleReplace(id, items, now);
     return json({ ok: true, count: items.length });
-  }
-  if (parts[2] === 'test' && req.method === 'POST') {
-    const dev = await d.store.deviceGet(id);
-    if (!dev) throw new HttpError(404, 'unknown device');
-    const r = await send(d.env, dev, { key: `test:${String(now)}`, kind: 'summary', ref: '', date: '', title: 'PIXEL PLANNER', body: 'Push работает! ★', fireAt: now });
-    return json({ ok: r.status < 300, status: r.status, detail: r.detail, service: new URL(dev.endpoint).host });
   }
   if (parts[2] === 'snooze' && req.method === 'POST') {
     const it = parseItem(readJson(req.body));

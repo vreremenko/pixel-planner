@@ -1,11 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Checkbox, Panel, TextInput, rowClass, toast } from '../../ui';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { Button, Checkbox, Panel, TextInput, toast } from '../../ui';
 import { useSettings } from '../../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
-import { flushPush, testNotification, tick } from '../notifications/scheduler';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { metaRepo } from '../../data/repo';
-import { disablePush, enablePush, forceNextSync, getPushState, type SyncStatus, getServerKey, isIos as detectIos, isStandalone, pushSupported, pushUnavailableReason, testPush } from '../notifications/push';
+import { tick } from '../notifications/scheduler';
+import { disablePush, enablePush, getPushState, getServerKey, pushUnavailableReason } from '../notifications/push';
 import { play } from '../../services/sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../../changelog';
@@ -14,13 +12,13 @@ import { AccountPanel } from '../account/AccountPanel';
 import { useAuth } from '../../auth/store';
 import { fs } from '../../ui/fs';
 
-function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
+function ToggleRow({ label, hint, hintColor, checked, onChange, color, rowRef }: { label: string; hint?: ReactNode; hintColor?: string; checked: boolean; onChange: (v: boolean) => void; color?: string; rowRef?: Ref<HTMLDivElement> }) {
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+    <div ref={rowRef} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
       <Checkbox checked={checked} onChange={onChange} label={label} color={color} />
       <div>
         <div>{label}</div>
-        {hint && <div style={{ color: 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
+        {hint && <div style={{ color: hintColor ?? 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
       </div>
     </div>
   );
@@ -36,8 +34,6 @@ const PERM_TEXT: Record<string, string> = {
 function NotificationsPanel() {
   const { settings, update } = useSettings();
   const [perm, setPerm] = useState(permission());
-  const isIos = detectIos();
-  const standalone = isStandalone();
   const [server, setServer] = useState<boolean | null>(null);
   const [serverKey, setServerKey] = useState<string | null>(null);
   const [pushOn, setPushOn] = useState(false);
@@ -53,57 +49,86 @@ function NotificationsPanel() {
     void getPushState().then((st) => setPushOn(st?.enabled === true));
   }, []);
 
-  const togglePush = async (v: boolean) => {
+  const pushReason = pushUnavailableReason(server, loggedIn);
+
+  /** Подписать устройство на push (при закрытом приложении) и вернуть, получилось ли. */
+  const startPush = async (): Promise<boolean> => {
     setBusy(true);
     setPushError(null);
     try {
-      if (v) {
-        if (perm !== 'granted') {
-          const p = await requestPermission();
-          setPerm(p);
-          if (p !== 'granted') throw new Error('Нужно разрешение на уведомления');
-        }
-        await enablePush(serverKey ?? undefined);
-        if (!settings.notificationsEnabled) await update({ notificationsEnabled: true });
-        toast('Push включён: напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
-      } else {
-        await disablePush();
-      }
-      setPushOn(v);
+      await enablePush(serverKey ?? undefined);
+      setPushOn(true);
       void tick();
+      return true;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Не удалось включить push';
-      setPushError(msg);
-      toast(msg, 'alert', 'var(--c-warn)');
+      setPushError(e instanceof Error ? e.message : 'Не удалось включить push');
+      return false;
     } finally {
       setBusy(false);
     }
   };
-  const pushReason = pushUnavailableReason(server, loggedIn);
-  const [diag, setDiag] = useState<string[]>([]);
-  const sync = useLiveQuery(() => metaRepo.get<SyncStatus>('pushSync'), []);
-  const runDiag = async () => {
-    const lines = [
-      `Разрешение: ${PERM_TEXT[permission()] ?? '?'}`,
-      `Установлено как приложение: ${standalone ? 'да' : 'нет'}`,
-      `Service worker: ${'serviceWorker' in navigator ? ((await navigator.serviceWorker.getRegistration())?.active ? 'активен' : 'не активен') : 'не поддерживается'}`,
-      `Push API: ${pushSupported() ? 'есть' : 'нет'}`,
-      `Сервер: ${server === null ? 'проверка…' : server ? 'доступен' : 'недоступен'}`,
-    ];
-    if (pushSupported()) {
-      const sub = await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription();
-      lines.push(`Подписка: ${sub ? new URL(sub.endpoint).host : 'нет'}`);
+
+  // Напоминания включены, а push на этом устройстве ещё нет (вошли в аккаунт позже, обновили приложение): подключаем сами
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || !settings.notificationsEnabled || perm !== 'granted' || pushOn || busy || server === null || pushReason) return;
+    autoTried.current = true;
+    void startPush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.notificationsEnabled, perm, pushOn, busy, server, pushReason]);
+
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [blocked, setBlocked] = useState(false);
+  const blockedHint =
+    perm === 'denied'
+      ? 'Уведомления запрещены в браузере. Разрешите их в настройках сайта, и тогда напоминания можно будет включить.'
+      : perm === 'unsupported'
+        ? 'Этот браузер не поддерживает уведомления, поэтому напоминания включить нельзя.'
+        : 'Сначала разрешите уведомления кнопкой выше, без этого напоминания включить нельзя.';
+
+  /** Флажок нельзя включить без разрешения: трясём его и объясняем почему. */
+  const refuse = () => {
+    setBlocked(true);
+    toast(blockedHint, 'alert', 'var(--c-warn)');
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      rowRef.current?.animate(
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-10px)' }, { transform: 'translateX(10px)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(0)' }],
+        { duration: 400, easing: 'ease-in-out' },
+      );
     }
-    setDiag(lines);
+  };
+
+  const turnOn = async () => {
+    await update({ notificationsEnabled: true });
+    if (!pushReason && !pushOn && (await startPush())) toast('Напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
+    void tick();
+  };
+
+  const allow = async () => {
+    const p = await requestPermission();
+    setPerm(p);
+    if (p === 'granted') {
+      setBlocked(false);
+      await turnOn();
+    } else {
+      refuse();
+    }
   };
 
   const enable = async (v: boolean) => {
-    if (v && perm !== 'granted') {
-      const p = await requestPermission();
-      setPerm(p);
-      if (p !== 'granted') toast('Без разрешения напоминания будут только внутри приложения', 'alert', 'var(--c-warn)');
+    if (busy) return;
+    if (v) {
+      if (perm !== 'granted') return refuse();
+      return turnOn();
     }
-    await update({ notificationsEnabled: v });
+    await update({ notificationsEnabled: false });
+    if (pushOn) {
+      try {
+        await disablePush();
+      } finally {
+        setPushOn(false);
+      }
+    }
     void tick();
   };
 
@@ -118,7 +143,7 @@ function NotificationsPanel() {
             Разрешение нужно, чтобы присылать напоминания о задачах и квестах в момент их начала и утреннюю сводку.
             Мы спросим браузер только после нажатия кнопки.
           </p>
-          <Button variant="xp" icon="bell" disabled={perm === 'denied'} onClick={() => void enable(true)}>
+          <Button variant="xp" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
             Разрешить уведомления
           </Button>
           {perm === 'denied' && <p style={{ color: 'var(--c-warn)' }}>Разрешение отклонено — включите его в настройках сайта в браузере.</p>}
@@ -126,8 +151,20 @@ function NotificationsPanel() {
       )}
       <ToggleRow
         label="Напоминания включены"
-        hint="Глобальный выключатель всех напоминаний и сводки"
-        checked={settings.notificationsEnabled}
+        rowRef={rowRef}
+        hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
+        hint={
+          blocked && perm !== 'granted'
+            ? blockedHint
+            : busy
+              ? 'Подключаем…'
+              : pushError
+                ? `Не удалось включить push при закрытом приложении: ${pushError}`
+                : pushOn
+                  ? 'Приходят и при закрытом приложении'
+                  : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
+        }
+        checked={settings.notificationsEnabled && perm === 'granted'}
         onChange={(v) => void enable(v)}
         color="var(--c-xp)"
       />
@@ -156,98 +193,6 @@ function NotificationsPanel() {
           <TextInput label="До" type="time" value={settings.quietHours.to} onChange={(e) => e.target.value && void update({ quietHours: { ...settings.quietHours, to: e.target.value } })} />
         </div>
       )}
-      <div style={{ padding: 12, marginBottom: 16, border: '4px solid var(--c-habit)' }}>
-        <ToggleRow
-          label="Push при закрытом приложении"
-          hint={
-            busy
-              ? 'Подключаем…'
-              : pushError
-                ? `Ошибка: ${pushError}`
-                : (pushReason ?? 'Расписание напоминаний на 7 дней хранится на сервере, он присылает их вовремя')
-          }
-          checked={pushOn}
-          onChange={(v) => {
-            if (busy) return;
-            if (v && pushReason) {
-              toast(pushReason, 'alert', 'var(--c-warn)');
-              return;
-            }
-            void togglePush(v);
-          }}
-          color="var(--c-habit)"
-        />
-        {pushOn && (
-          <p className="digits" style={{ margin: '0 0 8px', color: sync?.ok === false ? 'var(--c-warn)' : 'var(--c-text-dim)' }}>
-            Расписание на сервере:{' '}
-            {sync
-              ? `${new Date(sync.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}, напоминаний: ${String(sync.count)}${sync.ok ? ' ✓' : ` — ошибка: ${sync.error ?? '?'}`}`
-              : 'ещё не отправлялось'}
-          </p>
-        )}
-        <div className={rowClass}>
-          {pushOn && (
-            <Button
-              small
-              icon="upload"
-              onClick={() => {
-                forceNextSync();
-                void flushPush().then(() => toast('Расписание отправлено', 'upload', 'var(--c-habit)'));
-              }}
-            >
-              Отправить расписание
-            </Button>
-          )}
-          {pushOn && (
-            <Button small icon="bell" onClick={() => void testPush().then((m) => toast(m, 'bell', 'var(--c-habit)'), (e: unknown) => toast(`Ошибка сети: ${String(e)}`, 'alert', 'var(--c-warn)'))}>
-              Проверить push
-            </Button>
-          )}
-          <Button small variant="ghost" icon="search" onClick={() => void runDiag()}>
-            Диагностика
-          </Button>
-        </div>
-        {diag.length > 0 && (
-          <ul className="digits" style={{ margin: '8px 0 0', paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-            {diag.map((l) => (
-              <li key={l}>{l}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <Button
-        small
-        icon="bell"
-        onClick={() =>
-          void testNotification().then((err) =>
-            err
-              ? toast(`Не удалось показать: ${err}`, 'alert', 'var(--c-warn)')
-              : toast('Уведомление отправлено. Не видно? Проверьте системные настройки уведомлений для браузера и режим «Не беспокоить».', 'bell', 'var(--c-xp)'),
-          )
-        }
-      >
-        Тестовое уведомление
-      </Button>
-      <div style={{ marginTop: 16, padding: 12, background: 'var(--c-bg)', borderLeft: '8px solid var(--c-warn)' }}>
-        <h3 style={{ color: 'var(--c-warn)', marginBottom: 8 }}>Честно об ограничениях</h3>
-        <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-          {pushOn ? (
-            <>
-              <li>Push включён: сервер присылает напоминания и при закрытом приложении, с точностью до минуты.</li>
-              <li>Расписание отправляется на сервер, когда приложение открыто. Если не открывать его больше 7 дней, новые напоминания перестанут приходить.</li>
-              <li>Изменения, сделанные без сети, попадут на сервер при следующем подключении. Число задач в утренней сводке — на момент последней синхронизации.</li>
-              <li>На сервере хранятся только названия и время напоминаний — не вся база.</li>
-            </>
-          ) : (
-            <>
-              <li>Без push напоминания приходят, <b style={{ color: 'var(--c-text)' }}>только пока приложение открыто</b> или живо в фоне. Если вкладку закрыть, браузер не разбудит её к нужному времени.</li>
-              <li>Сработавшие без вас напоминания покажем списком «Пропущенные» при следующем открытии.</li>
-              <li>Браузер может «усыплять» фоновые вкладки, поэтому напоминание иногда приходит с задержкой до минуты.</li>
-            </>
-          )}
-          {isIos && !standalone && <li>На iPhone уведомления работают только для приложения, установленного на экран «Домой» (iOS 16.4+).</li>}
-        </ul>
-      </div>
     </Panel>
   );
 }

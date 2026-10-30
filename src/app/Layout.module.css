@@ -59,6 +59,9 @@
   content: '◀';
   position: absolute;
   right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  line-height: 1;
   color: var(--c-xp);
   font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
   animation: blink 1s steps(1) infinite;

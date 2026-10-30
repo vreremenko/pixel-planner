@@ -244,7 +244,7 @@ HOST=<ip> bash server-node/deploy.sh   # нужен вход по ключу SSH
 
 API: `GET /api/config`; `POST /api/auth/register|login|logout|password`, `GET /api/auth/me`, `DELETE /api/auth/account`;
 `GET|PUT|DELETE /api/sync`; `PUT|DELETE /api/devices/:id` (подписка),
-`PUT /api/devices/:id/schedule` (расписание на 7 дней), `POST /api/devices/:id/snooze`, `POST /api/devices/:id/test`.
+`PUT /api/devices/:id/schedule` (расписание на 7 дней), `POST /api/devices/:id/snooze`.
 Всё, кроме `config`, `register` и `login`, требует заголовок `Authorization: Bearer <токен>`; устройство принадлежит
 пользователю, чужое не видно. id устройства — случайный UUID. Без сервера приложение работает полностью, но
 синхронизация и push недоступны.

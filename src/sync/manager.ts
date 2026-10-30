@@ -100,7 +100,7 @@ let again = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /** Один проход синхронизации. Если уже идёт — запомнит и повторит сразу после. */
-export async function syncNow(): Promise<void> {
+async function syncNow(): Promise<void> {
   if (useSync.getState().running) {
     again = true;
     return;

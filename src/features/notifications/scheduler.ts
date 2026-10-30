@@ -3,7 +3,7 @@
  * Работает, только пока страница открыта или жива в фоне: раз в минуту и по точному
  * таймеру до ближайшего напоминания пересчитывает расписание и показывает уведомления.
  */
-import { addDays, currentTimeZone, dateOf, today } from '../../domain/dates';
+import { addDays, currentTimeZone, dateOf } from '../../domain/dates';
 import { planReminders, summaryText, type PlannedReminder } from '../../domain/reminders';
 import { isScheduled } from '../../domain/streaks';
 import { buildOccurrences } from '../../domain/recurrence';
@@ -21,7 +21,7 @@ import { useSettings } from '../../stores/settings';
 import { liveQuery } from 'dexie';
 import { db } from '../../data/db';
 import { toast } from '../../ui';
-import { showNotificationVerbose, showSystemNotification } from './notify';
+import { showSystemNotification } from './notify';
 import { isPushActive, syncSchedule } from './push';
 
 const TICK_MS = 60_000;
@@ -221,14 +221,4 @@ export function startNotifications(): () => void {
     window.removeEventListener('pagehide', onPageHide);
     sw?.removeEventListener('message', onMessage);
   };
-}
-
-/** Тестовое уведомление из настроек; возвращает текст ошибки или null. */
-export async function testNotification(): Promise<string | null> {
-  return showNotificationVerbose({
-    key: `test:${today()}:${Date.now()}`,
-    kind: 'summary',
-    title: 'PIXEL PLANNER',
-    body: 'Уведомления работают! ★',
-  });
 }
