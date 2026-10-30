@@ -53,7 +53,18 @@ function ProgramEditor({ program, onClose }: { program?: Program; onClose: () =>
               <Button small variant="ghost" icon="close" label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-              <TextInput label="Подходы" inputMode="numeric" value={String(it.sets)} onChange={(e) => patch(i, { sets: Math.max(1, Math.min(20, Number.parseInt(e.target.value, 10) || 1)) })} />
+              <TextInput
+                label="Подходы"
+                inputMode="numeric"
+                defaultValue={String(it.sets)}
+                // Число проверяем, когда поле теряет фокус: иначе его нельзя стереть, чтобы вписать другое
+                onBlur={(e) => {
+                  const n = Number.parseInt(e.target.value, 10);
+                  const sets = Number.isNaN(n) ? it.sets : Math.max(1, Math.min(20, n));
+                  e.target.value = String(sets);
+                  patch(i, { sets });
+                }}
+              />
               <TextInput label="Повторы" value={it.reps ?? ''} placeholder="8–12" maxLength={10} onChange={(e) => patch(i, { reps: e.target.value || undefined })} />
               <TextInput label="Вес, кг" inputMode="decimal" defaultValue={it.weight ?? ''} onBlur={(e) => patch(i, { weight: parseValue(e.target.value) ?? undefined })} />
               <TextInput label="Отдых, с" inputMode="numeric" defaultValue={it.restSec ?? ''} placeholder="авто" onBlur={(e) => patch(i, { restSec: parseValue(e.target.value) ?? undefined })} />
