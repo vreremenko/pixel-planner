@@ -32,8 +32,6 @@ const STALE_MS = 10 * 60_000;
 const MAX_LOOKBACK_MS = 48 * 3_600_000;
 const HORIZON_MS = 26 * 3_600_000;
 /** На сколько вперёд отдаём расписание push-серверу (если приложение долго не открывать). */
-/** Сколько ждём push от сервера, прежде чем показать напоминание самим: браузер мог его не получить. */
-const PUSH_GRACE_MS = 15_000;
 const PUSH_HORIZON_MS = 7 * 86_400_000;
 
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -155,16 +153,10 @@ export async function tick(): Promise<void> {
     const from = new Date(Math.max(last, now - MAX_LOOKBACK_MS));
     const planned = await plan(from, new Date(now + HORIZON_MS));
 
-    let waitingForPush = false;
     for (const r of planned) {
       if (r.fireAt > now) break;
       if (await reminderLogRepo.get(r.key)) continue;
-      // Push пришёл — service worker запишет его в журнал. Не пришёл за PUSH_GRACE_MS — показываем сами
-      if (pushActive && now - r.fireAt < PUSH_GRACE_MS) {
-        waitingForPush = true;
-        continue;
-      }
-      await fire(r, now, false);
+      await fire(r, now, pushActive);
     }
     // Отложенные: показать повторно
     for (const log of await reminderLogRepo.snoozed(0)) {
@@ -173,11 +165,11 @@ export async function tick(): Promise<void> {
       await reminderLogRepo.put({ ...rest, firedAt: now });
       if (!pushActive) await showSystemNotification({ key: log.key, kind: log.kind, title: `⏰ ${log.title}`, body: log.body });
     }
-    if (!waitingForPush) await metaRepo.set('lastReminderCheck', now);
+    await metaRepo.set('lastReminderCheck', now);
 
     const snoozes = (await reminderLogRepo.snoozed(now)).map((l) => l.snoozedUntil ?? Infinity);
     const next = Math.min(...planned.filter((r) => r.fireAt > now).map((r) => r.fireAt), ...snoozes);
-    schedule(waitingForPush ? 3000 : Math.min(TICK_MS, Math.max(1000, next - Date.now() + 250)));
+    schedule(Math.min(TICK_MS, Math.max(1000, next - Date.now() + 250)));
     return;
   } finally {
     running = false;
