@@ -41,3 +41,12 @@
     opacity: 0.85;
   }
 }
+/* В режиме «Для мамы» эффекта нет никогда, даже до загрузки настроек */
+html[data-mode='mom'] .crt::before,
+html[data-mode='mom'] .crt::after {
+  display: none;
+}
+html[data-mode='mom'] .crt h1,
+html[data-mode='mom'] .crt .glow {
+  text-shadow: none;
+}

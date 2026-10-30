@@ -122,21 +122,23 @@ export function TrendChart({ points, average, unit, title }: Props) {
           среднее за 7 дней
         </span>
       </figcaption>
-      <table className="sr-only">
-        <caption>{title}</caption>
-        <tbody>
-          {points
-            .filter((p) => p.value !== null)
-            .map((p) => (
-              <tr key={p.date}>
-                <th scope="row">{p.date}</th>
-                <td>
-                  {p.value} {unit}
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
+      <div className="sr-only">
+        <table>
+          <caption>{title}</caption>
+          <tbody>
+            {points
+              .filter((p) => p.value !== null)
+              .map((p) => (
+                <tr key={p.date}>
+                  <th scope="row">{p.date}</th>
+                  <td>
+                    {p.value} {unit}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

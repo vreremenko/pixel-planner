@@ -47,6 +47,6 @@ const btn = {
   color: 'var(--c-text)',
   border: '4px solid var(--c-task)',
   fontFamily: 'var(--font-title)',
-  fontSize: fs(10),
+  fontSize: fs(16),
   cursor: 'pointer',
 };

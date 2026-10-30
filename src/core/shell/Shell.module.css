@@ -23,7 +23,7 @@
   color: var(--c-text-dim);
   text-decoration: none;
   font-family: var(--font-title);
-  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   padding: 6px 4px;
 }
 .cardLink:hover {
@@ -45,7 +45,7 @@
   color: var(--c-text);
   text-decoration: none;
   font-family: var(--font-title);
-  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   line-height: 1.5;
 }
 .tile svg {

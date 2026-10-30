@@ -7,7 +7,7 @@
 }
 .count {
   font-family: var(--font-title);
-  font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
 }
 .list {
   list-style: none;

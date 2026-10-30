@@ -74,28 +74,28 @@ export function ExerciseCard() {
       <div className={s.stack}>
         <Panel accent="var(--c-gym)">
           <div className={s.card}>
-            <MuscleMap primary={def.primary} secondary={def.secondary} />
-            <div className={s.cardInfo}>
-              <p style={{ marginTop: 0 }}>
-                <b style={{ color: PRIMARY_COLOR }}>■</b> {def.primary.map((m) => MUSCLES[m].label).join(', ')}
-                {def.secondary.length > 0 && (
-                  <>
-                    <br />
-                    <b style={{ color: SECONDARY_COLOR }}>■</b> {def.secondary.map((m) => MUSCLES[m].label).join(', ')}
-                  </>
-                )}
-              </p>
-              {def.technique.length > 0 && (
+            <div className={s.cardMap}>
+              <MuscleMap primary={def.primary} secondary={def.secondary} />
+            </div>
+            <p className={s.cardMuscles}>
+              <b style={{ color: PRIMARY_COLOR }}>■</b> {def.primary.map((m) => MUSCLES[m].label).join(', ')}
+              {def.secondary.length > 0 && (
                 <>
-                  <h3 style={{ margin: '12px 0 6px' }}>Техника</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--c-text-dim)' }}>
-                    {def.technique.map((t) => (
-                      <li key={t}>{t}</li>
-                    ))}
-                  </ul>
+                  <br />
+                  <b style={{ color: SECONDARY_COLOR }}>■</b> {def.secondary.map((m) => MUSCLES[m].label).join(', ')}
                 </>
               )}
-            </div>
+            </p>
+            {def.technique.length > 0 && (
+              <div className={s.cardTech}>
+                <h3 style={{ margin: '0 0 6px' }}>Техника</h3>
+                <ul className={s.techList}>
+                  {def.technique.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </Panel>
         {anim?.id === id && (

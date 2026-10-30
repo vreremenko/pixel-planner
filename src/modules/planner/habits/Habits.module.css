@@ -54,7 +54,7 @@
   gap: var(--gap-4);
   margin-bottom: var(--gap-3);
   font-family: var(--font-title);
-  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
 }
 .streaks b {
@@ -74,7 +74,7 @@
 .dow {
   text-align: center;
   font-family: var(--font-title);
-  font-size: max(calc(6px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }
 .cell {
@@ -230,7 +230,7 @@
 }
 .tileLabel {
   font-family: var(--font-title);
-  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   line-height: 1.6;
   color: var(--c-text-dim);
   text-transform: uppercase;

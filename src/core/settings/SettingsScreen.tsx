@@ -217,7 +217,9 @@ export function SettingsScreen() {
               if (v) play('complete', true);
             }}
           />
-          <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
+          {!settings.momMode && (
+            <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
+          )}
         </Panel>
         <Panel title="Установка" icon="download" accent="var(--c-backlog)">
           {install.updateReady && (

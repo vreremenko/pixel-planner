@@ -2,6 +2,7 @@ import { Suspense, useEffect } from 'react';
 import { createHashRouter, RouterProvider, type RouteObject } from 'react-router';
 import { Layout } from './Layout';
 import { SettingsScreen } from '../settings/SettingsScreen';
+import { AccountScreen } from '../account/AccountScreen';
 import { Dashboard } from './Dashboard';
 import { MoreScreen } from './MoreScreen';
 import { MODULES } from '../../modules';
@@ -25,6 +26,7 @@ const router = createHashRouter([
       ...moduleRoutes,
       { path: 'more', element: <MoreScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
+      { path: 'account', element: <AccountScreen /> },
       // Неизвестный адрес — сводка
       { path: '*', element: <Dashboard /> },
     ],

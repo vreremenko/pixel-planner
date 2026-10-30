@@ -15,7 +15,7 @@
 }
 .version {
   font-family: var(--font-title);
-  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   padding: 3px 6px;
   background: var(--c-gold);
   color: var(--c-on-accent);

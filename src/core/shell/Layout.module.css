@@ -15,8 +15,9 @@
   border-right: var(--px) solid var(--c-border);
 }
 .logo {
+  white-space: nowrap;
   font-family: var(--font-title);
-  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
   line-height: 1.6;
   color: var(--c-task);
   padding: var(--gap-2);
@@ -40,7 +41,7 @@
   color: var(--c-text-dim);
   text-decoration: none;
   font-family: var(--font-title);
-  font-size: max(calc(9px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   line-height: 1.5;
   border: var(--px) solid transparent;
   position: relative;
@@ -65,7 +66,7 @@
   transform: translateY(-50%);
   line-height: 1;
   color: var(--c-gold);
-  font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   animation: blink 1s steps(1) infinite;
 }
 @keyframes blink {
@@ -86,7 +87,7 @@
   padding: 0 10px;
   color: var(--c-text-muted);
   font-family: var(--font-title);
-  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   text-transform: uppercase;
 }
 .main {
@@ -129,7 +130,7 @@
   }
   .topbar .logo {
     padding: 0;
-    font-size: max(calc(10px * var(--fs-scale)), var(--fs-min));
+    font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   }
   .bottom {
     position: fixed;
@@ -150,7 +151,7 @@
     justify-content: center;
     gap: 4px;
     padding: 4px 2px;
-    font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
+    font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
     border-width: 0;
     border-top: var(--px) solid transparent;
     text-align: center;
@@ -171,4 +172,23 @@
 }
 .skip:focus {
   left: 8px;
+}
+/* Значок личного кабинета в верхней полосе телефона; зелёная точка — вход выполнен */
+.account {
+  position: relative;
+  margin-left: auto;
+  padding: 8px;
+  color: var(--c-text-dim);
+}
+.account[aria-current='page'] {
+  color: var(--c-habit);
+}
+.accountDot {
+  position: absolute;
+  right: 4px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--c-habit);
+  border: 2px solid var(--c-panel);
 }

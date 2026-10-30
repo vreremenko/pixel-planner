@@ -67,7 +67,7 @@ export function BarChart({ bars, color = 'var(--c-task)', rows = 24, title }: Pr
                 <rect key={k} x={x} y={chartH - (k + 1) * B} width={colW * B} height={B - 1} fill={color} opacity={active || hover === null ? 1 : 0.55} />
               ))}
               <rect x={x} y={chartH} width={colW * B} height={B / 2} fill="var(--c-border)" />
-              <text x={x + (colW * B) / 2} y={chartH + 16} textAnchor="middle" fill={active ? 'var(--c-text)' : 'var(--c-text-dim)'} fontFamily="var(--font-title)" fontSize="8">
+              <text x={x + (colW * B) / 2} y={chartH + 16} textAnchor="middle" fill={active ? 'var(--c-text)' : 'var(--c-text-dim)'} fontFamily="var(--font-title)" fontSize="12">
                 {b.label}
               </text>
               {active && (
@@ -82,17 +82,19 @@ export function BarChart({ bars, color = 'var(--c-task)', rows = 24, title }: Pr
           );
         })}
       </svg>
-      <table className="sr-only">
-        <caption>{title}</caption>
-        <tbody>
-          {bars.map((b) => (
-            <tr key={b.label}>
-              <th scope="row">{b.label}</th>
-              <td>{b.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="sr-only">
+        <table>
+          <caption>{title}</caption>
+          <tbody>
+            {bars.map((b) => (
+              <tr key={b.label}>
+                <th scope="row">{b.label}</th>
+                <td>{b.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

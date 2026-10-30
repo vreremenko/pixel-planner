@@ -44,9 +44,9 @@
   --c-heat-4: #4dff7a;
 
   /* Шрифты */
-  --font-title: 'Press Start 2P', monospace;
-  --font-body: 'Pixelify Sans', 'VT323', monospace;
-  --font-digits: 'VT323', 'Pixelify Sans', monospace;
+  --font-title: 'Monocraft', monospace;
+  --font-body: 'Monocraft', monospace;
+  --font-digits: 'Monocraft', monospace;
 
   /* Пиксельная сетка */
   --px: 4px;
@@ -65,10 +65,10 @@
   --c-overlay: rgba(7, 6, 18, 0.8);
   --c-overlay-stripe: rgba(255, 255, 255, 0.03);
 
-  --fs-title: 14px;
-  --fs-title-sm: 10px;
-  --fs-body: 20px;
-  --fs-small: 17px;
+  --fs-title: 20px;
+  --fs-title-sm: 15px;
+  --fs-body: 18px;
+  --fs-small: 15px;
 
   /* Тени-смещения (без размытия) */
   --shadow-1: 4px 4px 0 var(--c-shadow);

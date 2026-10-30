@@ -1,9 +1,10 @@
 import { Suspense, type CSSProperties } from 'react';
-import { Link, NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet } from 'react-router';
 import s from './Layout.module.css';
 import { PixelIcon } from '../ui';
 import type { ModuleNavItem } from '../module';
 import { MissedReminders } from '../notifications/MissedReminders';
+import { useAuth } from '../auth/store';
 import { HOME, SETTINGS, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
@@ -24,6 +25,7 @@ function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: b
 export function Layout() {
   const modules = useModules();
   const mobile = useMobileNav();
+  const signedIn = Boolean(useAuth((st) => st.session));
   return (
     <div className={s.shell}>
       <a href="#main" className={`${s.link} ${s.skip}`}>
@@ -52,9 +54,10 @@ export function Layout() {
         <div className={s.logo}>
           PIXEL<span>▪</span>PLANNER
         </div>
-        <Link to="/settings" aria-label="Настройки" style={{ color: 'var(--c-text-dim)', padding: 8, marginLeft: 'auto' }}>
-          <PixelIcon name="gear" size={24} />
-        </Link>
+        <NavLink to="/account" aria-label={signedIn ? 'Личный кабинет: вход выполнен' : 'Личный кабинет: войти'} className={s.account}>
+          <PixelIcon name="user" size={24} />
+          {signedIn && <span className={s.accountDot} aria-hidden="true" />}
+        </NavLink>
       </header>
       <main id="main" className={s.main}>
         <MissedReminders />

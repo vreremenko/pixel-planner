@@ -74,7 +74,7 @@ export function AccountPanel() {
   };
 
   return (
-    <Panel title="Аккаунт" icon="heart" accent="var(--c-habit)">
+    <Panel title="Аккаунт" icon="user" accent="var(--c-habit)">
       {session ? (
         <>
           <p style={{ marginTop: 0 }}>

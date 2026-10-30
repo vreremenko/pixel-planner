@@ -63,7 +63,7 @@ export default defineConfig({
       filename: 'sw.ts',
       registerType: 'prompt',
       injectRegister: false,
-      injectManifest: { globPatterns: ['**/*.{js,css,html,woff,woff2,png,svg,ico}'] },
+      injectManifest: { globPatterns: ['**/*.{js,css,html,woff,woff2,ttf,png,svg,ico}'] },
       devOptions: { enabled: true, type: 'module' },
       manifest: {
         name: 'PIXEL PLANNER — 8-битный ежедневник',

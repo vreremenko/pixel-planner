@@ -7,7 +7,7 @@
 }
 .label {
   font-family: var(--font-title);
-  font-size: max(calc(8px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
   margin-right: 4px;
 }
