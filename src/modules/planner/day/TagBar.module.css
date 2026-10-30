@@ -1,45 +1,48 @@
+/* Одна строка меток; не помещаются — прокручиваются вбок до края экрана */
 .bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-bottom: var(--gap-3);
+  gap: 8px;
+  margin: 0 calc(var(--gap-4) * -1) var(--gap-3);
+  padding: 2px var(--gap-4);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.label {
-  font-family: var(--font-title);
-  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
-  color: var(--c-text-dim);
-  margin-right: 4px;
+.bar::-webkit-scrollbar {
+  display: none;
 }
 .tag {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
+  min-height: 34px;
   padding: 2px 10px;
-  border: 2px solid var(--c-backlog);
+  border: 2px solid var(--c-panel-3);
   background: transparent;
-  color: var(--c-backlog);
+  color: var(--c-text-dim);
   font-family: var(--font-body);
-  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  white-space: nowrap;
   cursor: pointer;
 }
 .tag:hover {
-  background: var(--c-panel-2);
+  border-color: var(--c-border);
+  color: var(--c-text);
 }
 .tag[aria-pressed='true'] {
-  background: var(--c-backlog);
+  background: var(--c-task);
+  border-color: var(--c-task);
   color: var(--c-on-accent);
 }
 .count {
-  font-family: var(--font-digits);
-  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
-  opacity: 0.85;
+  opacity: 0.75;
 }
 .link {
-  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
   color: var(--c-task);
-  font-size: max(calc(17px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   text-decoration: none;
   border-bottom: 2px dotted currentColor;
 }

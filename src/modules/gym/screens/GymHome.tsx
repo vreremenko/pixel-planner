@@ -25,7 +25,7 @@ export function GymHome() {
   return (
     <>
       <div className={s.head}>
-        <h1 className="glow" style={{ color: 'var(--c-gym)' }}>
+        <h1 className="glow pageTitle" style={{ color: 'var(--c-gym)' }}>
           Тренировка
         </h1>
       </div>

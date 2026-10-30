@@ -108,7 +108,7 @@ export function ProgramsScreen() {
   return (
     <>
       <div className={s.head}>
-        <h1 className="glow" style={{ color: 'var(--c-gym)' }}>
+        <h1 className="glow pageTitle" style={{ color: 'var(--c-gym)' }}>
           Программа
         </h1>
         <Button icon="plus" onClick={() => setEditing('new')}>

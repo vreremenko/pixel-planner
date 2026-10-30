@@ -135,6 +135,12 @@ export function formatDateLong(d: LocalDate): string {
   return `${day} ${MONTHS_GEN[m - 1] ?? ''}, ${WEEKDAYS_FULL[weekday(d)] ?? ''}`;
 }
 
+/** «Пт, 30 октября» — коротко, в одну строку. */
+export function formatDateDay(d: LocalDate): string {
+  const { m, day } = parseLocalDate(d);
+  return `${WEEKDAYS_SHORT[weekday(d)] ?? ''}, ${day} ${MONTHS_GEN[m - 1] ?? ''}`;
+}
+
 export function formatDateShort(d: LocalDate): string {
   const { m, day } = parseLocalDate(d);
   return `${pad(day)}.${pad(m)}`;

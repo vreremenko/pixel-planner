@@ -65,10 +65,10 @@
   --c-overlay: rgba(7, 6, 18, 0.8);
   --c-overlay-stripe: rgba(255, 255, 255, 0.03);
 
-  --fs-title: 20px;
-  --fs-title-sm: 15px;
-  --fs-body: 18px;
-  --fs-small: 15px;
+  --fs-title: 24px;
+  --fs-title-sm: 18px;
+  --fs-body: 16px;
+  --fs-small: 14px;
 
   /* Тени-смещения (без размытия) */
   --shadow-1: 4px 4px 0 var(--c-shadow);

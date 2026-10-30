@@ -101,7 +101,7 @@ export function QuickAdd({ date, todayDate }: Props) {
         <label htmlFor="quick-add" className="sr-only">
           Быстрый ввод задачи
         </label>
-        {/* Кнопка «Добавить» — рядом с полем, а на узком экране под ним: она отправляет написанное, а не открывает окно */}
+        {/* Квадратная «+» рядом с полем отправляет написанное, а не открывает окно */}
         <div className={s.row}>
           <div className={s.field}>
             <input
@@ -116,9 +116,7 @@ export function QuickAdd({ date, todayDate }: Props) {
               onChange={(e) => setText(e.target.value)}
             />
           </div>
-          <Button type="submit" variant="primary" icon="right" className={s.send} disabled={text.trim() === ''}>
-            Добавить
-          </Button>
+          <Button type="submit" variant="primary" icon="plus" label="Добавить задачу" className={s.send} disabled={text.trim() === ''} />
         </div>
       </form>
       {text.trim() === '' ? null : (

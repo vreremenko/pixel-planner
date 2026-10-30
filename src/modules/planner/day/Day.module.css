@@ -1,36 +1,60 @@
+/* Шапка дня: стрелки по краям, дата между ними; календарь и «⋯» — справа (на телефоне — в верхней полосе) */
 .header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-2);
   margin-bottom: var(--gap-4);
 }
 .dateBlock {
-  flex: 1 1 var(--date-basis, 220px);
+  flex: 1;
   min-width: 0;
   text-align: center;
 }
-.stage {
-  font-family: var(--font-title);
-  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
-  color: var(--c-warn);
-  letter-spacing: 1px;
-}
 .dateTitle {
+  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
+  line-height: 1.3;
+  color: var(--c-text);
+}
+.stage {
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-warn);
+}
+.stageLink {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--c-task);
-  margin-top: 6px;
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  border-bottom: 2px dotted currentColor;
+  cursor: pointer;
+}
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .progressRow {
   display: flex;
   align-items: center;
   gap: var(--gap-3);
   margin-bottom: var(--gap-3);
-  font-family: var(--font-title);
-  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
+  white-space: nowrap;
 }
 .progressRow > div {
   flex: 1;
+}
+.hintTouch {
+  display: none;
+}
+@media (hover: none) {
+  .hintKeys {
+    display: none;
+  }
+  .hintTouch {
+    display: inline;
+  }
 }
 .list {
   list-style: none;
@@ -38,47 +62,55 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-2);
+  gap: 6px;
 }
+/* Строка задачи: галочка, название на всю ширину, под ним мелко время, метки и значки.
+   Приоритет — цвет полосы слева. */
 .item {
   --ic: var(--c-task);
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--gap-2);
-  min-height: 52px;
-  padding: 6px 8px 6px 4px;
-  background: var(--c-panel-2);
-  border-left: 8px solid var(--prio, var(--c-prio-low));
-  box-shadow: 4px 4px 0 var(--c-shadow);
+  align-items: flex-start;
+  gap: 4px 10px;
+  padding: 10px 8px 10px 4px;
+  background: var(--c-panel);
+  border-left: 4px solid var(--prio, var(--c-prio-low));
   position: relative;
+  /* долгое нажатие на телефоне — перетаскивание, а не выделение текста */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 .item.dragging {
   z-index: 10;
   background: var(--c-panel-3);
-  box-shadow: 8px 8px 0 var(--c-shadow);
-  outline: var(--px) dashed var(--c-gold);
+  box-shadow: 6px 6px 0 var(--c-shadow);
+  outline: 2px dashed var(--c-gold);
 }
 .item.done .title {
   text-decoration: line-through;
   text-decoration-thickness: 2px;
   color: var(--c-text-muted);
 }
+.item.done .meta {
+  opacity: 0.7;
+}
 .item.missed {
   border-left-color: var(--c-warn);
-  background: color-mix(in srgb, var(--c-warn) 8%, var(--c-panel-2));
+  background: color-mix(in srgb, var(--c-warn) 8%, var(--c-panel));
 }
 .grip {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 40px;
+  width: 24px;
+  height: 28px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--c-text-muted);
   cursor: grab;
   touch-action: none;
+  position: relative;
+  z-index: 1;
 }
 .grip:hover {
   color: var(--c-text);
@@ -88,47 +120,55 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  cursor: pointer;
-  background: none;
-  border: 0;
-  padding: 0;
-  text-align: left;
-  color: inherit;
+  gap: 4px;
+  padding-top: 3px;
 }
 .title {
-  overflow-wrap: anywhere;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  cursor: pointer;
+}
+/* Кнопка названия растянута на всю строку, чтобы открывать задачу касанием в любом месте */
+.title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 .meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
-  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
-  color: var(--c-text-dim);
+  gap: 2px 12px;
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
 }
-.meta span {
+.meta > span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.badge {
-  font-family: var(--font-title);
-  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
-  padding: 3px 4px;
-  border: 2px solid currentColor;
-  text-transform: uppercase;
-}
 .time {
   font-family: var(--font-digits);
-  font-size: max(calc(22px * var(--fs-scale)), var(--fs-min));
   color: var(--c-task);
-  min-width: 52px;
-  text-align: right;
 }
 .actions {
   display: flex;
   align-items: center;
+  position: relative;
+  z-index: 1;
+}
+/* На телефоне ни ручки, ни кнопки «в бэклог»: перетаскивание — долгим нажатием, бэклог — в окне задачи */
+@media (max-width: 767px) {
+  .grip,
+  .actions {
+    display: none;
+  }
 }
 /* Быстрый ввод: закреплён внизу экрана поверх содержимого. Геометрия повторяет колонку контента
    (левая панель навигации, отступы и максимальная ширина как у main). */
@@ -149,8 +189,8 @@
   pointer-events: auto;
   padding: 10px 12px;
   background: var(--c-panel);
-  border: var(--px) solid var(--c-task);
-  box-shadow: 4px 4px 0 var(--c-shadow);
+  border: 2px solid var(--c-panel-3);
+  box-shadow: 0 -8px 16px var(--c-bg);
 }
 @media (max-width: 767px) {
   .dock {
@@ -158,8 +198,13 @@
     /* над нижней навигацией */
     bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
   }
+  /* на телефоне поле — полоса во всю ширину над нижним меню */
   .dockInner {
-    padding: 0 12px 8px;
+    padding: 0;
+  }
+  .dockBox {
+    border-width: 2px 0 0;
+    padding: 8px 12px;
   }
 }
 
@@ -259,8 +304,16 @@
 }
 .clWrap {
   flex: 0 0 100%;
-  padding-left: 68px;
+  /* под названием: ручка + галочка + отступы */
+  padding-left: 72px;
   margin-top: 2px;
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 767px) {
+  .clWrap {
+    padding-left: 38px;
+  }
 }
 .checklist {
   list-style: none;
@@ -295,31 +348,27 @@
   overflow-wrap: anywhere;
 }
 
-/* Метки под названием задачи */
-.tagRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+/* Метки в строке задачи: цветной текст; поверх растянутой кнопки названия */
 .tagChip {
-  min-height: 28px;
-  padding: 0 8px;
-  border: 2px solid var(--c-backlog);
-  background: transparent;
+  position: relative;
+  z-index: 1;
+  padding: 2px 0;
+  border: 0;
+  background: none;
   color: var(--c-backlog);
-  font-family: var(--font-body);
-  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
+  font: inherit;
   cursor: pointer;
 }
 .tagChip:hover:not(:disabled) {
-  background: var(--c-panel-3);
+  color: var(--c-text);
 }
 .tagChip:disabled {
   cursor: default;
 }
 .tagActive {
-  background: var(--c-backlog);
   color: var(--c-on-accent);
+  background: var(--c-backlog);
+  padding: 2px 4px;
 }
 
 /* Список напоминаний в редакторе */

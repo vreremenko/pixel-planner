@@ -54,7 +54,7 @@ export function BacklogScreen() {
 
   return (
     <>
-      <h1 className="glow" style={{ color: 'var(--c-backlog)', marginBottom: 16 }}>
+      <h1 className="glow pageTitle" style={{ color: 'var(--c-backlog)', marginBottom: 16 }}>
         Бэклог
       </h1>
       <Panel

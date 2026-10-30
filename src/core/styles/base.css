@@ -24,12 +24,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-smooth: never;
   image-rendering: pixelated;
-  /* Фоновая пиксельная «сетка» */
-  background-image:
-    linear-gradient(var(--c-panel) 1px, transparent 1px),
-    linear-gradient(90deg, var(--c-panel) 1px, transparent 1px);
-  background-size: 32px 32px;
-  background-attachment: fixed;
 }
 
 img,
@@ -97,6 +91,18 @@ a {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Заголовок страницы, совпадающий с названием экрана: на телефоне оно уже есть в верхней полосе */
+@media (max-width: 767px) {
+  .pageTitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
 
 .title {

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   closestCenter,
   useSensor,
@@ -11,13 +11,14 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import s from './Day.module.css';
-import { Button, Panel, PixelIcon, toast } from '../../../core/ui';
+import { Button, Menu, PixelIcon, toast, type MenuItem } from '../../../core/ui';
+import { TopbarActions } from '../../../core/shell/TopbarActions';
 import { useUi } from '../stores/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { useHotkeys } from '../../../core/shell/hotkeys';
 import { useDockHeight } from '../../../core/shell/useDockHeight';
 import { useDay } from '../data/hooks';
-import { diffDays, formatDateLong } from '../../../core/domain/dates';
+import { diffDays, formatDateDay } from '../../../core/domain/dates';
 import { hasAllTags, tagCounts } from '../domain/tags';
 import { ProgressBar } from '../../../core/charts/ProgressBar';
 import {
@@ -42,10 +43,10 @@ const itemTags = (it: DayItem) => (it.kind === 'task' ? it.task.tags : it.occ.ta
 const isDone = (it: DayItem) => (it.kind === 'task' ? it.task.done : it.occ.status === 'done');
 
 function relativeLabel(diff: number): string {
-  if (diff === 0) return 'СЕГОДНЯ';
-  if (diff === 1) return 'ЗАВТРА';
-  if (diff === -1) return 'ВЧЕРА';
-  return diff > 0 ? `ЧЕРЕЗ ${diff} ДН.` : `${-diff} ДН. НАЗАД`;
+  if (diff === 0) return 'сегодня';
+  if (diff === 1) return 'завтра';
+  if (diff === -1) return 'вчера';
+  return diff > 0 ? `через ${diff} дн.` : `${-diff} дн. назад`;
 }
 
 export function DayScreen() {
@@ -72,9 +73,10 @@ export function DayScreen() {
     setItems(sorted);
   }
 
+  // Мышью — за ручку, пальцем — долгим нажатием на задачу (ручки на телефоне нет)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -109,107 +111,104 @@ export function DayScreen() {
   const pendingTasks = visible.filter((x) => x.kind === 'task' && !x.task.done).length;
   const diff = diffDays(date, todayDate);
 
+  const moveToTomorrow = () =>
+    // При фильтре переносим только то, что видно на экране
+    void moveUnfinishedToTomorrow(date, filtering ? new Set(visible.flatMap((x) => (x.kind === 'task' ? [x.task.id] : []))) : undefined).then((n) =>
+      toast(`Перенесено на завтра: ${n}`, 'skip', 'var(--c-task)'),
+    );
+  const menu: MenuItem[] = [
+    { label: 'Новая задача с подробностями', icon: 'plus', onSelect: () => openEditor({ kind: 'new', date }) },
+    ...(pendingTasks > 0
+      ? [{ label: filtering ? 'Выбранные — на завтра' : 'Перенести несделанное на завтра', icon: 'skip' as const, onSelect: moveToTomorrow }]
+      : []),
+  ];
+  const left = visible.length - doneCount;
+
   return (
     <>
       <div className={s.header}>
         <Button icon="left" label="Предыдущий день (←)" onClick={() => shiftDate(-1)} />
         <div className={s.dateBlock}>
-          <div className={s.stage}>{relativeLabel(diff)}</div>
-          <h1 className={`${s.dateTitle} glow`}>{formatDateLong(date)}</h1>
+          <h1 className={s.dateTitle}>{formatDateDay(date)}</h1>
+          {diff === 0 ? (
+            <div className={s.stage}>{relativeLabel(diff)}</div>
+          ) : (
+            <button type="button" className={s.stageLink} onClick={goToday} title="Вернуться к сегодня (T)">
+              {relativeLabel(diff)} · к сегодня
+            </button>
+          )}
         </div>
         <Button icon="right" label="Следующий день (→)" onClick={() => shiftDate(1)} />
-        <Button icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />
-        {diff !== 0 && (
-          <Button small onClick={goToday}>
-            Сегодня
-          </Button>
-        )}
+        <TopbarActions>
+          <div className={s.tools}>
+            <Button variant="ghost" icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />
+            <Menu label="Действия с днём" items={menu} />
+          </div>
+        </TopbarActions>
       </div>
 
-      <Panel
-        title="День"
-        icon="sword"
-        accent="var(--c-task)"
-        actions={
-          <>
-            {/* Создание задачи в окне — отдельная кнопка, не связанная со строкой быстрого ввода ниже */}
-            <Button small variant="primary" icon="plus" onClick={() => openEditor({ kind: 'new', date })}>
-              Новая задача
-            </Button>
-            {pendingTasks > 0 && (
-            <Button
-              small
-              icon="skip"
-              onClick={() =>
-                // При фильтре переносим только то, что видно на экране
-                void moveUnfinishedToTomorrow(date, filtering ? new Set(visible.flatMap((x) => (x.kind === 'task' ? [x.task.id] : []))) : undefined).then((n) =>
-                  toast(`Перенесено на завтра: ${n}`, 'skip', 'var(--c-task)'),
-                )
-              }
-            >
-              {filtering ? 'Выбранные на завтра' : 'Перенести на завтра'}
-            </Button>
+      {visible.length > 0 && (
+        <div className={s.progressRow}>
+          <span>
+            {doneCount} из {visible.length}
+          </span>
+          <div>
+            <ProgressBar value={doneCount / visible.length} color="var(--c-task)" label="Выполнено за день" />
+          </div>
+          <span>{left > 0 ? `осталось ${left}` : 'всё сделано'}</span>
+        </div>
+      )}
+      <TagBar available={dayTags} total={items.length} selected={tagFilter} onToggle={toggleTag} onClear={clearTags} />
+      {data && items.length > 0 && visible.length === 0 && (
+        <p style={{ color: 'var(--c-text-dim)', textAlign: 'center', padding: '16px 0' }}>На этот день задач с выбранными метками нет.</p>
+      )}
+      {data && items.length === 0 && (
+        <div className="empty" style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '32px 0' }}>
+          <PixelIcon name="flag" size={48} />
+          <p>
+            На этот день задач нет.
+            <br />
+            <span className={s.hintKeys}>Нажмите N или напишите задачу в поле внизу.</span>
+            <span className={s.hintTouch}>Напишите задачу в поле внизу.</span>
+          </p>
+        </div>
+      )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={visible.map(itemId)} strategy={verticalListSortingStrategy}>
+          <ul className={s.list} aria-label="Задачи дня">
+            {visible.map((it) =>
+              it.kind === 'task' ? (
+                <TaskItem
+                  key={it.task.id}
+                  id={it.task.id}
+                  item={it}
+                  onToggle={(d) => void toggleTask(it.task, d)}
+                  onToggleItem={(itemId) => void toggleChecklistItem(it.task, itemId)}
+                  onTagClick={toggleTag}
+                  activeTags={tagFilter}
+                  dragDisabled={filtering}
+                  onEdit={() => openEditor({ kind: 'task', task: it.task })}
+                  onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)'))}
+                  extraIcon="bag"
+                  extraLabel="Убрать в бэклог"
+                />
+              ) : (
+                <TaskItem
+                  key={it.occ.key}
+                  id={it.occ.key}
+                  item={it}
+                  onToggle={(d) => void toggleOccurrence(it.occ, d)}
+                  onToggleItem={(itemId) => void toggleOccurrenceChecklistItem(it.occ, itemId)}
+                  onTagClick={toggleTag}
+                  activeTags={tagFilter}
+                  dragDisabled={filtering}
+                  onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
+                />
+              ),
             )}
-          </>
-        }
-      >
-        {visible.length > 0 && (
-          <div className={s.progressRow}>
-            <span>
-              {doneCount}/{visible.length}
-            </span>
-            <div>
-              <ProgressBar value={doneCount / visible.length} color="var(--c-task)" label="Выполнено за день" />
-            </div>
-          </div>
-        )}
-        <TagBar available={dayTags} selected={tagFilter} onToggle={toggleTag} onClear={clearTags} />
-        {data && items.length > 0 && visible.length === 0 && (
-          <p style={{ color: 'var(--c-text-dim)', textAlign: 'center', padding: '16px 0' }}>На этот день задач с выбранными метками нет.</p>
-        )}
-        {data && items.length === 0 && (
-          <div className="empty" style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '24px 0' }}>
-            <PixelIcon name="flag" size={48} />
-            <p>На этот день задач нет. Нажмите N, чтобы добавить.</p>
-          </div>
-        )}
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={visible.map(itemId)} strategy={verticalListSortingStrategy}>
-            <ul className={s.list} aria-label="Задачи дня">
-              {visible.map((it) =>
-                it.kind === 'task' ? (
-                  <TaskItem
-                    key={it.task.id}
-                    id={it.task.id}
-                    item={it}
-                    onToggle={(d) => void toggleTask(it.task, d)}
-                    onToggleItem={(itemId) => void toggleChecklistItem(it.task, itemId)}
-                    onTagClick={toggleTag}
-                    activeTags={tagFilter}
-                    dragDisabled={filtering}
-                    onEdit={() => openEditor({ kind: 'task', task: it.task })}
-                    onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)'))}
-                    extraIcon="bag"
-                    extraLabel="Убрать в бэклог"
-                  />
-                ) : (
-                  <TaskItem
-                    key={it.occ.key}
-                    id={it.occ.key}
-                    item={it}
-                    onToggle={(d) => void toggleOccurrence(it.occ, d)}
-                    onToggleItem={(itemId) => void toggleOccurrenceChecklistItem(it.occ, itemId)}
-                    onTagClick={toggleTag}
-                    activeTags={tagFilter}
-                    dragDisabled={filtering}
-                    onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
-                  />
-                ),
-              )}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      </Panel>
+          </ul>
+        </SortableContext>
+      </DndContext>
 
       {/* Быстрый ввод закреплён внизу экрана поверх содержимого; пустой блок ниже резервирует место под последней задачей */}
       <div className={s.dock} ref={dockRef}>

@@ -6,6 +6,7 @@ export { Checkbox } from './Checkbox';
 export { Segmented, MultiToggle } from './Segmented';
 export { Modal } from './Modal';
 export { ConfirmDialog } from './ConfirmDialog';
+export { Menu, type MenuItem } from './Menu';
 export { ToastHost } from './Toasts';
 export { toast } from './toastStore';
 export { PixelIcon } from './PixelIcon';

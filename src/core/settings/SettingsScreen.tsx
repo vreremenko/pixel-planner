@@ -194,7 +194,7 @@ export function SettingsScreen() {
   const [showLog, setShowLog] = useState(false);
   return (
     <>
-      <h1 className="glow" style={{ marginBottom: 16 }}>
+      <h1 className="glow pageTitle" style={{ marginBottom: 16 }}>
         Настройки
       </h1>
       <div style={{ display: 'grid', gap: 24 }}>

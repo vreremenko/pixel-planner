@@ -13,7 +13,7 @@ export function Dashboard() {
   return (
     <>
       <div className={s.head}>
-        <h1 className="glow">Сводка</h1>
+        <h1 className="glow pageTitle">Сводка</h1>
         <span className={s.date}>{formatDateLong(todayDate)}</span>
       </div>
       {widgets.length === 0 ? (

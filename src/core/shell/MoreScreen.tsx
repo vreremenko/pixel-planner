@@ -19,7 +19,7 @@ export function MoreScreen() {
   const modules = useModules();
   return (
     <>
-      <h1 className="glow" style={{ marginBottom: 8 }}>
+      <h1 className="glow pageTitle" style={{ marginBottom: 8 }}>
         Все разделы
       </h1>
       {/* Раздел из нескольких экранов — своей группой; одноэкранные — вместе */}

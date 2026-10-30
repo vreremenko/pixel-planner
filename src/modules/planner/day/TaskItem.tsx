@@ -1,10 +1,10 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, TouchEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
 import { Button, Checkbox, PixelIcon, cx } from '../../../core/ui';
 import type { DayItem } from '../services/tasks';
-import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_SHORT } from './labels';
+import { PRIORITY_COLOR, PRIORITY_LABEL } from './labels';
 import { checklistProgress } from '../domain/checklist';
 import { normalizeTag } from '../domain/tags';
 import { reminderLabel, remindersOf } from '../domain/reminderSpecs';
@@ -30,6 +30,8 @@ interface Props {
 
 export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
+  // Пальцем задачу тащат долгим нажатием на любое место строки, мышью и с клавиатуры — за ручку
+  const { onTouchStart, ...gripListeners } = (listeners ?? {}) as Record<string, ((e: TouchEvent) => void) | undefined>;
   const data =
     item.kind === 'task'
       ? { title: item.task.title, time: item.task.time, priority: item.task.priority, done: item.task.done, reminders: remindersOf(item.task), notes: item.task.notes, checklist: item.task.checklist, tags: item.task.tags, missed: false, skipped: false, postponed: item.task.postponedCount }
@@ -49,14 +51,21 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
     '--prio': PRIORITY_COLOR[data.priority],
   } as CSSProperties;
 
+  const hasMeta = Boolean(data.time) || data.tags.length > 0 || item.kind === 'occ' || data.reminders.length > 0 || data.missed || data.skipped || data.postponed > 0;
+
   return (
-    <li ref={setNodeRef} style={style} className={cx(s.item, data.done && s.done, data.missed && s.missed, isDragging && s.dragging)}>
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cx(s.item, data.done && s.done, data.missed && s.missed, isDragging && s.dragging)}
+      onTouchStart={dragDisabled ? undefined : onTouchStart}
+    >
       {dragDisabled ? (
         <span className={s.grip} aria-hidden style={{ cursor: 'default', opacity: 0.25 }}>
           <PixelIcon name="grip" size={16} />
         </span>
       ) : (
-        <button className={s.grip} {...attributes} {...listeners} aria-label={`Переместить «${data.title}»`}>
+        <button className={s.grip} {...attributes} {...gripListeners} aria-label={`Переместить «${data.title}»`}>
           <PixelIcon name="grip" size={16} />
         </button>
       )}
@@ -66,37 +75,14 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
         label={`Выполнено: ${data.title}`}
         color={item.kind === 'occ' ? 'var(--c-task)' : undefined}
       />
-      <button className={s.body} onClick={onEdit} aria-label={`Редактировать «${data.title}»`}>
-        <span className={s.title}>{data.title}</span>
-        <span className={s.meta}>
-          <span className={s.badge} style={{ color: PRIORITY_COLOR[data.priority] }} title={`Приоритет: ${PRIORITY_LABEL[data.priority]}`}>
-            {PRIORITY_SHORT[data.priority]}
-          </span>
-          {item.kind === 'occ' && (
-            <span title="Повторяющаяся">
-              <PixelIcon name="repeat" size={16} /> повтор
-            </span>
-          )}
-          {data.reminders.length > 0 && (
-            <span title={`Напоминания: ${data.reminders.map((r) => reminderLabel(r.offsetMin).toLowerCase()).join(', ')}`}>
-              <PixelIcon name="bell" size={16} />
-              {data.reminders.length > 1 ? `×${String(data.reminders.length)}` : data.reminders[0]?.offsetMin ? `−${String(data.reminders[0].offsetMin)}м` : ''}
-            </span>
-          )}
-          {data.missed && <span style={{ color: 'var(--c-warn)' }}>пропущено</span>}
-          {data.skipped && <span>пропущено вручную</span>}
-          {data.postponed > 0 && <span title="Сколько раз переносилась">⏩×{data.postponed}</span>}
-        </span>
-      </button>
-      {data.time && <span className={s.time}>{data.time}</span>}
-      {onExtra && extraIcon && (
-        <div className={s.actions}>
-          <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
-        </div>
-      )}
-      {data.tags.length > 0 && (
-        <div className={s.clWrap}>
-          <div className={s.tagRow} role="group" aria-label="Метки">
+      <div className={s.body}>
+        {/* Нажатие на любое место строки, кроме меток, открывает задачу (кнопка растянута на всю строку) */}
+        <button type="button" className={s.title} onClick={onEdit} aria-label={`Редактировать «${data.title}»`}>
+          {data.title}
+        </button>
+        {hasMeta && (
+          <span className={s.meta}>
+            {data.time && <span className={s.time}>{data.time}</span>}
             {data.tags.map((t) => {
               const tag = normalizeTag(t);
               return (
@@ -113,7 +99,28 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
                 </button>
               );
             })}
-          </div>
+            {item.kind === 'occ' && (
+              <span title="Повторяющаяся">
+                <PixelIcon name="repeat" size={12} /> повтор
+              </span>
+            )}
+            {data.reminders.length > 0 && (
+              <span title={`Напоминания: ${data.reminders.map((r) => reminderLabel(r.offsetMin).toLowerCase()).join(', ')}`}>
+                <PixelIcon name="bell" size={12} />
+                {data.reminders.length > 1 ? `×${String(data.reminders.length)}` : data.reminders[0]?.offsetMin ? `−${String(data.reminders[0].offsetMin)}м` : ''}
+              </span>
+            )}
+            {data.missed && <span style={{ color: 'var(--c-warn)' }}>пропущено</span>}
+            {data.skipped && <span>пропущено вручную</span>}
+            {data.postponed > 0 && <span title="Сколько раз переносилась">⏩×{data.postponed}</span>}
+          </span>
+        )}
+        {/* Приоритет виден по цвету полосы слева; для скринридера — словами */}
+        <span className="sr-only">Приоритет: {PRIORITY_LABEL[data.priority]}</span>
+      </div>
+      {onExtra && extraIcon && (
+        <div className={s.actions}>
+          <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
         </div>
       )}
       {data.notes && (

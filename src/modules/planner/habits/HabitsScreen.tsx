@@ -73,7 +73,7 @@ export function HabitsScreen() {
   return (
     <>
       <div className={s.top}>
-        <h1 className="glow">Привычки</h1>
+        <h1 className="glow pageTitle">Привычки</h1>
         <div className={s.monthNav}>
           <Button small icon="left" label="Предыдущий месяц" onClick={() => setMonth(addMonths(month, -1))} />
           <h3 aria-live="polite">

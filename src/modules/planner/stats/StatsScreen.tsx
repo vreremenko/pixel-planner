@@ -87,7 +87,7 @@ export function StatsScreen() {
   return (
     <>
       <div className={s.top}>
-        <h1 className="glow">Статистика</h1>
+        <h1 className="glow pageTitle">Статистика</h1>
         <Segmented
           label="Период"
           value={mode}
