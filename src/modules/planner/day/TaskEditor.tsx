@@ -174,7 +174,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
         </Field>
       )}
       {!f.inBacklog && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, 1fr 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, minmax(0, 1fr) minmax(0, 1fr))', gap: 12 }}>
           <TextInput label="Дата" type="date" value={f.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
           <TextInput label="Время" type="time" value={f.time} onChange={(e) => setTime(e.target.value)} />
         </div>

@@ -131,6 +131,8 @@
 }
 .input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 40px;
   padding: 6px 10px;
   background: var(--c-bg);
@@ -138,6 +140,13 @@
   color: var(--c-text);
   font-size: var(--fs-body);
   outline: none;
+}
+/* iOS рисует поля даты и времени со своей минимальной шириной — без этого они вылезают за окно */
+.input[type='date'],
+.input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 40px;
 }
 .input:focus-visible {
   border-color: var(--c-gold);
@@ -234,7 +243,10 @@ input[type='time'].input {
   color: var(--c-text);
   max-width: min(560px, calc(100vw - 24px));
   width: 100%;
-  max-height: calc(100dvh - 24px);
+  /* На iPhone окно не заходит под часы и полоску «домой» */
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  margin-top: max(12px, calc(env(safe-area-inset-top) + 8px));
+  margin-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
   overflow: visible;
 }
 .dialog::backdrop {
@@ -249,8 +261,11 @@ input[type='time'].input {
   outline: none; /* фокус на панели ставится программно, рамка не нужна */
 }
 .dialogInner {
-  max-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
+  /* Окно не сдвигается вбок свайпом: широкие поля (дата на iOS) не раздвигают его */
+  overflow-x: hidden;
+  touch-action: pan-y;
   /* прокрутка внутри окна не «прорывается» на страницу, когда дошли до края */
   overscroll-behavior: contain;
 }
