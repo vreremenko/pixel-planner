@@ -1,5 +1,5 @@
 /* Карточка упражнения: атлет с работающими мышцами, техника, мои результаты. */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Panel, toast } from '../../../core/ui';
 import { useExercises } from '../data/exercises';
@@ -11,6 +11,8 @@ import { deleteExercise } from '../services/programs';
 import { MuscleMap } from '../ui/MuscleMap';
 import { PRIMARY_COLOR, SECONDARY_COLOR } from '../ui/muscleGrid';
 import { ExerciseEditor } from './ExerciseEditor';
+import { ExerciseAnimation } from '../ui/ExerciseAnimation';
+import { ANIMS, type Anim } from '../ui/anims';
 import s from './Gym.module.css';
 
 export function ExerciseCard() {
@@ -20,6 +22,16 @@ export function ExerciseCard() {
   const sets = useAllSets();
   const workouts = useWorkouts();
   const [editing, setEditing] = useState(false);
+  const [anim, setAnim] = useState<{ id: string; data: Anim } | null>(null);
+  useEffect(() => {
+    const load = ANIMS[id];
+    if (!load) return;
+    let alive = true;
+    void load().then((data) => alive && setAnim({ id, data }));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
   const def = ex?.byId(id);
 
   const sessions = useMemo(() => {
@@ -85,6 +97,11 @@ export function ExerciseCard() {
             </div>
           </div>
         </Panel>
+        {anim?.id === id && (
+          <Panel title="Как выполнять" icon="dumbbell" accent="var(--c-gym)">
+            <ExerciseAnimation anim={anim.data} label={`Анимация: ${def.name}`} />
+          </Panel>
+        )}
         <Panel title="Мои результаты" icon="bars" accent="var(--c-gym)">
           {sessions.length === 0 ? (
             <p className={s.dim} style={{ margin: 0 }}>
