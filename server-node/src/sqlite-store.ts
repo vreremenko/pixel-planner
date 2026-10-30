@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow } from './types.ts';
+import type { Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -31,7 +31,20 @@ export class SqliteStore implements Store {
         PRIMARY KEY (device_id, key)
       );
       CREATE INDEX IF NOT EXISTS reminders_due ON reminders (sent, fire_at);
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pass_hash TEXT NOT NULL, created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, device TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
     `);
+    // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
+    const cols = this.db.prepare('PRAGMA table_info(devices)').all() as unknown as { name: string }[];
+    if (!cols.some((c) => c.name === 'user_id')) this.db.exec('ALTER TABLE devices ADD COLUMN user_id TEXT');
+    this.db.exec('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id IS NULL)');
+    this.db.exec('DELETE FROM devices WHERE user_id IS NULL');
   }
 
   close(): void {
@@ -81,8 +94,9 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
-  deviceExists(id: string): Promise<boolean> {
-    return Promise.resolve(this.db.prepare('SELECT 1 FROM devices WHERE id = ?').get(id) !== undefined);
+  deviceOwner(id: string): Promise<string | null> {
+    const r = this.db.prepare('SELECT user_id FROM devices WHERE id = ?').get(id) as { user_id: string } | undefined;
+    return Promise.resolve(r?.user_id ?? null);
   }
 
   deviceGet(id: string) {
@@ -93,10 +107,10 @@ export class SqliteStore implements Store {
   deviceUpsert(d: Device): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO devices (id, endpoint, p256dh, auth, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+        `INSERT INTO devices (id, user_id, endpoint, p256dh, auth, created_at, updated_at) VALUES (?1, ?6, ?2, ?3, ?4, ?5, ?5)
          ON CONFLICT(id) DO UPDATE SET endpoint = ?2, p256dh = ?3, auth = ?4, updated_at = ?5`,
       )
-      .run(d.id, d.endpoint, d.p256dh, d.auth, d.now);
+      .run(d.id, d.endpoint, d.p256dh, d.auth, d.now, d.userId);
     return Promise.resolve();
   }
 
@@ -142,6 +156,69 @@ export class SqliteStore implements Store {
       const up = this.db.prepare('UPDATE reminders SET sent = 1 WHERE device_id = ? AND key = ?');
       for (const r of rows) up.run(r.deviceId, r.key);
     });
+    return Promise.resolve();
+  }
+
+  userCreate(u: User & { now: number }): Promise<boolean> {
+    try {
+      this.db.prepare('INSERT INTO users (id, email, pass_hash, created_at) VALUES (?, ?, ?, ?)').run(u.id, u.email, u.passHash, u.now);
+      return Promise.resolve(true);
+    } catch (e) {
+      if (e instanceof Error && /UNIQUE/i.test(e.message)) return Promise.resolve(false);
+      throw e;
+    }
+  }
+
+  private user(where: 'id' | 'email', value: string): User | null {
+    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash FROM users WHERE ${where} = ?`).get(value) as User | undefined;
+    return r ?? null;
+  }
+
+  userByEmail(email: string): Promise<User | null> {
+    return Promise.resolve(this.user('email', email));
+  }
+
+  userById(id: string): Promise<User | null> {
+    return Promise.resolve(this.user('id', id));
+  }
+
+  userSetPassword(id: string, passHash: string): Promise<void> {
+    this.db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(passHash, id);
+    return Promise.resolve();
+  }
+
+  userDelete(id: string): Promise<void> {
+    this.tx(() => {
+      this.db.prepare('DELETE FROM sync_records WHERE space = ?').run(id);
+      this.db.prepare('DELETE FROM sync_spaces WHERE space = ?').run(id);
+      this.db.prepare('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id = ?)').run(id);
+      this.db.prepare('DELETE FROM devices WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    });
+    return Promise.resolve();
+  }
+
+  sessionCreate(s: { tokenHash: string; userId: string; device: string; now: number }): Promise<void> {
+    this.db.prepare('INSERT INTO sessions (token_hash, user_id, device, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)').run(s.tokenHash, s.userId, s.device, s.now, s.now);
+    return Promise.resolve();
+  }
+
+  sessionUser(tokenHash: string, now: number, maxIdleMs: number): Promise<string | null> {
+    const r = this.db.prepare('SELECT user_id, last_used_at FROM sessions WHERE token_hash = ?').get(tokenHash) as { user_id: string; last_used_at: number } | undefined;
+    if (!r || now - r.last_used_at > maxIdleMs) return Promise.resolve(null);
+    // Время использования обновляем не чаще раза в час, чтобы не писать в базу на каждый запрос
+    if (now - r.last_used_at > 3_600_000) this.db.prepare('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?').run(now, tokenHash);
+    return Promise.resolve(r.user_id);
+  }
+
+  sessionDelete(tokenHash: string): Promise<void> {
+    this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash);
+    return Promise.resolve();
+  }
+
+  sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void> {
+    this.db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(userId, keepTokenHash);
     return Promise.resolve();
   }
 }

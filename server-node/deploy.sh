@@ -21,6 +21,7 @@ echo "== пользователь, папки, сервер"
 "${SSH[@]}" 'id pp >/dev/null 2>&1 || useradd --system --home /var/lib/pixel-planner --shell /usr/sbin/nologin pp
 mkdir -p /opt/pixel-planner /var/lib/pixel-planner && chown pp:pp /var/lib/pixel-planner'
 scp -q -i "$KEY" server-node/dist/server.mjs "root@$HOST:/opt/pixel-planner/server.mjs"
+scp -q -i "$KEY" server-node/backup.mjs "root@$HOST:/opt/pixel-planner/backup.mjs"
 
 echo "== настройки (ключи не выводятся)"
 # shellcheck disable=SC1090
@@ -46,15 +47,57 @@ EnvironmentFile=/etc/pixel-planner.env
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pixel-planner/server.mjs
 Restart=always
 RestartSec=3
+UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/pixel-planner
+ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/pixel-planner
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 "${SSH[@]}" 'systemctl daemon-reload && systemctl enable pixel-planner >/dev/null 2>&1 && systemctl restart pixel-planner && sleep 2 && systemctl is-active pixel-planner'
+
+echo "== ежедневная копия базы"
+"${SSH[@]}" 'mkdir -p /var/backups/pixel-planner && chown pp:pp /var/backups/pixel-planner && chmod 700 /var/backups/pixel-planner
+cat > /etc/systemd/system/pixel-planner-backup.service' <<'UNIT'
+[Unit]
+Description=PIXEL PLANNER: копия базы
+
+[Service]
+Type=oneshot
+User=pp
+UMask=0077
+ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pixel-planner/backup.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/backups/pixel-planner
+UNIT
+"${SSH[@]}" 'cat > /etc/systemd/system/pixel-planner-backup.timer' <<'UNIT'
+[Unit]
+Description=PIXEL PLANNER: ежедневная копия базы
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+"${SSH[@]}" 'systemctl daemon-reload && systemctl enable --now pixel-planner-backup.timer >/dev/null 2>&1 && systemctl start pixel-planner-backup.service && journalctl -u pixel-planner-backup --no-pager -n 2 | tail -1 | cut -c1-160'
 
 echo "== Caddy (HTTPS)"
 "${SSH[@]}" 'command -v caddy >/dev/null || {
@@ -67,6 +110,13 @@ echo "== Caddy (HTTPS)"
 SITE="$DOMAIN"
 "${SSH[@]}" "cat > /etc/caddy/Caddyfile" <<CADDY
 $SITE {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
 	reverse_proxy 127.0.0.1:8787
 }
 CADDY

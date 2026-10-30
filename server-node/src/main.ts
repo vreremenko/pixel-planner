@@ -21,6 +21,12 @@ const store = new SqliteStore(dbPath);
 
 const MAX_BODY = 1_000_000;
 
+/** Адрес клиента: за Caddy он приходит в X-Forwarded-For (последний адрес дописал сам Caddy). */
+function clientIp(forwarded: string | string[] | undefined, remote: string | undefined): string {
+  const f = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',').at(-1)?.trim();
+  return f ?? remote ?? 'unknown';
+}
+
 const server = createServer((req, res) => {
   void (async () => {
     try {
@@ -43,7 +49,7 @@ const server = createServer((req, res) => {
       const headers: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k.toLowerCase()] = v;
       const out = await handle(
-        { method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
+        { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
         { store, env },
       );
       res.writeHead(out.status, out.headers).end(out.status === 204 ? undefined : out.body);

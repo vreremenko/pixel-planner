@@ -6,6 +6,7 @@
 import { metaRepo } from '../../data/repo';
 import type { PlannedReminder } from '../../domain/reminders';
 import { apiUrl as api } from '../../apiBase';
+import { authHeaders, loadSession } from '../../auth/session';
 
 export interface PushState {
   deviceId: string;
@@ -27,8 +28,9 @@ export async function getPushState(): Promise<PushState | undefined> {
   return metaRepo.get<PushState>('push');
 }
 
+/** Push работает только для вошедшего в аккаунт: расписание напоминаний хранится на сервере под его учётной записью. */
 export async function isPushActive(): Promise<boolean> {
-  return (await getPushState())?.enabled === true;
+  return (await getPushState())?.enabled === true && (await loadSession()) !== null;
 }
 
 export function pushSupported(): boolean {
@@ -41,7 +43,8 @@ export const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** Почему push сейчас нельзя включить (null — можно). */
-export function pushUnavailableReason(serverOk: boolean | null): string | null {
+export function pushUnavailableReason(serverOk: boolean | null, loggedIn: boolean): string | null {
+  if (!loggedIn) return 'Войдите в аккаунт: напоминания при закрытом приложении хранятся на сервере под вашей учётной записью.';
   if (isIos() && !isStandalone()) return 'На iPhone push работает только в установленном приложении: Safari → «Поделиться» → «На экран „Домой“», затем откройте его с иконки.';
   if (!pushSupported()) return 'Этот браузер не поддерживает push-уведомления.';
   if (serverOk === null) return 'Проверяем сервер…';
@@ -53,7 +56,7 @@ export function pushUnavailableReason(serverOk: boolean | null): string | null {
 export async function testPush(): Promise<string> {
   const st = await getPushState();
   if (!st?.enabled) return 'Push не включён на этом устройстве';
-  const res = await fetch(api(`devices/${st.deviceId}/test`), { method: 'POST' });
+  const res = await fetch(api(`devices/${st.deviceId}/test`), { method: 'POST', headers: await authHeaders() });
   if (res.status === 404) return 'Сервер не знает это устройство — выключите и снова включите push';
   const r = (await res.json()) as { ok: boolean; status: number; detail: string; service: string };
   return r.ok ? `Отправлено через ${r.service} — уведомление должно появиться` : `Push-сервис ${r.service} ответил ${String(r.status)}: ${r.detail || 'без подробностей'}`;
@@ -108,7 +111,7 @@ export async function enablePush(serverKey?: string): Promise<void> {
     'Регистрация на сервере',
     fetch(api(`devices/${deviceId}`), {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ subscription: sub.toJSON() }),
     }),
   );
@@ -122,7 +125,7 @@ export async function disablePush(): Promise<void> {
   try {
     const reg = await navigator.serviceWorker.ready;
     await (await reg.pushManager.getSubscription())?.unsubscribe();
-    if (st) await fetch(api(`devices/${st.deviceId}`), { method: 'DELETE' });
+    if (st) await fetch(api(`devices/${st.deviceId}`), { method: 'DELETE', headers: await authHeaders() });
   } finally {
     if (st) await metaRepo.set('push', { ...st, enabled: false } satisfies PushState);
   }
@@ -146,7 +149,7 @@ export interface SyncStatus {
 async function putSchedule(url: string, body: string): Promise<Response> {
   // keepalive: iOS не обрывает запрос, если приложение свернули или заблокировали телефон.
   // У keepalive лимит тела 64 КБ — для большого расписания идём обычным запросом.
-  const init: RequestInit = { method: 'PUT', headers: { 'content-type': 'application/json' }, body };
+  const init: RequestInit = { method: 'PUT', headers: { 'content-type': 'application/json', ...(await authHeaders()) }, body };
   if (body.length < 60_000) {
     try {
       return await fetch(url, { ...init, keepalive: true });

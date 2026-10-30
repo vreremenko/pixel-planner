@@ -13,6 +13,7 @@ import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
 import { startNotifications } from '../features/notifications/scheduler';
 import { startSync } from '../sync/manager';
+import { startAuth } from '../auth/store';
 import { applyMode } from '../features/settings/mode';
 import { WhatsNew } from '../features/whatsnew/WhatsNew';
 
@@ -46,6 +47,7 @@ export function App() {
     if (loaded) applyMode(mom);
   }, [mom, loaded]);
   useEffect(() => startNotifications(), []);
+  useEffect(() => startAuth(), []);
   useEffect(() => startSync(), []);
   return (
     <>

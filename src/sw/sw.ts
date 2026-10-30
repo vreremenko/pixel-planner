@@ -5,6 +5,7 @@ import { clientsClaim } from 'workbox-core';
 import { metaRepo, reminderLogRepo } from '../data/repo';
 import type { ReminderLog } from '../domain/types';
 import { apiUrl } from '../apiBase';
+import { authHeaders } from '../auth/session';
 import { completeFromReminder, snoozeReminder, SNOOZE_MS } from '../data/quickActions';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -120,7 +121,7 @@ async function snoozeViaServer(log: ReminderLog): Promise<boolean> {
   if (!push?.enabled) return false;
   const res = await fetch(apiUrl(`devices/${push.deviceId}/snooze`), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ key: log.key, kind: log.kind, ref: log.ref, date: log.date, title: `⏰ ${log.title}`, body: log.body, fireAt: Date.now() + SNOOZE_MS }),
   }).catch(() => null);
   return res?.ok === true;

@@ -5,6 +5,8 @@ export interface HttpReq {
   query: Record<string, string>;
   headers: Record<string, string>;
   body: string;
+  /** Адрес клиента (для ограничения числа попыток входа). */
+  ip?: string;
 }
 
 export interface HttpRes {
@@ -30,6 +32,7 @@ export interface SyncIn {
 
 export interface Device {
   id: string;
+  userId: string;
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -44,6 +47,12 @@ export interface ScheduleItem {
   date: string;
   title: string;
   body: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  passHash: string;
 }
 
 export interface DueRow extends ScheduleItem {
@@ -61,7 +70,8 @@ export interface Store {
   syncPush(space: string, records: SyncIn[]): Promise<void>;
   syncDelete(space: string): Promise<void>;
 
-  deviceExists(id: string): Promise<boolean>;
+  /** Кому принадлежит устройство (null — такого устройства нет). */
+  deviceOwner(id: string): Promise<string | null>;
   deviceGet(id: string): Promise<{ endpoint: string; p256dh: string; auth: string } | null>;
   deviceUpsert(d: Device): Promise<void>;
   /** Удалить устройство и всё его расписание. */
@@ -71,4 +81,19 @@ export interface Store {
   reminderSnooze(deviceId: string, item: ScheduleItem): Promise<void>;
   dueReminders(now: number, limit: number): Promise<DueRow[]>;
   markSent(rows: { deviceId: string; key: string }[]): Promise<void>;
+
+  /** false — такая почта уже зарегистрирована. */
+  userCreate(u: User & { now: number }): Promise<boolean>;
+  userByEmail(email: string): Promise<User | null>;
+  userById(id: string): Promise<User | null>;
+  userSetPassword(id: string, passHash: string): Promise<void>;
+  /** Удалить пользователя со всеми его данными: синхронизацией, устройствами, напоминаниями, сессиями. */
+  userDelete(id: string): Promise<void>;
+
+  sessionCreate(s: { tokenHash: string; userId: string; device: string; now: number }): Promise<void>;
+  /** Владелец сессии; сессия, не использовавшаяся дольше maxIdleMs, не считается. Заодно помечает время использования. */
+  sessionUser(tokenHash: string, now: number, maxIdleMs: number): Promise<string | null>;
+  sessionDelete(tokenHash: string): Promise<void>;
+  /** Закрыть все сессии пользователя, кроме одной (смена пароля). */
+  sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void>;
 }
