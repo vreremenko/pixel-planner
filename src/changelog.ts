@@ -14,6 +14,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.9.5',
+    date: '2026-10-30',
+    title: 'Исправления',
+    items: ['Если браузер не получил push, а приложение открыто, напоминание показывается самим приложением.'],
+  },
+  {
     version: '0.9.4',
     date: '2026-10-30',
     title: 'Уведомления вовремя',
