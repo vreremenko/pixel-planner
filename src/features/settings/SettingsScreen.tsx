@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Button, Checkbox, Panel, TextInput, toast } from '../../ui';
 import { useSettings } from '../../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
@@ -12,13 +12,13 @@ import { AccountPanel } from '../account/AccountPanel';
 import { useAuth } from '../../auth/store';
 import { fs } from '../../ui/fs';
 
-function ToggleRow({ label, hint, checked, onChange, color }: { label: string; hint?: ReactNode; checked: boolean; onChange: (v: boolean) => void; color?: string }) {
+function ToggleRow({ label, hint, hintColor, checked, onChange, color, rowRef }: { label: string; hint?: ReactNode; hintColor?: string; checked: boolean; onChange: (v: boolean) => void; color?: string; rowRef?: Ref<HTMLDivElement> }) {
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+    <div ref={rowRef} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
       <Checkbox checked={checked} onChange={onChange} label={label} color={color} />
       <div>
         <div>{label}</div>
-        {hint && <div style={{ color: 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
+        {hint && <div style={{ color: hintColor ?? 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
       </div>
     </div>
   );
@@ -77,29 +77,57 @@ function NotificationsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.notificationsEnabled, perm, pushOn, busy, server, pushReason]);
 
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [blocked, setBlocked] = useState(false);
+  const blockedHint =
+    perm === 'denied'
+      ? 'Уведомления запрещены в браузере. Разрешите их в настройках сайта, и тогда напоминания можно будет включить.'
+      : perm === 'unsupported'
+        ? 'Этот браузер не поддерживает уведомления, поэтому напоминания включить нельзя.'
+        : 'Сначала разрешите уведомления кнопкой выше, без этого напоминания включить нельзя.';
+
+  /** Флажок нельзя включить без разрешения: трясём его и объясняем почему. */
+  const refuse = () => {
+    setBlocked(true);
+    toast(blockedHint, 'alert', 'var(--c-warn)');
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      rowRef.current?.animate(
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-10px)' }, { transform: 'translateX(10px)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(0)' }],
+        { duration: 400, easing: 'ease-in-out' },
+      );
+    }
+  };
+
+  const turnOn = async () => {
+    await update({ notificationsEnabled: true });
+    if (!pushReason && !pushOn && (await startPush())) toast('Напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
+    void tick();
+  };
+
+  const allow = async () => {
+    const p = await requestPermission();
+    setPerm(p);
+    if (p === 'granted') {
+      setBlocked(false);
+      await turnOn();
+    } else {
+      refuse();
+    }
+  };
+
   const enable = async (v: boolean) => {
     if (busy) return;
-    if (!v) {
-      await update({ notificationsEnabled: false });
-      if (pushOn) {
-        try {
-          await disablePush();
-        } finally {
-          setPushOn(false);
-        }
+    if (v) {
+      if (perm !== 'granted') return refuse();
+      return turnOn();
+    }
+    await update({ notificationsEnabled: false });
+    if (pushOn) {
+      try {
+        await disablePush();
+      } finally {
+        setPushOn(false);
       }
-      void tick();
-      return;
-    }
-    let p = perm;
-    if (p !== 'granted') {
-      p = await requestPermission();
-      setPerm(p);
-      if (p !== 'granted') toast('Без разрешения напоминания будут только внутри приложения', 'alert', 'var(--c-warn)');
-    }
-    await update({ notificationsEnabled: true });
-    if (p === 'granted' && !pushReason && !pushOn && (await startPush())) {
-      toast('Напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
     }
     void tick();
   };
@@ -115,7 +143,7 @@ function NotificationsPanel() {
             Разрешение нужно, чтобы присылать напоминания о задачах и квестах в момент их начала и утреннюю сводку.
             Мы спросим браузер только после нажатия кнопки.
           </p>
-          <Button variant="xp" icon="bell" disabled={perm === 'denied'} onClick={() => void enable(true)}>
+          <Button variant="xp" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
             Разрешить уведомления
           </Button>
           {perm === 'denied' && <p style={{ color: 'var(--c-warn)' }}>Разрешение отклонено — включите его в настройках сайта в браузере.</p>}
@@ -123,16 +151,20 @@ function NotificationsPanel() {
       )}
       <ToggleRow
         label="Напоминания включены"
+        rowRef={rowRef}
+        hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
         hint={
-          busy
-            ? 'Подключаем…'
-            : pushError
-              ? `Не удалось включить push при закрытом приложении: ${pushError}`
-              : pushOn
-                ? 'Приходят и при закрытом приложении'
-                : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
+          blocked && perm !== 'granted'
+            ? blockedHint
+            : busy
+              ? 'Подключаем…'
+              : pushError
+                ? `Не удалось включить push при закрытом приложении: ${pushError}`
+                : pushOn
+                  ? 'Приходят и при закрытом приложении'
+                  : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
         }
-        checked={settings.notificationsEnabled}
+        checked={settings.notificationsEnabled && perm === 'granted'}
         onChange={(v) => void enable(v)}
         color="var(--c-xp)"
       />

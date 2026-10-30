@@ -33,13 +33,13 @@ export async function isPushActive(): Promise<boolean> {
   return (await getPushState())?.enabled === true && (await loadSession()) !== null;
 }
 
-export function pushSupported(): boolean {
+function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window;
 }
 
-export const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-export const isStandalone = () =>
+const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** Почему push сейчас нельзя включить (null — можно). */
