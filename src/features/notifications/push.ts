@@ -52,16 +52,6 @@ export function pushUnavailableReason(serverOk: boolean | null, loggedIn: boolea
   return null;
 }
 
-/** Попросить сервер прислать тестовый push прямо сейчас. */
-export async function testPush(): Promise<string> {
-  const st = await getPushState();
-  if (!st?.enabled) return 'Push не включён на этом устройстве';
-  const res = await fetch(api(`devices/${st.deviceId}/test`), { method: 'POST', headers: await authHeaders() });
-  if (res.status === 404) return 'Сервер не знает это устройство — выключите и снова включите push';
-  const r = (await res.json()) as { ok: boolean; status: number; detail: string; service: string };
-  return r.ok ? `Отправлено через ${r.service} — уведомление должно появиться` : `Push-сервис ${r.service} ответил ${String(r.status)}: ${r.detail || 'без подробностей'}`;
-}
-
 /** Ключ VAPID с сервера; null — сервера нет (локальная разработка или статичный хостинг). */
 export async function getServerKey(): Promise<string | null> {
   try {
@@ -133,19 +123,6 @@ export async function disablePush(): Promise<void> {
 
 let lastSent = '';
 
-/** Следующая синхронизация отправит расписание, даже если оно не менялось. */
-export function forceNextSync(): void {
-  lastSent = '';
-}
-
-/** Результат последней отправки расписания (показывается в настройках). */
-export interface SyncStatus {
-  at: number;
-  ok: boolean;
-  count: number;
-  error?: string;
-}
-
 async function putSchedule(url: string, body: string): Promise<Response> {
   // keepalive: iOS не обрывает запрос, если приложение свернули или заблокировали телефон.
   // У keepalive лимит тела 64 КБ — для большого расписания идём обычным запросом.
@@ -161,26 +138,16 @@ async function putSchedule(url: string, body: string): Promise<Response> {
 }
 
 /** Отправить расписание на сервер (если не изменилось — ничего не делает). */
-export async function syncSchedule(items: ScheduleItem[], force = false): Promise<void> {
+export async function syncSchedule(items: ScheduleItem[]): Promise<void> {
   const st = await getPushState();
   if (!st?.enabled) return;
   const body = JSON.stringify({ items });
-  if (body === lastSent && !force) return;
-  try {
-    const res = await putSchedule(api(`devices/${st.deviceId}/schedule`), body);
-    if (res.status === 404) {
-      // Сервер забыл устройство (подписка истекла) — переподписываемся
-      await enablePush();
-      return;
-    }
-    if (res.ok) lastSent = body;
-    await metaRepo.set('pushSync', {
-      at: Date.now(), ok: res.ok, count: items.length, ...(res.ok ? {} : { error: `HTTP ${String(res.status)}` }),
-    } satisfies SyncStatus);
-  } catch (e) {
-    await metaRepo.set('pushSync', {
-      at: Date.now(), ok: false, count: items.length, error: e instanceof Error ? e.message : String(e),
-    } satisfies SyncStatus);
-    throw e;
+  if (body === lastSent) return;
+  const res = await putSchedule(api(`devices/${st.deviceId}/schedule`), body);
+  if (res.status === 404) {
+    // Сервер забыл устройство (подписка истекла) — переподписываемся
+    await enablePush();
+    return;
   }
+  if (res.ok) lastSent = body;
 }

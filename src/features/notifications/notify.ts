@@ -26,24 +26,6 @@ async function swRegistration(): Promise<ServiceWorkerRegistration | undefined> 
   ]);
 }
 
-/** Показ уведомления; возвращает текст ошибки или null при успехе. */
-export async function showNotificationVerbose(p: NotifyPayload): Promise<string | null> {
-  const perm = permission();
-  if (perm !== 'granted') return perm === 'unsupported' ? 'Браузер не поддерживает уведомления' : 'Нет разрешения на уведомления';
-  const icon = `${import.meta.env.BASE_URL}icons/icon-192.png`;
-  try {
-    const reg = await swRegistration();
-    if (reg) {
-      await reg.showNotification(p.title, { body: p.body, tag: p.key, icon, data: { key: p.key } });
-      return null;
-    }
-    new Notification(p.title, { body: p.body, tag: p.key, icon });
-    return null;
-  } catch (e) {
-    return e instanceof Error ? e.message : String(e);
-  }
-}
-
 /** Показ через service worker (там работают кнопки действий), иначе — простой Notification. */
 export async function showSystemNotification(p: NotifyPayload): Promise<boolean> {
   if (permission() !== 'granted') return false;

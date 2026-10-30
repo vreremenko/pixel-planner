@@ -1,10 +1,8 @@
 import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, Panel, TextInput, rowClass, toast } from '../../ui';
 import { changePassword, logout, removeAccount, useAuth } from '../../auth/store';
-import { syncNow, useSync } from '../../sync/manager';
 import { AuthModal } from './AuthModal';
 
-const fmt = (t: number) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const fail = (e: unknown) => toast(e instanceof Error ? e.message : 'Что-то пошло не так', 'alert', 'var(--c-warn)');
 
 type Dialog = 'login' | 'register' | 'logout' | 'password' | 'delete' | null;
@@ -63,9 +61,6 @@ function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClos
 
 export function AccountPanel() {
   const session = useAuth((s) => s.session);
-  const sync = useSync((s) => s.state);
-  // Фоновые проходы идут каждые несколько секунд, поэтому о ходе синхронизации говорим только после нажатия кнопки
-  const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const doLogout = async (erase: boolean) => {
@@ -85,31 +80,14 @@ export function AccountPanel() {
           <p style={{ marginTop: 0 }}>
             Вы вошли как <b>{session.user.email}</b>. Задачи, привычки и награды сохраняются на сервере и доступны на всех устройствах, где вы вошли.
           </p>
-          <p className="digits" style={{ margin: '0 0 12px', minHeight: '2.6em', color: sync?.lastError ? 'var(--c-warn)' : 'var(--c-text-dim)' }}>
-            {busy
-              ? 'Синхронизируем…'
-              : sync?.lastError
-                ? `Не удалось: ${sync.lastError}${sync.lastAt ? ` (последний успех ${fmt(sync.lastAt)})` : ''}`
-                : sync?.lastAt
-                  ? `Последняя синхронизация: ${fmt(sync.lastAt)}`
-                  : 'Ещё не синхронизировались'}
-          </p>
           <div className={rowClass}>
-            <Button variant="habit" icon="repeat" disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                void syncNow().finally(() => setBusy(false));
-              }}
-            >
-              Синхронизировать
+            <Button icon="left" onClick={() => setDialog('logout')}>
+              Выйти
             </Button>
-            <Button onClick={() => setDialog('logout')}>Выйти</Button>
-          </div>
-          <div className={rowClass} style={{ marginTop: 12 }}>
-            <Button small variant="ghost" icon="lock" onClick={() => setDialog('password')}>
+            <Button icon="lock" onClick={() => setDialog('password')}>
               Сменить пароль
             </Button>
-            <Button small variant="ghost" icon="trash" onClick={() => setDialog('delete')}>
+            <Button icon="trash" onClick={() => setDialog('delete')}>
               Удалить аккаунт
             </Button>
           </div>
