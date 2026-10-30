@@ -73,7 +73,7 @@ export function HabitsScreen() {
   return (
     <>
       <div className={s.top}>
-        <h1 className="glow">Квесты</h1>
+        <h1 className="glow">Привычки</h1>
         <div className={s.monthNav}>
           <Button small icon="left" label="Предыдущий месяц" onClick={() => setMonth(addMonths(month, -1))} />
           <h3 aria-live="polite">
@@ -87,13 +87,13 @@ export function HabitsScreen() {
           </Button>
         )}
         <Button variant="habit" icon="plus" onClick={() => setEditing('new')}>
-          Квест
+          Привычка
         </Button>
       </div>
       {habits && active.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '32px 0' }}>
           <PixelIcon name="star" size={48} />
-          <p>Квестов пока нет. Создайте первую привычку — и начните стрик!</p>
+          <p>Привычек пока нет. Создайте первую — и начните серию дней!</p>
         </div>
       )}
       <div className={s.list}>

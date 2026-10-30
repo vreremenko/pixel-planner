@@ -55,7 +55,7 @@ export function BacklogScreen() {
   return (
     <>
       <h1 className="glow" style={{ color: 'var(--c-backlog)', marginBottom: 16 }}>
-        Инвентарь
+        Бэклог
       </h1>
       <Panel
         title="Задачи без даты"
@@ -63,7 +63,7 @@ export function BacklogScreen() {
         accent="var(--c-backlog)"
         actions={
           <Button variant="primary" icon="plus" small onClick={() => openEditor({ kind: 'new', date: null })}>
-            Предмет
+            Задача
           </Button>
         }
       >
@@ -108,12 +108,12 @@ export function BacklogScreen() {
           </div>
         )}
         <p className={s.count} aria-live="polite">
-          Предметов: {list.length}
+          Задач: {list.length}
         </p>
         {all && list.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--c-text-dim)', padding: '24px 0' }}>
             <PixelIcon name="bag" size={48} />
-            <p>{all.length === 0 ? 'Инвентарь пуст. Складывайте сюда задачи без даты.' : 'Ничего не найдено.'}</p>
+            <p>{all.length === 0 ? 'Бэклог пуст. Складывайте сюда задачи без даты.' : 'Ничего не найдено.'}</p>
           </div>
         )}
         <ul className={s.grid}>

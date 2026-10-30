@@ -47,7 +47,7 @@ export interface TagGroups {
 
 const byDate = (a: Task, b: Task) => (a.date ?? '').localeCompare(b.date ?? '') || a.order - b.order;
 
-/** Все задачи с меткой по разделам: просрочено, сегодня, дальше, инвентарь, готово + повторы. */
+/** Все задачи с меткой по разделам: просрочено, сегодня, дальше, бэклог, готово + повторы. */
 export function groupByTag(tasks: readonly Task[], series: readonly RecurringSeries[], tag: string, todayDate: LocalDate, doneLimit = 20): TagGroups {
   const mine = tasks.filter((t) => !t.deletedAt && hasAllTags(t.tags, [tag]));
   const open = mine.filter((t) => !t.done);

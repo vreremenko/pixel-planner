@@ -35,7 +35,7 @@ export function TagBar({ available, selected, onToggle, onClear }: Props) {
       )}
       {only && (
         <Link className={s.link} to={`/tag/${encodeURIComponent(only)}`}>
-          Все дни и инвентарь →
+          Все дни и бэклог →
         </Link>
       )}
     </div>

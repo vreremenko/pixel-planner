@@ -21,7 +21,7 @@ export interface Task extends SyncMeta {
   title: string;
   notes?: string;
   checklist?: ChecklistItem[];
-  /** null — задача лежит в бэклоге («Инвентарь»). */
+  /** null — задача лежит в бэклоге. */
   date: LocalDate | null;
   time?: LocalTime;
   priority: Priority;

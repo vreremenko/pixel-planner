@@ -28,6 +28,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--gap-1);
+  min-height: 0;
+  overflow-y: auto;
 }
 .link {
   display: flex;
@@ -73,6 +75,19 @@
 }
 .sideFooter {
   margin-top: auto;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-1);
+}
+.groupTitle {
+  margin-top: var(--gap-3);
+  padding: 0 10px;
+  color: var(--c-text-muted);
+  font-family: var(--font-title);
+  font-size: max(calc(7px * var(--fs-scale)), var(--fs-min));
+  text-transform: uppercase;
 }
 .main {
   min-width: 0;

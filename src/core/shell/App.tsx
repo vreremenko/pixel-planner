@@ -2,6 +2,8 @@ import { Suspense, useEffect } from 'react';
 import { createHashRouter, RouterProvider, type RouteObject } from 'react-router';
 import { Layout } from './Layout';
 import { SettingsScreen } from '../settings/SettingsScreen';
+import { Dashboard } from './Dashboard';
+import { MoreScreen } from './MoreScreen';
 import { MODULES } from '../../modules';
 import { ToastHost } from '../ui';
 import { useSettings } from '../stores/settings';
@@ -11,20 +13,20 @@ import { startAuth } from '../auth/store';
 import { applyMode } from '../settings/mode';
 import { WhatsNew } from '../whatsnew/WhatsNew';
 
-const moduleRoutes: RouteObject[] = MODULES.flatMap((m) =>
-  m.routes.map(({ path, index, Component }) => (index ? { index: true, element: <Component /> } : { path, element: <Component /> })),
-);
-const Home = MODULES.flatMap((m) => m.routes).find((r) => r.index)?.Component;
+// Маршруты всех разделов сборки: выключенный в настройках раздел пропадает из меню, но его ссылки работают
+const moduleRoutes: RouteObject[] = MODULES.flatMap((m) => m.routes.map(({ path, Component }) => ({ path, element: <Component /> })));
 
 const router = createHashRouter([
   {
     path: '/',
     element: <Layout />,
     children: [
+      { index: true, element: <Dashboard /> },
       ...moduleRoutes,
+      { path: 'more', element: <MoreScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
-      // Неизвестный адрес — главная
-      ...(Home ? [{ path: '*', element: <Home /> }] : []),
+      // Неизвестный адрес — сводка
+      { path: '*', element: <Dashboard /> },
     ],
   },
 ]);

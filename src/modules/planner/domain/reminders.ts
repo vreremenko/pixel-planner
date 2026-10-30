@@ -110,7 +110,7 @@ export function planReminders(input: ReminderInput): PlannedReminder[] {
         ref: h.id,
         date: d,
         at: toInstant(d, h.reminderTime),
-        title: `★ Квест: ${h.name}`,
+        title: `★ Привычка: ${h.name}`,
         body: `Пора выполнить привычку (${h.reminderTime})`,
       });
     }
@@ -133,5 +133,5 @@ export function planReminders(input: ReminderInput): PlannedReminder[] {
 
 export function summaryText(tasks: number, habits: number): string {
   if (tasks === 0 && habits === 0) return 'На сегодня ничего не запланировано. Свободная игра!';
-  return `Задач: ${tasks}, квестов: ${habits}. Вперёд!`;
+  return `Задач: ${tasks}, привычек: ${habits}. Вперёд!`;
 }

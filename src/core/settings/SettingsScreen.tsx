@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
-import { Button, Checkbox, Panel, TextInput, toast } from '../ui';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Panel, TextInput, toast } from '../ui';
 import { useSettings } from '../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
 import { tick } from '../notifications/scheduler';
@@ -9,20 +9,10 @@ import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { AccountPanel } from '../account/AccountPanel';
+import { ModulesPanel } from './ModulesPanel';
+import { ToggleRow } from './ToggleRow';
 import { useAuth } from '../auth/store';
 import { fs } from '../ui/fs';
-
-function ToggleRow({ label, hint, hintColor, checked, onChange, color, rowRef }: { label: string; hint?: ReactNode; hintColor?: string; checked: boolean; onChange: (v: boolean) => void; color?: string; rowRef?: Ref<HTMLDivElement> }) {
-  return (
-    <div ref={rowRef} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
-      <Checkbox checked={checked} onChange={onChange} label={label} color={color} />
-      <div>
-        <div>{label}</div>
-        {hint && <div style={{ color: hintColor ?? 'var(--c-text-dim)', fontSize: fs(17) }}>{hint}</div>}
-      </div>
-    </div>
-  );
-}
 
 const PERM_TEXT: Record<string, string> = {
   granted: 'разрешены',
@@ -140,7 +130,7 @@ function NotificationsPanel() {
       {perm !== 'granted' && perm !== 'unsupported' && (
         <div style={{ marginBottom: 16, padding: 12, border: '4px dashed var(--c-border)' }}>
           <p style={{ marginTop: 0 }}>
-            Разрешение нужно, чтобы присылать напоминания о задачах и квестах в момент их начала и утреннюю сводку.
+            Разрешение нужно, чтобы присылать напоминания о задачах и привычках в момент их начала и утреннюю сводку.
             Мы спросим браузер только после нажатия кнопки.
           </p>
           <Button variant="gold" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
@@ -170,7 +160,7 @@ function NotificationsPanel() {
       />
       <ToggleRow
         label="Утренняя сводка"
-        hint="Сколько задач и квестов на сегодня"
+        hint="Сколько задач и привычек на сегодня"
         checked={settings.morningSummary.enabled}
         onChange={(v) => void update({ morningSummary: { ...settings.morningSummary, enabled: v } })}
         color="var(--c-gold)"
@@ -208,6 +198,7 @@ export function SettingsScreen() {
       </h1>
       <div style={{ display: 'grid', gap: 24 }}>
         <AccountPanel />
+        <ModulesPanel />
         <NotificationsPanel />
         <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
           <ToggleRow
@@ -251,10 +242,10 @@ export function SettingsScreen() {
         </Panel>
         <Panel title="Управление" icon="menu" accent="var(--c-text-dim)">
           <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-            <li><b>N</b> — новая задача (на экране квестов — новый квест)</li>
-            <li><b>← / →</b> — предыдущий / следующий день (месяц в квестах)</li>
+            <li><b>N</b> — новая задача (на экране привычек — новая привычка)</li>
+            <li><b>← / →</b> — предыдущий / следующий день (месяц в привычках)</li>
             <li><b>T</b> — вернуться к сегодня</li>
-            <li><b>/</b> — поиск в инвентаре</li>
+            <li><b>/</b> — поиск в бэклоге</li>
             <li><b>Esc</b> — закрыть окно</li>
             <li>Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до ручки, Пробел, стрелки, Пробел.</li>
           </ul>
