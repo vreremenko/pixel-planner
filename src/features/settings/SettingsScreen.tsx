@@ -212,7 +212,7 @@ export function SettingsScreen() {
         <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
           <ToggleRow
             label="8-битные звуки"
-            hint="При выполнении задач, новом уровне и достижениях"
+            hint="При выполнении задач и привычек"
             checked={settings.soundEnabled}
             onChange={(v) => {
               void update({ soundEnabled: v });

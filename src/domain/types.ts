@@ -146,21 +146,6 @@ export interface HabitLog extends SyncMeta {
 export const isCountHabit = (h: Pick<Habit, 'tracking'>): h is { tracking: { kind: 'count'; unit: string } } =>
   h.tracking?.kind === 'count';
 
-export type XpSource = 'task' | 'occurrence' | 'habit' | 'achievement';
-
-/** id детерминированный (`${source}:${refKey}`) => начисление идемпотентно. */
-export interface XpEvent extends SyncMeta {
-  source: XpSource;
-  refKey: string;
-  amount: number;
-  date: LocalDate;
-}
-
-export interface AchievementUnlock extends SyncMeta {
-  achievementId: string;
-  unlockedAt: number;
-}
-
 /** id = key напоминания. */
 export interface ReminderLog extends SyncMeta {
   key: string;

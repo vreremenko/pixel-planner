@@ -34,7 +34,7 @@ const MAX_SYNC_RECORDS = 300;
 const MAX_SYNC_PULL = 300;
 const MAX_SYNC_PULL_BYTES = 500_000;
 const STALE_MS = 6 * 3_600_000;
-const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements']);
+const SYNC_TABLES = new Set(['tasks', 'series', 'overrides', 'habits', 'habitLogs']);
 /** Сессия живёт, пока ею пользуются: не заходили больше года — нужно войти заново. */
 const SESSION_MAX_IDLE_MS = 365 * 86_400_000;
 const LOGIN_WINDOW_MS = 15 * 60_000;

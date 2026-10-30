@@ -14,12 +14,10 @@ import type {
   ReminderSpec,
   Task,
 } from '../domain/types';
-import { XP_OCCURRENCE, XP_TASK } from '../domain/xp';
 import { checkedIds, cleanChecklist, stripDone, toggleItem } from '../domain/checklist';
 import { normalizeReminders } from '../domain/reminderSpecs';
-import { metaRepo, overrideRepo, seriesRepo, stamp, taskRepo } from '../data/repo';
+import { overrideRepo, seriesRepo, stamp, taskRepo } from '../data/repo';
 import { db } from '../data/db';
-import { awardXp, checkAchievements, revokeXp } from './game';
 import { play } from './sfx';
 
 export interface TaskDraft {
@@ -87,7 +85,6 @@ export async function createTask(draft: TaskDraft): Promise<void> {
     }) as Task,
   );
   await taskRepo.put(task);
-  if (draft.date === null) await metaRepo.set('backlogUsed', true);
 }
 
 export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
@@ -108,17 +105,12 @@ export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
     order: moved ? await nextOrder(draft.date) : task.order,
     wasInBacklog: task.wasInBacklog || draft.date === null,
   });
-  if (draft.date === null) await metaRepo.set('backlogUsed', true);
 }
 
 export async function toggleTask(task: Task, done: boolean): Promise<void> {
   const { doneAt: _d, ...rest } = task;
   await taskRepo.put(done ? { ...rest, done, doneAt: Date.now() } : { ...rest, done });
-  if (done) await awardXp('task', task.id, XP_TASK[task.priority], task.date ?? today());
-  else {
-    await revokeXp('task', task.id);
-    play('undo');
-  }
+  play(done ? 'complete' : 'undo');
 }
 
 /** Отметить / снять пункт чек-листа обычной задачи. */
@@ -128,7 +120,6 @@ export async function toggleChecklistItem(task: Task, itemId: string): Promise<v
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  await revokeXp('task', id);
   await taskRepo.remove(id);
 }
 
@@ -140,8 +131,6 @@ export async function scheduleTask(task: Task, date: LocalDate | null): Promise<
     order: await nextOrder(date),
     wasInBacklog: task.wasInBacklog || date === null,
   });
-  if (date === null) await metaRepo.set('backlogUsed', true);
-  else await checkAchievements();
 }
 
 /** Все невыполненные разовые задачи дня — на следующий день. */
@@ -195,11 +184,7 @@ export async function toggleOccurrence(occ: Occurrence, done: boolean): Promise<
   const cur = await overrideRepo.get(id);
   const { status: _s, doneAt: _d, ...base } = cur ?? newOverride(occ.seriesId, occ.originalDate);
   await overrideRepo.put(done ? { ...base, status: 'done', doneAt: Date.now() } : base);
-  if (done) await awardXp('occurrence', occ.key, XP_OCCURRENCE, occ.date);
-  else {
-    await revokeXp('occurrence', occ.key);
-    play('undo');
-  }
+  play(done ? 'complete' : 'undo');
 }
 
 /** Отметить / снять пункт чек-листа у экземпляра повторяющейся задачи (только в этот день). */
@@ -281,7 +266,6 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
 export async function deleteOccurrence(occ: Occurrence, scope: EditScope): Promise<void> {
   if (scope === 'this') {
     await patchOverride(occ.seriesId, occ.originalDate, { cancelled: true });
-    await revokeXp('occurrence', occ.key);
     return;
   }
   const series = await seriesRepo.get(occ.seriesId);

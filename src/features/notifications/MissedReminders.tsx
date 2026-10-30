@@ -3,7 +3,6 @@ import { Button, Panel, PixelIcon } from '../../ui';
 import { reminderLogRepo } from '../../data/repo';
 import { completeFromReminder } from '../../data/quickActions';
 import { formatDateShort } from '../../domain/dates';
-import { checkAchievements } from '../../services/game';
 
 /** Напоминания, сработавшие, пока приложение было закрыто, — показываем внутри интерфейса. */
 export function MissedReminders() {
@@ -47,7 +46,6 @@ export function MissedReminders() {
                         // Счётная привычка: число вводят на экране квестов
                         if (!done) location.hash = '#/habits';
                       })
-                      .then(checkAchievements)
                   }
                 />
               )}

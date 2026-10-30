@@ -3,13 +3,11 @@ import { buildOccurrences } from '../domain/recurrence';
 import { tagCounts, type TagCount } from '../domain/tags';
 import type { Habit, HabitLog, LocalDate, Occurrence, Task } from '../domain/types';
 import {
-  achievementRepo,
   habitLogRepo,
   habitRepo,
   overrideRepo,
   seriesRepo,
   taskRepo,
-  xpRepo,
 } from './repo';
 
 /** Экземпляры повторяющихся задач в диапазоне дат. */
@@ -42,14 +40,6 @@ export function useHabits(): Habit[] | undefined {
 
 export function useHabitLogs(): HabitLog[] | undefined {
   return useLiveQuery(() => habitLogRepo.all(), []);
-}
-
-export function useXpTotal(): number {
-  return useLiveQuery(() => xpRepo.total(), []) ?? 0;
-}
-
-export function useUnlocked() {
-  return useLiveQuery(() => achievementRepo.all(), []);
 }
 
 export function useSeries() {

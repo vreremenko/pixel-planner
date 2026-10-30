@@ -36,9 +36,7 @@ html[data-mode='mom'] {
   --c-heat-4: #b3354b;
 
   --c-overlay: rgba(74, 44, 44, 0.55);
-  --c-overlay-fx: rgba(74, 44, 44, 0.5);
   --c-overlay-stripe: transparent;
-  --c-flash: rgba(224, 120, 100, 0.35);
 
   --font-title: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;

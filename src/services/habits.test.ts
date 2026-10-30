@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
-import { habitLogRepo, habitRepo, stamp, xpRepo } from '../data/repo';
+import { habitLogRepo, habitRepo, stamp } from '../data/repo';
 import { completeFromReminder } from '../data/quickActions';
 import type { Habit } from '../domain/types';
 import { createHabit, setHabitValue } from './habits';
@@ -26,16 +26,12 @@ describe('счётные привычки', () => {
     expect(logs[0]?.value).toBe(35);
   });
 
-  it('XP за день начисляется один раз, а при обнулении отзывается', async () => {
+  it('обнуление значения снимает отметку дня', async () => {
     const h = await getHabit();
     await setHabitValue(h, '2026-01-05', 20);
-    const first = (await xpRepo.all()).filter((e) => e.source === 'habit');
-    expect(first).toHaveLength(1);
-    await setHabitValue(h, '2026-01-05', 50);
-    expect((await xpRepo.all()).filter((e) => e.source === 'habit')).toHaveLength(1);
+    expect(await habitLogRepo.isDone(h.id, '2026-01-05')).toBe(true);
     await setHabitValue(h, '2026-01-05', 0);
     expect(await habitLogRepo.isDone(h.id, '2026-01-05')).toBe(false);
-    expect((await xpRepo.all()).filter((e) => e.source === 'habit')).toHaveLength(0);
   });
 
   it('«Выполнено» из уведомления не отмечает счётную привычку', async () => {

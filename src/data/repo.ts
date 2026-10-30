@@ -5,7 +5,6 @@
  */
 import { db } from './db';
 import type {
-  AchievementUnlock,
   Habit,
   LocalDate,
   OccurrenceOverride,
@@ -14,7 +13,6 @@ import type {
   Settings,
   SyncMeta,
   Task,
-  XpEvent,
 } from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { currentTimeZone } from '../domain/dates';
@@ -132,39 +130,6 @@ export const habitLogRepo = {
     } else {
       await db.habitLogs.update(id, { deletedAt: now, updatedAt: now });
     }
-  },
-};
-
-export const xpRepo = {
-  async all() {
-    return (await db.xp.toArray()).filter(alive);
-  },
-  async total() {
-    return (await this.all()).reduce((s, e) => s + e.amount, 0);
-  },
-  /** Идемпотентно: повторное начисление с тем же id ничего не меняет. Возвращает true, если начислено. */
-  async award(e: Omit<XpEvent, 'createdAt' | 'updatedAt'>) {
-    const existing = await db.xp.get(e.id);
-    if (alive(existing)) return false;
-    const now = Date.now();
-    await db.xp.put({ ...e, createdAt: now, updatedAt: now });
-    return true;
-  },
-  async revoke(id: string) {
-    const existing = await db.xp.get(id);
-    if (!alive(existing)) return;
-    await db.xp.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
-  },
-};
-
-export const achievementRepo = {
-  async all() {
-    return (await db.achievements.toArray()).filter(alive);
-  },
-  async unlock(achievementId: string) {
-    const now = Date.now();
-    const u: AchievementUnlock = { id: achievementId, achievementId, unlockedAt: now, createdAt: now, updatedAt: now };
-    await db.achievements.put(u);
   },
 };
 

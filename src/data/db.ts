@@ -1,6 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
-  AchievementUnlock,
   Habit,
   HabitLog,
   OccurrenceOverride,
@@ -8,7 +7,6 @@ import type {
   ReminderLog,
   Settings,
   Task,
-  XpEvent,
 } from '../domain/types';
 
 export interface MetaEntry {
@@ -22,8 +20,6 @@ export class PlannerDB extends Dexie {
   overrides!: EntityTable<OccurrenceOverride, 'id'>;
   habits!: EntityTable<Habit, 'id'>;
   habitLogs!: EntityTable<HabitLog, 'id'>;
-  xp!: EntityTable<XpEvent, 'id'>;
-  achievements!: EntityTable<AchievementUnlock, 'id'>;
   reminderLogs!: EntityTable<ReminderLog, 'id'>;
   settings!: EntityTable<Settings, 'id'>;
   meta!: EntityTable<MetaEntry, 'key'>;
@@ -42,6 +38,8 @@ export class PlannerDB extends Dexie {
       settings: 'id',
       meta: 'key',
     });
+    // 2: геймификация убрана — браузер удалит таблицы опыта и достижений
+    this.version(2).stores({ xp: null, achievements: null });
   }
 }
 

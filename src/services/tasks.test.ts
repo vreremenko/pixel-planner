@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { loadOccurrences } from '../data/hooks';
-import { overrideRepo, seriesRepo, taskRepo, xpRepo } from '../data/repo';
+import { overrideRepo, seriesRepo, taskRepo } from '../data/repo';
 import type { Task } from '../domain/types';
 import {
   createTask,
@@ -75,15 +75,13 @@ describe('сервис задач', () => {
     expect(await occ('2026-01-09', '2026-01-11')).toHaveLength(2);
   });
 
-  it('XP идемпотентен и отзывается при снятии отметки', async () => {
+  it('отметка выполнения ставится и снимается', async () => {
     await createTask(draft({ repeat: undefined }));
     const [t] = await taskRepo.all();
     await toggleTask(t!, true);
-    await toggleTask({ ...t!, done: false }, true);
-    expect(await xpRepo.total()).toBeGreaterThanOrEqual(20);
-    const withAch = await xpRepo.total();
-    await toggleTask(t!, false);
-    expect(await xpRepo.total()).toBe(withAch - 20);
+    expect((await taskRepo.get(t!.id))?.done).toBe(true);
+    await toggleTask((await taskRepo.get(t!.id))!, false);
+    expect((await taskRepo.get(t!.id))?.done).toBe(false);
   });
 
   it('перенос невыполненных на завтра', async () => {

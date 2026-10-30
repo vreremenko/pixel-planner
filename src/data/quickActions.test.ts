@@ -1,20 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './db';
 import { completeFromReminder, snoozeReminder } from './quickActions';
-import { habitLogRepo, overrideRepo, reminderLogRepo, taskRepo, xpRepo } from './repo';
+import { habitLogRepo, overrideRepo, reminderLogRepo, taskRepo } from './repo';
 
 describe('действия из уведомлений', () => {
   beforeEach(async () => {
     await Promise.all(db.tables.map((t) => t.clear()));
   });
 
-  it('«Выполнено» для экземпляра серии пишет override и XP', async () => {
+  it('«Выполнено» для экземпляра серии пишет override, повтор ничего не ломает', async () => {
     const key = 'abc-123:2026-01-05';
     await completeFromReminder({ kind: 'occurrence', ref: key, date: '2026-01-05' });
     expect((await overrideRepo.get(key))?.status).toBe('done');
-    expect(await xpRepo.total()).toBe(15);
     await completeFromReminder({ kind: 'occurrence', ref: key, date: '2026-01-05' });
-    expect(await xpRepo.total()).toBe(15);
+    expect((await overrideRepo.get(key))?.status).toBe('done');
   });
 
   it('«Выполнено» для задачи и привычки', async () => {

@@ -6,7 +6,7 @@
 import type { PlannerDB } from '../data/db';
 
 /** Таблицы, которые ездят между устройствами. Настройки и журнал напоминаний — свои на каждом устройстве. */
-export const SYNCED_TABLES = ['tasks', 'series', 'overrides', 'habits', 'habitLogs', 'xp', 'achievements'] as const;
+export const SYNCED_TABLES = ['tasks', 'series', 'overrides', 'habits', 'habitLogs'] as const;
 const SYNCED = new Set<string>(SYNCED_TABLES);
 
 export interface WireRecord {
