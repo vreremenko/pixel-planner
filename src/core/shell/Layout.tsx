@@ -5,7 +5,7 @@ import { PixelIcon } from '../ui';
 import type { ModuleNavItem } from '../module';
 import { MissedReminders } from '../notifications/MissedReminders';
 import { useAuth } from '../auth/store';
-import { HOME, SETTINGS, useMobileNav, useModules } from './nav';
+import { ACCOUNT, HOME, SETTINGS, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
   return items.map((n) => (
@@ -47,16 +47,15 @@ export function Layout() {
           ))}
         </nav>
         <nav className={s.sideFooter} aria-label="Приложение">
-          <NavLinks items={[SETTINGS]} />
+          <NavLinks items={[ACCOUNT, SETTINGS]} />
         </nav>
       </aside>
       <header className={s.topbar}>
         <div className={s.logo}>
           PIXEL<span>▪</span>PLANNER
         </div>
-        <NavLink to="/account" aria-label={signedIn ? 'Личный кабинет: вход выполнен' : 'Личный кабинет: войти'} className={s.account}>
+        <NavLink to="/account" aria-label={signedIn ? 'Личный кабинет: вход выполнен' : 'Личный кабинет: войти'} className={s.account} data-signed-in={signedIn}>
           <PixelIcon name="user" size={24} />
-          {signedIn && <span className={s.accountDot} aria-hidden="true" />}
         </NavLink>
       </header>
       <main id="main" className={s.main}>

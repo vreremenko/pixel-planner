@@ -8,7 +8,6 @@ import { play } from '../sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
-import { AccountPanel } from '../account/AccountPanel';
 import { ModulesPanel } from './ModulesPanel';
 import { ToggleRow } from './ToggleRow';
 import { useModules } from '../shell/nav';
@@ -199,7 +198,6 @@ export function SettingsScreen() {
         Настройки
       </h1>
       <div style={{ display: 'grid', gap: 24 }}>
-        <AccountPanel />
         <ModulesPanel />
         {panels.map((P, i) => (
           <Suspense key={i} fallback={null}>

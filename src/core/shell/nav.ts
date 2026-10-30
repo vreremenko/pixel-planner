@@ -5,6 +5,7 @@ import { useSettings } from '../stores/settings';
 import { MODULES } from '../../modules';
 
 export const HOME: ModuleNavItem = { to: '/', label: 'Сводка', short: 'Сводка', icon: 'home', accent: 'var(--c-gold)' };
+export const ACCOUNT: ModuleNavItem = { to: '/account', label: 'Личный кабинет', short: 'Кабинет', icon: 'user', accent: 'var(--c-habit)' };
 export const SETTINGS: ModuleNavItem = { to: '/settings', label: 'Настройки', short: 'Опции', icon: 'gear', accent: 'var(--c-text-dim)' };
 export const MORE: ModuleNavItem = { to: '/more', label: 'Ещё', short: 'Ещё', icon: 'menu', accent: 'var(--c-text-dim)' };
 /** Сколько разделов помещается в нижнее меню между «Сводкой» и «Ещё». */
