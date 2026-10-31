@@ -1,3 +1,10 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-3);
+  margin-bottom: var(--gap-3);
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -39,22 +46,19 @@
   flex-direction: column;
   gap: 6px;
 }
-.plan {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 2px;
-  margin-left: -8px;
-  margin-top: 2px;
-  position: relative;
-  z-index: 1;
-}
 .count {
+  margin: 0 0 var(--gap-2);
   font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);
 }
 
-.plan > button {
-  padding-left: 6px;
-  padding-right: 6px;
+/* Переключатель «Открытые / Готовые / Все» всегда в одну строку рядом с кнопкой */
+.head [role='radiogroup'] {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.head [role='radiogroup'] button {
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
 }

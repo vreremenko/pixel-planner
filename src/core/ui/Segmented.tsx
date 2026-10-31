@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import s from './ui.module.css';
 
 interface Props<T extends string> {
@@ -5,11 +6,13 @@ interface Props<T extends string> {
   options: readonly { value: T; label: string }[];
   onChange: (v: T) => void;
   label: string;
+  /** Цвет выбранного пункта (по умолчанию — цвет задач). */
+  accent?: string;
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label }: Props<T>) {
+export function Segmented<T extends string>({ value, options, onChange, label, accent }: Props<T>) {
   return (
-    <div className={s.segmented} role="radiogroup" aria-label={label}>
+    <div className={s.segmented} role="radiogroup" aria-label={label} style={accent ? ({ '--seg': accent } as CSSProperties) : undefined}>
       {options.map((o) => (
         <button
           key={o.value}

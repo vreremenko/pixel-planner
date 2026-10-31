@@ -1,16 +1,23 @@
 import { useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 
-/** Насколько нужно смахнуть влево (px), чтобы сработало удаление. */
+/** Насколько нужно смахнуть (px), чтобы сработало действие. */
 const THRESHOLD = 96;
 /** Дальше этого строка не едет. */
 const MAX_PULL = 140;
 
+interface Actions {
+  /** Смахнули влево дальше порога (удаление: подтверждение — на вызывающем). */
+  onLeft?: (() => void) | undefined;
+  /** Смахнули вправо дальше порога. */
+  onRight?: (() => void) | undefined;
+}
+
 /**
- * Смахивание строки влево пальцем: строка едет за пальцем, красная подложка под ней; дальше порога — onDelete,
- * и строка возвращается на место (само удаление подтверждает вызывающий). Мышь не участвует: на компьютере есть кнопки.
+ * Смахивание строки пальцем: строка едет за пальцем, под ней цветная подложка; дальше порога — действие,
+ * и строка возвращается на место. Мышь не участвует: на компьютере есть кнопки.
  * Вертикальная прокрутка не мешает — страница решает по направлению движения.
  */
-export function useSwipeDelete(onDelete: (() => void) | undefined) {
+export function useSwipe({ onLeft, onRight }: Actions) {
   const [dx, setDx] = useState(0);
   const [active, setActive] = useState(false);
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -24,7 +31,7 @@ export function useSwipeDelete(onDelete: (() => void) | undefined) {
     setDx(0);
   };
 
-  if (!onDelete) return { bind: {}, rowStyle: undefined, dx: 0, swiping: false, pastThreshold: false };
+  if (!onLeft && !onRight) return { bind: {}, rowStyle: undefined, dx: 0, swiping: false, pastThreshold: false };
 
   const bind = {
     onPointerDown: (e: PointerEvent) => {
@@ -49,15 +56,17 @@ export function useSwipeDelete(onDelete: (() => void) | undefined) {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
       swiped.current = true;
-      setDx(Math.max(-MAX_PULL, Math.min(0, mx)));
+      setDx(Math.max(onLeft ? -MAX_PULL : 0, Math.min(onRight ? MAX_PULL : 0, mx)));
     },
     onPointerUp: (e: PointerEvent) => {
       const s = start.current;
       if (!s || s.id !== e.pointerId) return;
       const pulled = e.clientX - s.x;
-      const fire = locked.current && pulled <= -THRESHOLD;
+      const wasLocked = locked.current;
       reset();
-      if (fire) onDelete();
+      if (!wasLocked) return;
+      if (pulled <= -THRESHOLD) onLeft?.();
+      else if (pulled >= THRESHOLD) onRight?.();
     },
     onPointerCancel: reset,
     // Нажатие, которым закончилось смахивание, не должно открыть задачу
@@ -71,5 +80,5 @@ export function useSwipeDelete(onDelete: (() => void) | undefined) {
   };
 
   const rowStyle: CSSProperties = { transform: `translateX(${String(dx)}px)`, transition: active ? 'none' : 'transform 0.15s steps(3)' };
-  return { bind, rowStyle, dx, swiping: active, pastThreshold: dx <= -THRESHOLD };
+  return { bind, rowStyle, dx, swiping: active, pastThreshold: Math.abs(dx) >= THRESHOLD };
 }

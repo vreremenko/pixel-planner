@@ -206,7 +206,7 @@ input[type='time'].input {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0;
-  border: var(--px) solid var(--c-border);
+  border: 2px solid var(--c-panel-3);
   background: var(--c-bg);
 }
 .segment {
@@ -221,7 +221,7 @@ input[type='time'].input {
 }
 .segment[aria-pressed='true'],
 .segment[aria-checked='true'] {
-  background: var(--c-task);
+  background: var(--seg, var(--c-task));
   color: var(--c-on-accent);
 }
 .segment:hover:not([aria-pressed='true']):not([aria-checked='true']) {

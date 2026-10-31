@@ -115,6 +115,16 @@
   background: var(--c-warn);
   color: var(--c-on-accent);
 }
+.swipeLeftSide {
+  justify-content: flex-start;
+  padding-right: 0;
+  padding-left: 16px;
+  background: color-mix(in srgb, var(--c-habit) 45%, var(--c-bg));
+}
+.swipeReadyOk {
+  background: var(--c-habit);
+  color: var(--c-on-accent);
+}
 .item.done .title {
   text-decoration: line-through;
   text-decoration-thickness: 2px;
@@ -340,20 +350,20 @@
   gap: 8px;
   margin-bottom: 8px;
 }
+/* Раскрывашка «Чек-лист 1/2» и «Заметки»: просто строка, без рамки */
 .clToggle {
   min-height: 32px;
-  padding: 2px 8px;
-  border: 2px solid var(--c-border);
+  padding: 2px 0;
+  border: 0;
   background: transparent;
-  color: var(--c-text-dim);
-  font-family: var(--font-digits);
-  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+  font-family: var(--font-body);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
   cursor: pointer;
   white-space: nowrap;
 }
 .clToggle:hover {
   color: var(--c-text);
-  border-color: var(--c-task);
 }
 .clWrap {
   flex: 0 0 100%;

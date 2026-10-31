@@ -9,7 +9,7 @@ import { checklistProgress } from '../domain/checklist';
 import { normalizeTag } from '../domain/tags';
 import { reminderLabel, reminderShort, remindersOf } from '../domain/reminderSpecs';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
-import { useSwipeDelete } from './useSwipeDelete';
+import { useSwipe } from './useSwipe';
 
 interface Props {
   item: DayItem;
@@ -29,13 +29,15 @@ interface Props {
   dragDisabled?: boolean | undefined;
   /** Смахивание влево: вызывается, когда строку потянули дальше порога (подтверждение — на вызывающем). */
   onSwipeDelete?: (() => void) | undefined;
+  /** Смахивание вправо (например, «на сегодня»): подпись и действие. */
+  swipeRight?: { label: string; icon: 'sun' | 'check'; onSwipe: () => void } | undefined;
   /** Скрыть ручку перетаскивания (список без ручной сортировки). */
   noGrip?: boolean | undefined;
   /** Дополнительная строка действий под названием. */
   footer?: ReactNode;
 }
 
-export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, noGrip = false, footer }: Props) {
+export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, swipeRight, noGrip = false, footer }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
   // Пальцем задачу тащат долгим нажатием на любое место строки, мышью и с клавиатуры — за ручку
   const { onTouchStart, ...gripListeners } = (listeners ?? {}) as Record<string, ((e: TouchEvent) => void) | undefined>;
@@ -58,7 +60,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
     '--prio': PRIORITY_COLOR[data.priority],
   } as CSSProperties;
 
-  const swipe = useSwipeDelete(onSwipeDelete);
+  const swipe = useSwipe({ onLeft: onSwipeDelete, onRight: swipeRight?.onSwipe });
   const hasMeta = Boolean(data.time) || data.tags.length > 0 || item.kind === 'occ' || data.reminders.length > 0 || data.missed || data.skipped || data.postponed > 0;
 
   return (
@@ -67,6 +69,12 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
         <div className={cx(s.swipeBg, swipe.dx < 0 && s.swipeOn, swipe.pastThreshold && s.swipeReady)} aria-hidden>
           <PixelIcon name="trash" size={20} />
           Удалить
+        </div>
+      )}
+      {swipeRight && (
+        <div className={cx(s.swipeBg, s.swipeLeftSide, swipe.dx > 0 && s.swipeOn, swipe.pastThreshold && s.swipeReadyOk)} aria-hidden>
+          <PixelIcon name={swipeRight.icon} size={20} />
+          {swipeRight.label}
         </div>
       )}
       <div className={cx(s.item, data.done && s.done, data.missed && s.missed)} style={swipe.rowStyle} {...swipe.bind}>
