@@ -154,6 +154,11 @@
 .grip:hover {
   color: var(--c-text);
 }
+.checkWrap {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+}
 .body {
   flex: 1;
   min-width: 0;

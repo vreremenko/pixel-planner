@@ -80,12 +80,15 @@ export function TaskItem({ item, id, onToggle, onEdit, onToggleItem, onTagClick,
           <PixelIcon name="grip" size={16} />
         </button>
       )}
-      <Checkbox
-        checked={data.done}
-        onChange={onToggle}
-        label={`Выполнено: ${data.title}`}
-        color={item.kind === 'occ' ? 'var(--c-task)' : undefined}
-      />
+      {/* Выше растянутой кнопки названия, иначе нажатие на галочку открывает задачу */}
+      <span className={s.checkWrap}>
+        <Checkbox
+          checked={data.done}
+          onChange={onToggle}
+          label={`Выполнено: ${data.title}`}
+          color={item.kind === 'occ' ? 'var(--c-task)' : undefined}
+        />
+      </span>
       <div className={s.body}>
         {/* Нажатие на любое место строки, кроме меток, открывает задачу (кнопка растянута на всю строку) */}
         <button type="button" className={s.title} onClick={onEdit} aria-label={`Редактировать «${data.title}»`}>
