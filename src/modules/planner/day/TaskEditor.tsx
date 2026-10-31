@@ -25,6 +25,7 @@ import { remindersOf } from '../domain/reminderSpecs';
 import { useTagCounts } from '../data/hooks';
 import { PRIORITY_LABEL } from './labels';
 import { fs } from '../../../core/ui/fs';
+import { DateField } from './DateField';
 
 const PRIORITIES: { value: Priority; label: string }[] = (['low', 'medium', 'high'] as const).map((p) => ({
   value: p,
@@ -174,8 +175,8 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
         </Field>
       )}
       {!f.inBacklog && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, minmax(0, 1fr) minmax(0, 1fr))', gap: 12 }}>
-          <TextInput label="Дата" type="date" value={f.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, minmax(0, 3fr) minmax(0, 2fr))', gap: 12 }}>
+          <DateField label="Дата" value={f.date} onChange={(d) => set('date', d)} />
           <TextInput label="Время" type="time" value={f.time} onChange={(e) => setTime(e.target.value)} />
         </div>
       )}
@@ -255,7 +256,7 @@ export function TaskEditor() {
   const close = useUi((st) => st.closeEditor);
   const title = !editor ? '' : editor.kind === 'new' ? 'Новая задача' : 'Задача';
   return (
-    <Modal open={editor !== null} onClose={close} title={title} accent="var(--c-task)">
+    <Modal keepOnOutsideClick open={editor !== null} onClose={close} title={title} accent="var(--c-task)">
       {editor && <EditorBody key={JSON.stringify(editor)} target={editor} onDone={close} />}
     </Modal>
   );

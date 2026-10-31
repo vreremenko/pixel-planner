@@ -208,6 +208,30 @@
   }
 }
 
+/* Поле даты в окнах: кнопка, открывающая календарь */
+.dateField {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid var(--c-panel-3);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: var(--fs-body);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.dateField:hover {
+  border-color: var(--c-border);
+}
+.calDay:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* Календарь */
 .calHead {
   display: flex;

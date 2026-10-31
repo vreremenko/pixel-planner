@@ -10,10 +10,12 @@ interface Props {
   children: ReactNode;
   footer?: ReactNode;
   accent?: string;
+  /** Окно с вводом: нажатие мимо него не закрывает (иначе набранное пропадает). Закрыть можно крестиком или Esc. */
+  keepOnOutsideClick?: boolean;
 }
 
 /** Модалка на нативном <dialog>: фокус-ловушка, Esc и возврат фокуса — средствами браузера. */
-export function Modal({ open, onClose, title, children, footer, accent }: Props) {
+export function Modal({ open, onClose, title, children, footer, accent, keepOnOutsideClick = false }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   // Пока окно открыто, страница под ним не прокручивается
   useEffect(() => {
@@ -48,7 +50,7 @@ export function Modal({ open, onClose, title, children, footer, accent }: Props)
         onClose();
       }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (e.target === ref.current && !keepOnOutsideClick) onClose();
       }}
     >
       {open && (

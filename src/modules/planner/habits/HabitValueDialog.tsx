@@ -5,6 +5,7 @@ import { formatDateLong } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit } from '../domain/types';
 import { setHabitValue } from '../services/habits';
+import { DateField } from '../day/DateField';
 
 interface Props {
   habit: Habit;
@@ -43,6 +44,7 @@ export function HabitValueDialog({ habit, unit, date: initialDate, values, today
   return (
     <Modal
       open
+      keepOnOutsideClick
       onClose={onClose}
       title={habit.name}
       accent="var(--c-habit)"
@@ -67,7 +69,7 @@ export function HabitValueDialog({ habit, unit, date: initialDate, values, today
           if (parsed) void save(parsed);
         }}
       >
-        <TextInput label="День" type="date" value={date} max={todayDate} onChange={(e) => pickDate(e.target.value)} />
+        <DateField label="День" value={date} max={todayDate} onChange={pickDate} />
         <p style={{ margin: '-4px 0 12px', color: 'var(--c-text-dim)' }}>{formatDateLong(date)}</p>
         <TextInput
           label={`Сколько (${unit})`}

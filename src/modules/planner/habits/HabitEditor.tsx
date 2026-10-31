@@ -43,6 +43,7 @@ export function HabitEditor({ habit, onClose }: Props) {
   return (
     <Modal
       open
+      keepOnOutsideClick
       onClose={onClose}
       title={habit ? 'Привычка' : 'Новая привычка'}
       accent="var(--c-habit)"

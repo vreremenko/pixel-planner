@@ -36,7 +36,7 @@ function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClos
   };
 
   return (
-    <Modal open onClose={onClose} title={isDelete ? 'Удалить аккаунт?' : 'Сменить пароль'} accent={isDelete ? 'var(--c-warn)' : 'var(--c-habit)'}>
+    <Modal keepOnOutsideClick open onClose={onClose} title={isDelete ? 'Удалить аккаунт?' : 'Сменить пароль'} accent={isDelete ? 'var(--c-warn)' : 'var(--c-habit)'}>
       <form onSubmit={(e) => void submit(e)}>
         {isDelete && <p style={{ marginTop: 0 }}>Все ваши данные на сервере будут стёрты без возможности восстановления. На этом устройстве задачи и привычки останутся. Введите пароль для подтверждения.</p>}
         <TextInput label={isDelete ? 'Пароль' : 'Текущий пароль'} type="password" autoComplete="current-password" required value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} data-autofocus />

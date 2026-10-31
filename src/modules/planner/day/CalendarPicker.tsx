@@ -14,9 +14,12 @@ interface Props {
   onPick: (d: LocalDate) => void;
   onClose: () => void;
   title?: string;
+  /** Дни раньше / позже недоступны. */
+  min?: LocalDate;
+  max?: LocalDate;
 }
 
-export function CalendarPicker({ open, value, todayDate, onPick, onClose, title = 'Выбор дня' }: Props) {
+export function CalendarPicker({ open, value, todayDate, onPick, onClose, title = 'Выбор дня', min, max }: Props) {
   const [month, setMonth] = useState(() => startOfMonth(value));
   const gridStart = startOfWeek(month);
   const gridEnd = addDays(startOfWeek(endOfMonth(month)), 6);
@@ -58,6 +61,7 @@ export function CalendarPicker({ open, value, todayDate, onPick, onClose, title 
             <button
               key={d}
               type="button"
+              disabled={(min !== undefined && d < min) || (max !== undefined && d > max)}
               className={cx(s.calDay, !d.startsWith(month.slice(0, 7)) && s.other, d === todayDate && s.today, d === value && s.selected)}
               onClick={() => {
                 onPick(d);

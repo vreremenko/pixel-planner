@@ -43,6 +43,7 @@ export function ExerciseEditor({ open, onClose, exercise, onSaved }: { open: boo
   return (
     <Modal
       open={open}
+      keepOnOutsideClick
       onClose={onClose}
       title={exercise ? 'Своё упражнение' : 'Новое упражнение'}
       accent="var(--c-gym)"

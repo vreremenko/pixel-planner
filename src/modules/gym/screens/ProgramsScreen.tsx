@@ -43,7 +43,7 @@ function ProgramEditor({ program, onClose }: { program?: Program; onClose: () =>
   };
 
   return (
-    <Modal open onClose={onClose} title={program ? 'День программы' : 'Новый день программы'} accent="var(--c-gym)" footer={
+    <Modal keepOnOutsideClick open onClose={onClose} title={program ? 'День программы' : 'Новый день программы'} accent="var(--c-gym)" footer={
       <>
         <Button onClick={onClose}>Отмена</Button>
         <Button variant="primary" onClick={() => void save()}>Сохранить</Button>

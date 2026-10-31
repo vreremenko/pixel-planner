@@ -3,6 +3,7 @@ import { WEEKDAYS_SHORT, weekday, parseLocalDate } from '../../../core/domain/da
 import type { LocalDate } from '../../../core/domain/types';
 import type { RecurrenceEnd, RecurrencePattern, Weekday } from '../domain/types';
 import { fs } from '../../../core/ui/fs';
+import { DateField } from '../day/DateField';
 
 export interface RepeatValue {
   pattern: RecurrencePattern;
@@ -101,7 +102,7 @@ export function RecurrenceEditor({ value, onChange, start }: Props) {
             }}
           />
           {end.type === 'until' && (
-            <TextInput label="Последняя дата" type="date" min={start} value={end.date} onChange={(e) => e.target.value && onChange({ ...value, end: { type: 'until', date: e.target.value } })} />
+            <DateField label="Последняя дата" min={start} value={end.date} onChange={(d) => onChange({ ...value, end: { type: 'until', date: d } })} />
           )}
           {end.type === 'count' && (
             <TextInput

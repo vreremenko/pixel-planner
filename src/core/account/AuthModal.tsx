@@ -29,7 +29,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
   };
 
   return (
-    <Modal open onClose={onClose} title={isRegister ? 'Создать аккаунт' : 'Вход в аккаунт'} accent="var(--c-habit)">
+    <Modal keepOnOutsideClick open onClose={onClose} title={isRegister ? 'Создать аккаунт' : 'Вход в аккаунт'} accent="var(--c-habit)">
       <form onSubmit={(e) => void submit(e)}>
         <TextInput label="Почта" type="email" autoComplete="email" inputMode="email" autoCapitalize="off" autoCorrect="off" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} data-autofocus={email === '' ? true : undefined} />
         <TextInput

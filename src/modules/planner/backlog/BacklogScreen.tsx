@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import s from './Backlog.module.css';
-import { Button, Checkbox, Panel, PixelIcon, Segmented, cx, inputClass, toast } from '../../../core/ui';
+import { Button, Checkbox, Panel, PixelIcon, Segmented, cx, toast } from '../../../core/ui';
 import { useBacklog } from '../data/hooks';
 import { useUi } from '../stores/ui';
 import { useToday } from '../../../core/shell/useToday';
@@ -20,17 +20,14 @@ export function BacklogScreen() {
   const all = useBacklog();
   const todayDate = useToday();
   const openEditor = useUi((st) => st.openEditor);
-  const [query, setQuery] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [show, setShow] = useState<Show>('open');
   const [scheduling, setScheduling] = useState<Task | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useHotkeys(
     useMemo(
       () => ({
         n: () => openEditor({ kind: 'new', date: null }),
-        '/': () => searchRef.current?.focus(),
       }),
       [openEditor],
     ),
@@ -39,13 +36,11 @@ export function BacklogScreen() {
   const allTags = useMemo(() => tagCounts((all ?? []).map((t) => t.tags)), [all]);
   const toggleTag = (tag: string) => setTags((cur) => (cur.includes(tag) ? cur.filter((x) => x !== tag) : [...cur, tag]));
   const list = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return (all ?? [])
       .filter((t) => (show === 'all' ? true : show === 'done' ? t.done : !t.done))
       .filter((t) => hasAllTags(t.tags, tags))
-      .filter((t) => !q || t.title.toLowerCase().includes(q) || (t.notes ?? '').toLowerCase().includes(q) || (t.checklist ?? []).some((c) => c.text.toLowerCase().includes(q)) || t.tags.some((x) => x.toLowerCase().includes(q)))
       .sort((a, b) => PRIO_RANK[a.priority] - PRIO_RANK[b.priority] || b.createdAt - a.createdAt);
-  }, [all, query, tags, show]);
+  }, [all, tags, show]);
 
   const plan = async (t: Task, date: string) => {
     await scheduleTask(t, date);
@@ -68,20 +63,6 @@ export function BacklogScreen() {
         }
       >
         <div className={s.toolbar}>
-          <div className={s.search}>
-            <PixelIcon name="search" size={16} />
-            <label htmlFor="backlog-search" className="sr-only">
-              Поиск
-            </label>
-            <input
-              id="backlog-search"
-              ref={searchRef}
-              className={inputClass}
-              placeholder="Поиск ( / )"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
           <Segmented
             label="Показывать"
             value={show}
