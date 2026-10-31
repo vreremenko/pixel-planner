@@ -333,22 +333,25 @@
 }
 
 /* Чек-лист */
+/* Редактор чек-листа: без рамки вокруг, заголовок как у остальных полей, пункты — лёгкие строки */
 .clBox {
-  border: var(--px) solid var(--c-border);
-  padding: 12px;
+  border: 0;
+  padding: 0;
   margin: 0 0 12px;
+  min-width: 0;
 }
 .clLegend {
   font-family: var(--font-title);
   font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);
-  padding: 0 6px;
+  padding: 0;
+  margin-bottom: 6px;
 }
 .clRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 /* Раскрывашка «Чек-лист 1/2» и «Заметки»: просто строка, без рамки */
 .clToggle {

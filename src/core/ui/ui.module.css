@@ -130,7 +130,7 @@
   min-height: 40px;
   padding: 6px 10px;
   background: var(--c-bg);
-  border: var(--px) solid var(--c-border);
+  border: 2px solid var(--c-panel-3);
   color: var(--c-text);
   font-size: var(--fs-body);
   outline: none;
@@ -187,9 +187,9 @@ input[type='time'].input {
 .checkBox {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border: var(--px) solid var(--cc);
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--cc);
   background: var(--c-bg);
   color: var(--c-on-accent);
 }
