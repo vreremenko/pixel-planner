@@ -1,4 +1,4 @@
-import type { CSSProperties, TouchEvent } from 'react';
+import type { CSSProperties, ReactNode, TouchEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
@@ -9,6 +9,7 @@ import { checklistProgress } from '../domain/checklist';
 import { normalizeTag } from '../domain/tags';
 import { reminderLabel, reminderShort, remindersOf } from '../domain/reminderSpecs';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
+import { useSwipeDelete } from './useSwipeDelete';
 
 interface Props {
   item: DayItem;
@@ -26,9 +27,15 @@ interface Props {
   activeTags?: readonly string[] | undefined;
   /** Перетаскивание отключено (например, при фильтре по метке: порядок скрытых задач не должен сбиться). */
   dragDisabled?: boolean | undefined;
+  /** Смахивание влево: вызывается, когда строку потянули дальше порога (подтверждение — на вызывающем). */
+  onSwipeDelete?: (() => void) | undefined;
+  /** Скрыть ручку перетаскивания (список без ручной сортировки). */
+  noGrip?: boolean | undefined;
+  /** Дополнительная строка действий под названием. */
+  footer?: ReactNode;
 }
 
-export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false }: Props) {
+export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, noGrip = false, footer }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
   // Пальцем задачу тащат долгим нажатием на любое место строки, мышью и с клавиатуры — за ручку
   const { onTouchStart, ...gripListeners } = (listeners ?? {}) as Record<string, ((e: TouchEvent) => void) | undefined>;
@@ -51,16 +58,19 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
     '--prio': PRIORITY_COLOR[data.priority],
   } as CSSProperties;
 
+  const swipe = useSwipeDelete(onSwipeDelete);
   const hasMeta = Boolean(data.time) || data.tags.length > 0 || item.kind === 'occ' || data.reminders.length > 0 || data.missed || data.skipped || data.postponed > 0;
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={cx(s.item, data.done && s.done, data.missed && s.missed, isDragging && s.dragging)}
-      onTouchStart={dragDisabled ? undefined : onTouchStart}
-    >
-      {dragDisabled ? (
+    <li ref={setNodeRef} style={style} className={cx(s.row, isDragging && s.dragging)} onTouchStart={dragDisabled ? undefined : onTouchStart}>
+      {onSwipeDelete && (
+        <div className={cx(s.swipeBg, swipe.dx < 0 && s.swipeOn, swipe.pastThreshold && s.swipeReady)} aria-hidden>
+          <PixelIcon name="trash" size={20} />
+          Удалить
+        </div>
+      )}
+      <div className={cx(s.item, data.done && s.done, data.missed && s.missed)} style={swipe.rowStyle} {...swipe.bind}>
+      {noGrip ? null : dragDisabled ? (
         <span className={s.grip} aria-hidden style={{ cursor: 'default', opacity: 0.25 }}>
           <PixelIcon name="grip" size={16} />
         </span>
@@ -117,6 +127,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
         )}
         {/* Приоритет виден по цвету полосы слева; для скринридера — словами */}
         <span className="sr-only">Приоритет: {PRIORITY_LABEL[data.priority]}</span>
+        {footer}
       </div>
       {onExtra && extraIcon && (
         <div className={s.actions}>
@@ -160,6 +171,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
           )}
         </div>
       )}
+      </div>
     </li>
   );
 }

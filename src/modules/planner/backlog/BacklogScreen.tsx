@@ -1,17 +1,16 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
 import s from './Backlog.module.css';
-import { Button, Checkbox, Panel, PixelIcon, Segmented, cx, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, Panel, PixelIcon, Segmented, toast } from '../../../core/ui';
 import { useBacklog } from '../data/hooks';
 import { useUi } from '../stores/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { useHotkeys } from '../../../core/shell/hotkeys';
-import { scheduleTask, toggleTask } from '../services/tasks';
+import { deleteTask, scheduleTask, toggleChecklistItem, toggleTask } from '../services/tasks';
+import { TaskItem } from '../day/TaskItem';
 import type { Task } from '../domain/types';
 import { CalendarPicker } from '../day/CalendarPicker';
-import { PRIORITY_COLOR, PRIORITY_SHORT } from '../day/labels';
 import { addDays, formatDateLong } from '../../../core/domain/dates';
-import { checklistProgress } from '../domain/checklist';
-import { hasAllTags, normalizeTag, tagCounts } from '../domain/tags';
+import { hasAllTags, tagCounts } from '../domain/tags';
 
 type Show = 'open' | 'done' | 'all';
 const PRIO_RANK = { high: 0, medium: 1, low: 2 } as const;
@@ -23,6 +22,7 @@ export function BacklogScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [show, setShow] = useState<Show>('open');
   const [scheduling, setScheduling] = useState<Task | null>(null);
+  const [askDelete, setAskDelete] = useState<Task | null>(null);
 
   useHotkeys(
     useMemo(
@@ -97,47 +97,47 @@ export function BacklogScreen() {
             <p>{all.length === 0 ? 'Бэклог пуст. Складывайте сюда задачи без даты.' : 'Ничего не найдено.'}</p>
           </div>
         )}
-        <ul className={s.grid}>
+        <ul className={s.list} aria-label="Задачи без даты">
           {list.map((t) => (
-            <li key={t.id} className={cx(s.card, t.done && s.done)} style={{ '--prio': PRIORITY_COLOR[t.priority] } as CSSProperties}>
-              <Checkbox checked={t.done} onChange={(d) => void toggleTask(t, d)} label={`Выполнено: ${t.title}`} color="var(--c-backlog)" />
-              <div className={s.cardMain}>
-              <button className={s.cardBody} onClick={() => openEditor({ kind: 'task', task: t })} aria-label={`Редактировать «${t.title}»`}>
-                <div className={s.cardTitle}>{t.title}</div>
-                <div className={s.cardMeta}>
-                  <span style={{ color: PRIORITY_COLOR[t.priority] }}>{PRIORITY_SHORT[t.priority]}</span>
-                  {t.checklist && t.checklist.length > 0 && (
-                    <span title="Чек-лист" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--c-task)' }}>
-                      <PixelIcon name="check" size={16} />
-                      {checklistProgress(t.checklist).done}/{t.checklist.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-              {t.tags.length > 0 && (
-                <div className={s.cardTags} role="group" aria-label="Метки">
-                  {t.tags.map((x) => {
-                    const tag = normalizeTag(x);
-                    return (
-                      <button key={x} type="button" className={cx(s.cardTag, tags.includes(tag) && s.cardTagOn)} aria-pressed={tags.includes(tag)} title="Фильтр по метке" onClick={() => toggleTag(tag)}>
-                        #{tag}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              </div>
-              {!t.done && (
-                <div className={s.cardActions}>
-                  <Button small variant="ghost" icon="sun" label="На сегодня" onClick={() => void plan(t, todayDate)} />
-                  <Button small variant="ghost" icon="right" label="На завтра" onClick={() => void plan(t, addDays(todayDate, 1))} />
-                  <Button small variant="ghost" icon="calendar" label="Запланировать на дату…" onClick={() => setScheduling(t)} />
-                </div>
-              )}
-            </li>
+            <TaskItem
+              key={t.id}
+              id={t.id}
+              item={{ kind: 'task', task: t }}
+              noGrip
+              dragDisabled
+              onToggle={(d) => void toggleTask(t, d)}
+              onToggleItem={(itemId) => void toggleChecklistItem(t, itemId)}
+              onEdit={() => openEditor({ kind: 'task', task: t })}
+              onTagClick={toggleTag}
+              activeTags={tags}
+              onSwipeDelete={() => setAskDelete(t)}
+              footer={
+                !t.done && (
+                  <div className={s.plan}>
+                    <Button small variant="ghost" icon="sun" onClick={() => void plan(t, todayDate)}>
+                      Сегодня
+                    </Button>
+                    <Button small variant="ghost" icon="right" onClick={() => void plan(t, addDays(todayDate, 1))}>
+                      Завтра
+                    </Button>
+                    <Button small variant="ghost" icon="calendar" label="Запланировать на дату…" onClick={() => setScheduling(t)} />
+                  </div>
+                )
+              }
+            />
           ))}
         </ul>
       </Panel>
+      <ConfirmDialog
+        open={askDelete !== null}
+        title="Удалить задачу?"
+        onClose={() => setAskDelete(null)}
+        onConfirm={() => {
+          if (askDelete) void deleteTask(askDelete.id).then(() => toast('Удалено', 'trash', 'var(--c-warn)'));
+        }}
+      >
+        {askDelete ? `«${askDelete.title}» будет удалена.` : ''}
+      </ConfirmDialog>
       {scheduling && (
         <CalendarPicker
           open

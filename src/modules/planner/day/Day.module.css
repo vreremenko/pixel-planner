@@ -76,15 +76,44 @@
   background: var(--c-panel);
   border-left: 4px solid var(--prio, var(--c-prio-low));
   position: relative;
+  /* вертикально страница прокручивается, горизонтальное смахивание — наше */
+  touch-action: pan-y;
   /* долгое нажатие на телефоне — перетаскивание, а не выделение текста */
   -webkit-touch-callout: none;
   user-select: none;
 }
-.item.dragging {
+.row {
+  position: relative;
+  list-style: none;
+}
+.row.dragging {
   z-index: 10;
+}
+.row.dragging .item {
   background: var(--c-panel-3);
   box-shadow: 6px 6px 0 var(--c-shadow);
   outline: 2px dashed var(--c-gold);
+}
+/* Красная подложка за строкой: видна, пока строку тянут влево */
+.swipeBg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-right: 16px;
+  background: color-mix(in srgb, var(--c-warn) 55%, var(--c-bg));
+  color: var(--c-text);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  opacity: 0;
+}
+.swipeOn {
+  opacity: 1;
+}
+.swipeReady {
+  background: var(--c-warn);
+  color: var(--c-on-accent);
 }
 .item.done .title {
   text-decoration: line-through;

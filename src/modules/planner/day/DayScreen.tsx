@@ -11,7 +11,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import s from './Day.module.css';
-import { Button, Menu, PixelIcon, toast, type MenuItem } from '../../../core/ui';
+import { Button, ConfirmDialog, Menu, PixelIcon, toast, type MenuItem } from '../../../core/ui';
+import { EditScopeDialog } from '../recurring/EditScopeDialog';
 import { TopbarActions } from '../../../core/shell/TopbarActions';
 import { useUi } from '../stores/ui';
 import { useToday } from '../../../core/shell/useToday';
@@ -22,6 +23,8 @@ import { diffDays, formatDateDay } from '../../../core/domain/dates';
 import { hasAllTags, tagCounts } from '../domain/tags';
 import { ProgressBar } from '../../../core/charts/ProgressBar';
 import {
+  deleteOccurrence,
+  deleteTask,
   moveUnfinishedToTomorrow,
   reorderDay,
   scheduleTask,
@@ -53,6 +56,8 @@ export function DayScreen() {
   const todayDate = useToday();
   const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen, tagFilter, toggleTag, clearTags } = useUi();
   const data = useDay(date, todayDate);
+  // Что удаляем смахиванием: ждёт подтверждения
+  const [askDelete, setAskDelete] = useState<DayItem | null>(null);
 
   const sorted = useMemo<DayItem[]>(() => {
     if (!data) return [];
@@ -187,6 +192,7 @@ export function DayScreen() {
                   onTagClick={toggleTag}
                   activeTags={tagFilter}
                   dragDisabled={filtering}
+                  onSwipeDelete={() => setAskDelete(it)}
                   onEdit={() => openEditor({ kind: 'task', task: it.task })}
                   onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)'))}
                   extraIcon="bag"
@@ -202,6 +208,7 @@ export function DayScreen() {
                   onTagClick={toggleTag}
                   activeTags={tagFilter}
                   dragDisabled={filtering}
+                  onSwipeDelete={() => setAskDelete(it)}
                   onEdit={() => openEditor({ kind: 'occurrence', occ: it.occ })}
                 />
               ),
@@ -220,6 +227,26 @@ export function DayScreen() {
       </div>
       <div style={{ height: 'var(--dock-h, 0px)' }} aria-hidden />
 
+      <ConfirmDialog
+        open={askDelete?.kind === 'task'}
+        title="Удалить задачу?"
+        onClose={() => setAskDelete(null)}
+        onConfirm={() => {
+          if (askDelete?.kind === 'task') void deleteTask(askDelete.task.id).then(() => toast('Удалено', 'trash', 'var(--c-warn)'));
+        }}
+      >
+        {askDelete?.kind === 'task' ? `«${askDelete.task.title}» будет удалена.` : ''}
+      </ConfirmDialog>
+      <EditScopeDialog
+        open={askDelete?.kind === 'occ'}
+        action="delete"
+        onClose={() => setAskDelete(null)}
+        onPick={(scope) => {
+          const it = askDelete;
+          setAskDelete(null);
+          if (it?.kind === 'occ') void deleteOccurrence(it.occ, scope).then(() => toast('Удалено', 'trash', 'var(--c-warn)'));
+        }}
+      />
       {calendarOpen && (
         <CalendarPicker open value={date} todayDate={todayDate} onPick={setDate} onClose={() => setCalendarOpen(false)} />
       )}
