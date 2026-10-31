@@ -9,7 +9,7 @@ import { deleteTask, scheduleTask, toggleChecklistItem, toggleTask } from '../se
 import { TaskItem } from '../day/TaskItem';
 import type { Task } from '../domain/types';
 import { CalendarPicker } from '../day/CalendarPicker';
-import { addDays, formatDateLong } from '../../../core/domain/dates';
+import { formatDateLong } from '../../../core/domain/dates';
 import { hasAllTags, tagCounts } from '../domain/tags';
 
 type Show = 'open' | 'done' | 'all';
@@ -116,9 +116,6 @@ export function BacklogScreen() {
                   <div className={s.plan}>
                     <Button small variant="ghost" icon="sun" onClick={() => void plan(t, todayDate)}>
                       Сегодня
-                    </Button>
-                    <Button small variant="ghost" icon="right" onClick={() => void plan(t, addDays(todayDate, 1))}>
-                      Завтра
                     </Button>
                     <Button small variant="ghost" icon="calendar" label="Запланировать на дату…" onClick={() => setScheduling(t)} />
                   </div>
