@@ -1,19 +1,40 @@
 import { useMemo, useState, type CSSProperties } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import s from './Backlog.module.css';
 import { Button, ConfirmDialog, PixelIcon, Segmented, toast } from '../../../core/ui';
 import { useBacklog } from '../data/hooks';
 import { useUi } from '../stores/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { useHotkeys } from '../../../core/shell/hotkeys';
-import { deleteTask, scheduleTask, toggleChecklistItem, toggleTask } from '../services/tasks';
+import {
+  deleteTask,
+  reorderTasks,
+  scheduleTask,
+  toggleChecklistItem,
+  toggleTask,
+} from '../services/tasks';
+import { byListOrder } from '../domain/order';
 import { TaskItem } from '../day/TaskItem';
 import type { Task } from '../domain/types';
-import { CalendarPicker } from '../day/CalendarPicker';
 import { formatDateLong } from '../../../core/domain/dates';
 import { hasAllTags, tagCounts } from '../domain/tags';
 
 type Show = 'open' | 'done' | 'all';
-const PRIO_RANK = { high: 0, medium: 1, low: 2 } as const;
 
 export function BacklogScreen() {
   const all = useBacklog();
@@ -21,7 +42,6 @@ export function BacklogScreen() {
   const openEditor = useUi((st) => st.openEditor);
   const [tags, setTags] = useState<string[]>([]);
   const [show, setShow] = useState<Show>('open');
-  const [scheduling, setScheduling] = useState<Task | null>(null);
   const [askDelete, setAskDelete] = useState<Task | null>(null);
 
   useHotkeys(
@@ -40,8 +60,32 @@ export function BacklogScreen() {
     return (all ?? [])
       .filter((t) => (show === 'all' ? true : show === 'done' ? t.done : !t.done))
       .filter((t) => hasAllTags(t.tags, tags))
-      .sort((a, b) => PRIO_RANK[a.priority] - PRIO_RANK[b.priority] || b.createdAt - a.createdAt);
+      .sort(byListOrder);
   }, [all, tags, show]);
+
+  // Локальный порядок для мгновенного отклика при перетаскивании
+  const [items, setItems] = useState<Task[]>(list);
+  const [prevList, setPrevList] = useState(list);
+  if (prevList !== list) {
+    setPrevList(list);
+    setItems(list);
+  }
+  // Мышью — за ручку, пальцем — долгим нажатием на задачу (ручки на телефоне нет)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const next = arrayMove(
+      items,
+      items.findIndex((x) => x.id === active.id),
+      items.findIndex((x) => x.id === over.id),
+    );
+    setItems(next);
+    void reorderTasks(next);
+  };
 
   const plan = async (t: Task, date: string) => {
     await scheduleTask(t, date);
@@ -109,28 +153,30 @@ export function BacklogScreen() {
             </p>
           </div>
         )}
-        <ul className={s.list} aria-label="Задачи без даты">
-          {list.map((t) => (
-            <TaskItem
-              key={t.id}
-              id={t.id}
-              item={{ kind: 'task', task: t }}
-              noGrip
-              dragDisabled
-              onToggle={(d) => void toggleTask(t, d)}
-              onToggleItem={(itemId) => void toggleChecklistItem(t, itemId)}
-              onEdit={() => openEditor({ kind: 'task', task: t })}
-              onTagClick={toggleTag}
-              activeTags={tags}
-              onSwipeDelete={() => setAskDelete(t)}
-              swipeRight={{
-                label: 'На сегодня',
-                icon: 'sun',
-                onSwipe: () => void plan(t, todayDate),
-              }}
-            />
-          ))}
-        </ul>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            <ul className={s.list} aria-label="Задачи без даты">
+              {items.map((t) => (
+                <TaskItem
+                  key={t.id}
+                  id={t.id}
+                  item={{ kind: 'task', task: t }}
+                  onToggle={(d) => void toggleTask(t, d)}
+                  onToggleItem={(itemId) => void toggleChecklistItem(t, itemId)}
+                  onEdit={() => openEditor({ kind: 'task', task: t })}
+                  onTagClick={toggleTag}
+                  activeTags={tags}
+                  onSwipeDelete={() => setAskDelete(t)}
+                  swipeRight={{
+                    label: 'На сегодня',
+                    icon: 'sun',
+                    onSwipe: () => void plan(t, todayDate),
+                  }}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </section>
       <ConfirmDialog
         open={askDelete !== null}
@@ -143,16 +189,6 @@ export function BacklogScreen() {
       >
         {askDelete ? `«${askDelete.title}» будет удалена.` : ''}
       </ConfirmDialog>
-      {scheduling && (
-        <CalendarPicker
-          open
-          title="Запланировать на…"
-          value={todayDate}
-          todayDate={todayDate}
-          onPick={(d) => void plan(scheduling, d)}
-          onClose={() => setScheduling(null)}
-        />
-      )}
     </>
   );
 }

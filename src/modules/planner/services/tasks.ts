@@ -151,6 +151,22 @@ export async function reorderDay(items: DayItem[]): Promise<void> {
   });
 }
 
+/**
+ * Порядок задач списка (бэклога) после перетаскивания. Видимые задачи занимают те же «места» (значения order),
+ * что и раньше, поэтому скрытые фильтром остаются на своих позициях.
+ */
+export async function reorderTasks(items: readonly Task[]): Promise<void> {
+  const slots = items.map((t) => t.order).sort((a, b) => a - b);
+  // Одинаковые order (у старых задач) разводим, чтобы порядок сохранился однозначно
+  for (let i = 1; i < slots.length; i++) slots[i] = Math.max(slots[i] ?? 0, (slots[i - 1] ?? 0) + 1);
+  await db.transaction('rw', tables.tasks, async () => {
+    for (const [i, t] of items.entries()) {
+      const order = slots[i] ?? i;
+      if (t.order !== order) await taskRepo.put({ ...t, order });
+    }
+  });
+}
+
 /* ---------- Повторяющиеся задачи ---------- */
 
 function newOverride(seriesId: string, date: LocalDate): OccurrenceOverride {

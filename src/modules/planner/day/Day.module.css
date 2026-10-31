@@ -196,16 +196,9 @@
   font-family: var(--font-digits);
   color: var(--c-task);
 }
-.actions {
-  display: flex;
-  align-items: center;
-  position: relative;
-  z-index: 1;
-}
-/* На телефоне ни ручки, ни кнопки «в бэклог»: перетаскивание — долгим нажатием, бэклог — в окне задачи */
+/* На телефоне ручки нет: перетаскивание — долгим нажатием на задачу; кнопка переноса остаётся */
 @media (max-width: 767px) {
-  .grip,
-  .actions {
+  .grip {
     display: none;
   }
 }

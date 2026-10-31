@@ -194,9 +194,15 @@ export function DayScreen() {
                   dragDisabled={filtering}
                   onSwipeDelete={() => setAskDelete(it)}
                   onEdit={() => openEditor({ kind: 'task', task: it.task })}
-                  onExtra={it.task.done ? undefined : () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)'))}
-                  extraIcon="bag"
-                  extraLabel="Убрать в бэклог"
+                  swipeRight={
+                    it.task.done
+                      ? undefined
+                      : {
+                          label: 'В бэклог',
+                          icon: 'bag',
+                          onSwipe: () => void scheduleTask(it.task, null).then(() => toast('Убрано в бэклог', 'bag', 'var(--c-backlog)')),
+                        }
+                  }
                 />
               ) : (
                 <TaskItem

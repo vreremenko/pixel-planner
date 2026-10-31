@@ -1,8 +1,8 @@
-import type { CSSProperties, ReactNode, TouchEvent } from 'react';
+import type { CSSProperties, TouchEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
-import { Button, Checkbox, PixelIcon, cx } from '../../../core/ui';
+import { Checkbox, PixelIcon, cx } from '../../../core/ui';
 import type { DayItem } from '../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL } from './labels';
 import { checklistProgress } from '../domain/checklist';
@@ -16,9 +16,6 @@ interface Props {
   id: string;
   onToggle: (done: boolean) => void;
   onEdit: () => void;
-  onExtra?: (() => void) | undefined;
-  extraLabel?: string;
-  extraIcon?: 'skip' | 'bag';
   /** Отметить / снять пункт чек-листа. */
   onToggleItem?: ((itemId: string) => void) | undefined;
   /** Нажатие на метку: фильтр по ней. */
@@ -30,14 +27,10 @@ interface Props {
   /** Смахивание влево: вызывается, когда строку потянули дальше порога (подтверждение — на вызывающем). */
   onSwipeDelete?: (() => void) | undefined;
   /** Смахивание вправо (например, «на сегодня»): подпись и действие. */
-  swipeRight?: { label: string; icon: 'sun' | 'check'; onSwipe: () => void } | undefined;
-  /** Скрыть ручку перетаскивания (список без ручной сортировки). */
-  noGrip?: boolean | undefined;
-  /** Дополнительная строка действий под названием. */
-  footer?: ReactNode;
+  swipeRight?: { label: string; icon: 'sun' | 'bag'; onSwipe: () => void } | undefined;
 }
 
-export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extraIcon, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, swipeRight, noGrip = false, footer }: Props) {
+export function TaskItem({ item, id, onToggle, onEdit, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, swipeRight }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
   // Пальцем задачу тащат долгим нажатием на любое место строки, мышью и с клавиатуры — за ручку
   const { onTouchStart, ...gripListeners } = (listeners ?? {}) as Record<string, ((e: TouchEvent) => void) | undefined>;
@@ -78,7 +71,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
         </div>
       )}
       <div className={cx(s.item, data.done && s.done, data.missed && s.missed)} style={swipe.rowStyle} {...swipe.bind}>
-      {noGrip ? null : dragDisabled ? (
+      {dragDisabled ? (
         <span className={s.grip} aria-hidden style={{ cursor: 'default', opacity: 0.25 }}>
           <PixelIcon name="grip" size={16} />
         </span>
@@ -135,13 +128,7 @@ export function TaskItem({ item, id, onToggle, onEdit, onExtra, extraLabel, extr
         )}
         {/* Приоритет виден по цвету полосы слева; для скринридера — словами */}
         <span className="sr-only">Приоритет: {PRIORITY_LABEL[data.priority]}</span>
-        {footer}
       </div>
-      {onExtra && extraIcon && (
-        <div className={s.actions}>
-          <Button variant="ghost" small icon={extraIcon} label={extraLabel} onClick={onExtra} />
-        </div>
-      )}
       {data.notes && (
         <div className={s.clWrap}>
           <button
