@@ -1,11 +1,12 @@
 /*
- * Шуточная пасхалка: невидимая кнопка в правом нижнем углу (только на компьютере), по нажатию — крик «ГОЙДА!!!».
+ * Шуточная пасхалка: маленький флаг в правом нижнем углу (только на компьютере), по нажатию — «ГОЙДА!!!» со звуком.
  * Временная: чтобы убрать, удалите эту папку и <Goida /> в src/core/shell/Layout.tsx.
  */
 import { useEffect, useRef, useState } from 'react';
 import s from './Goida.module.css';
+import goidaUrl from './goida.mp3';
 
-/** Короткий 8-битный «крик»: пила, которая падает по высоте, плюс шумовой удар. */
+/** Запасной звук, если файл не проигрался: короткий 8-битный «крик»: пила, которая падает по высоте, плюс шумовой удар. */
 function yell() {
   try {
     const ctx = new AudioContext();
@@ -42,13 +43,18 @@ export function Goida() {
   const fire = () => {
     window.clearTimeout(timer.current);
     setShown(true);
-    yell();
+    const audio = new Audio(goidaUrl);
+    audio.play().catch(yell);
     timer.current = window.setTimeout(() => setShown(false), 1800);
   };
 
   return (
     <>
-      <button type="button" className={s.secret} onClick={fire} aria-label="Секретная кнопка" tabIndex={-1} />
+      <button type="button" className={s.secret} onClick={fire} aria-label="Секретная кнопка" tabIndex={-1}>
+        <span className={s.flagWhite} />
+        <span className={s.flagBlue} />
+        <span className={s.flagRed} />
+      </button>
       {shown && (
         <div className={s.overlay} role="status" aria-live="assertive">
           <span className={s.text}>ГОЙДА!!!</span>
