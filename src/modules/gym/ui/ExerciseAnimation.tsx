@@ -5,6 +5,10 @@ import { ALPHA } from './alphabet';
 import type { Anim } from './anims';
 
 const FRAME_MS = 170;
+/** Один размер пикселя для всех анимаций, чтобы атлет везде был одного роста: 3.5 px, а на узком экране — меньше,
+ *  так чтобы самая широкая анимация (WIDEST клеток) занимала не больше 80% ширины. */
+const PX = 3.5;
+const WIDEST = 80;
 
 function frameRects(anim: Anim, rows: readonly string[]): ReactElement[] {
   const out: ReactElement[] = [];
@@ -33,7 +37,7 @@ export function ExerciseAnimation({ anim, label }: { anim: Anim; label: string }
   }, [playing, frames.length]);
   return (
     <figure style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <svg viewBox={`0 0 ${String(anim.W)} ${String(anim.H)}`} width={anim.W * 3} height={anim.H * 3} shapeRendering="crispEdges" role="img" aria-label={label} style={{ width: 'min(80vw, 300px)', height: 'auto', display: 'block' }}>
+      <svg viewBox={`0 0 ${String(anim.W)} ${String(anim.H)}`} width={anim.W * 3} height={anim.H * 3} shapeRendering="crispEdges" role="img" aria-label={label} style={{ width: `calc(${String(anim.W)} * min(${String(PX)}px, 80vw / ${String(WIDEST)}))`, height: 'auto', display: 'block' }}>
         {frames[i]}
       </svg>
       <Button small icon={playing ? 'pause' : 'right'} onClick={() => setPlaying((v) => !v)} aria-pressed={playing}>
