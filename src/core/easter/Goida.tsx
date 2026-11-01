@@ -37,14 +37,52 @@ function yell() {
 export function Goida() {
   const [shown, setShown] = useState(false);
   const timer = useRef<number>(0);
+  // Файл загружаем и расшифровываем заранее: в Safari звук нужно запускать прямо из нажатия, ждать загрузку там нельзя
+  const audio = useRef<{ ctx: AudioContext; buffer: AudioBuffer | null } | null>(null);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => {
+    let alive = true;
+    try {
+      const ctx = new AudioContext();
+      audio.current = { ctx, buffer: null };
+      void fetch(goidaUrl)
+        .then((r) => r.arrayBuffer())
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buffer) => {
+          if (alive && audio.current) audio.current.buffer = buffer;
+        })
+        .catch(() => undefined);
+    } catch {
+      // Нет Web Audio — запасной звук ниже
+    }
+    return () => {
+      alive = false;
+      window.clearTimeout(timer.current);
+    };
+  }, []);
+
+  /** Настоящий крик из файла; если не вышло — тот же файл через <audio>, а в крайнем случае синтезированный. */
+  const sound = () => {
+    const a = audio.current;
+    if (a?.buffer) {
+      try {
+        void a.ctx.resume();
+        const src = a.ctx.createBufferSource();
+        src.buffer = a.buffer;
+        src.connect(a.ctx.destination);
+        src.start();
+        return;
+      } catch {
+        // пробуем дальше
+      }
+    }
+    new Audio(goidaUrl).play().catch(yell);
+  };
 
   const fire = () => {
     window.clearTimeout(timer.current);
     setShown(true);
-    const audio = new Audio(goidaUrl);
-    audio.play().catch(yell);
+    sound();
     timer.current = window.setTimeout(() => setShown(false), 1800);
   };
 
