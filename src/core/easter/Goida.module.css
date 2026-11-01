@@ -1,0 +1,56 @@
+/* Невидимая кнопка 40×40 в правом нижнем углу; на телефоне её нет */
+.secret {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  height: 40px;
+  z-index: 80;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+@media (max-width: 767px) {
+  .secret {
+    display: none;
+  }
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--c-warn) 35%, transparent);
+  animation: flash 0.18s steps(2) 8;
+}
+.text {
+  font-family: var(--font-title);
+  font-size: clamp(48px, 14vw, 180px);
+  color: var(--c-gold);
+  text-shadow:
+    6px 6px 0 var(--c-warn),
+    -4px -4px 0 var(--c-bg);
+  animation: shake 0.1s steps(2) infinite;
+}
+@keyframes flash {
+  50% {
+    background: color-mix(in srgb, var(--c-gold) 30%, transparent);
+  }
+}
+@keyframes shake {
+  0% {
+    transform: translate(-6px, 4px) rotate(-2deg);
+  }
+  100% {
+    transform: translate(6px, -4px) rotate(2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .text {
+    animation: none;
+  }
+}

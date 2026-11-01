@@ -6,6 +6,7 @@ import type { ModuleNavItem } from '../module';
 import { MissedReminders } from '../notifications/MissedReminders';
 import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
+import { Goida } from '../easter/Goida';
 import { ACCOUNT, HOME, MORE, SETTINGS, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
@@ -83,6 +84,7 @@ export function Layout() {
           <PixelIcon name="user" size={24} />
         </NavLink>
       </header>
+      <Goida />
       <main id="main" className={s.main}>
         <MissedReminders />
         <TopbarSlot.Provider value={slot}>
