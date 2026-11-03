@@ -38,6 +38,7 @@ import { TaskItem } from './TaskItem';
 import { QuickAdd } from './QuickAdd';
 import { TagBar } from './TagBar';
 import { CalendarPicker } from './CalendarPicker';
+import { TrackModal } from './TrackModal';
 
 const itemId = (it: DayItem) => (it.kind === 'task' ? it.task.id : it.occ.key);
 const itemOrder = (it: DayItem) => (it.kind === 'task' ? it.task.order : it.occ.order);
@@ -58,6 +59,7 @@ export function DayScreen() {
   const data = useDay(date, todayDate);
   // Что удаляем смахиванием: ждёт подтверждения
   const [askDelete, setAskDelete] = useState<DayItem | null>(null);
+  const [trackOpen, setTrackOpen] = useState(false);
 
   const sorted = useMemo<DayItem[]>(() => {
     if (!data) return [];
@@ -147,6 +149,7 @@ export function DayScreen() {
         <TopbarActions>
           <div className={s.tools}>
             <Button variant="ghost" icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />
+            <Button variant="ghost" icon="hourglass" label="Трек дня" onClick={() => setTrackOpen(true)} />
             <Menu label="Действия с днём" items={menu} />
           </div>
         </TopbarActions>
@@ -253,6 +256,7 @@ export function DayScreen() {
           if (it?.kind === 'occ') void deleteOccurrence(it.occ, scope).then(() => toast('Удалено', 'trash', 'var(--c-warn)'));
         }}
       />
+      {trackOpen && <TrackModal open date={date} todayDate={todayDate} onClose={() => setTrackOpen(false)} />}
       {calendarOpen && (
         <CalendarPicker open value={date} todayDate={todayDate} onPick={setDate} onClose={() => setCalendarOpen(false)} />
       )}

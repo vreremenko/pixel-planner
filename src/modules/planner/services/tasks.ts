@@ -4,6 +4,7 @@ import type { LocalDate, LocalTime } from '../../../core/domain/types';
 import type { ChecklistItem, Occurrence, OccurrenceOverride, Priority, RecurrenceEnd, RecurrencePattern, RecurrenceRule, RecurringSeries, ReminderSpec, Task } from '../domain/types';
 import { checkedIds, cleanChecklist, stripDone, toggleItem } from '../domain/checklist';
 import { normalizeReminders } from '../domain/reminderSpecs';
+import type { TrackBlock } from '../domain/track';
 import { stamp } from '../../../core/data/repo';
 import { overrideRepo, seriesRepo, tables, taskRepo } from '../data/repo';
 import { db } from '../../../core/data/db';
@@ -20,6 +21,8 @@ export interface TaskDraft {
   tags: string[];
   /** Напоминания (нужно время); повторы и недопустимые значения при сохранении отбрасываются. */
   reminders?: ReminderSpec[];
+  /** Блоки на треке дня (для новой задачи, например «Отдых» с трека). */
+  track?: TrackBlock[];
   /** Если задано — задача повторяющаяся (start = date). */
   repeat?: { pattern: RecurrencePattern; end: RecurrenceEnd };
 }
@@ -67,6 +70,7 @@ export async function createTask(draft: TaskDraft): Promise<void> {
     optional({
       ...seriesFields(draft),
       date: draft.date,
+      track: draft.track && draft.track.length > 0 ? draft.track : undefined,
       done: false,
       order: await nextOrder(draft.date),
       wasInBacklog: draft.date === null,
@@ -86,10 +90,12 @@ export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
     return;
   }
   const moved = draft.date !== task.date;
-  const { notes: _n, checklist: _c, time: _t, reminder: _r, reminders: _rs, ...rest } = task;
+  // Блоки трека относятся к своему дню: при переносе они не нужны
+  const { notes: _n, checklist: _c, time: _t, reminder: _r, reminders: _rs, track: keepTrack, ...rest } = task;
   await taskRepo.put({
     ...rest,
     ...seriesFields(draft),
+    ...(!moved && keepTrack ? { track: keepTrack } : {}),
     date: draft.date,
     order: moved ? await nextOrder(draft.date) : task.order,
     wasInBacklog: task.wasInBacklog || draft.date === null,
@@ -114,8 +120,9 @@ export async function deleteTask(id: string): Promise<void> {
 
 /** Перенести задачу в бэклог (null) или на дату. */
 export async function scheduleTask(task: Task, date: LocalDate | null): Promise<void> {
+  const { track: _track, ...rest } = task;
   await taskRepo.put({
-    ...task,
+    ...rest,
     date,
     order: await nextOrder(date),
     wasInBacklog: task.wasInBacklog || date === null,
@@ -131,7 +138,7 @@ export async function moveUnfinishedToTomorrow(date: LocalDate, only?: ReadonlyS
   await taskRepo.bulkPut(
     pending
       .sort((a, b) => a.order - b.order)
-      .map((t) => ({ ...t, date: target, order: order++, postponedCount: t.postponedCount + 1 })),
+      .map(({ track: _track, ...t }) => ({ ...t, date: target, order: order++, postponedCount: t.postponedCount + 1 })),
   );
   return pending.length;
 }
@@ -165,6 +172,17 @@ export async function reorderTasks(items: readonly Task[]): Promise<void> {
       if (t.order !== order) await taskRepo.put({ ...t, order });
     }
   });
+}
+
+/** Записать блоки трека задачи (пустой список — задача уходит с трека). */
+export async function setTaskTrack(task: Task, blocks: readonly TrackBlock[]): Promise<void> {
+  const { track: _track, ...rest } = task;
+  await taskRepo.put(blocks.length > 0 ? { ...rest, track: blocks.map(({ start, end }) => ({ start, end })) } : rest);
+}
+
+/** Новая задача «Отдых» сразу с блоком на треке (отдых не живёт без задачи: у него те же галочка, удаление и синхронизация). */
+export async function createRestOnTrack(date: LocalDate, block: TrackBlock): Promise<void> {
+  await createTask({ title: 'Отдых', date, priority: 'low', tags: ['отдых'], track: [block] });
 }
 
 /* ---------- Повторяющиеся задачи ---------- */

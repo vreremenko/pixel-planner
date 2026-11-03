@@ -1,0 +1,168 @@
+/* Трек дня (всплывающее окно): шкала часов и блоки задач */
+.range {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--c-text-dim);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+}
+.select {
+  background: var(--c-bg);
+  color: var(--c-text);
+  border: 2px solid var(--c-panel-3);
+  padding: 4px;
+  font-family: inherit;
+  font-size: inherit;
+}
+.sum {
+  margin: 8px 0 12px;
+  color: var(--c-text-dim);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+}
+.sum b {
+  color: var(--c-text);
+  font-weight: 400;
+}
+.trayTitle {
+  color: var(--c-text-muted);
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 12px;
+  background: var(--c-panel-2);
+  border: 2px solid var(--c-panel-3);
+  border-left: 6px solid var(--c);
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  cursor: pointer;
+}
+.chip:hover {
+  background: var(--c-panel-3);
+}
+.note {
+  margin: 0 0 12px;
+  color: var(--c-text-muted);
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+}
+.track {
+  position: relative;
+  background: var(--c-bg);
+  border: 2px solid var(--c-panel-3);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--c-panel-3);
+}
+.hour span {
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+}
+.now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--c-warn);
+  z-index: 8;
+  pointer-events: none;
+}
+/* Справа остаётся свободная полоса, чтобы страницу можно было прокрутить, не задевая блоки */
+.block {
+  position: absolute;
+  left: 52px;
+  right: 40px;
+  padding: 3px 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--c) 28%, var(--c-panel));
+  border-left: 6px solid var(--c);
+  touch-action: none;
+  cursor: grab;
+  z-index: 5;
+}
+.block.sel {
+  z-index: 9;
+  outline: 2px solid var(--c-gold);
+  background: color-mix(in srgb, var(--c) 40%, var(--c-panel));
+}
+.block.drag {
+  cursor: grabbing;
+  box-shadow: 4px 4px 0 var(--c-shadow);
+}
+.block.done .title {
+  text-decoration: line-through;
+  color: var(--c-text-muted);
+}
+.title {
+  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
+  line-height: 1.25;
+  pointer-events: none;
+}
+.meta {
+  color: var(--c-text-dim);
+  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+  pointer-events: none;
+}
+.h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.h::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.hTop {
+  top: 0;
+}
+.hTop::after {
+  top: 3px;
+}
+.hBottom {
+  bottom: 0;
+}
+.hBottom::after {
+  bottom: 3px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.info {
+  flex: 1 1 100%;
+  color: var(--c-text-dim);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+}
+.info b {
+  color: var(--c-text);
+  font-weight: 400;
+}

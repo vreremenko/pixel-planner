@@ -1,6 +1,7 @@
 import type { LocalDate, LocalTime, SyncMeta, Weekday } from '../../../core/domain/types';
 
 export type { Weekday } from '../../../core/domain/types';
+import type { TrackBlock } from './track';
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -38,6 +39,8 @@ export interface Task extends SyncMeta {
   reminders?: ReminderSpec[];
   wasInBacklog: boolean;
   postponedCount: number;
+  /** Блоки времени на «треке дня» (минуты от полуночи); у задачи может быть несколько. Сбрасываются при переносе на другой день. */
+  track?: TrackBlock[];
 }
 
 export type RecurrenceEnd =
