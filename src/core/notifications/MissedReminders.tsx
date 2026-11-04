@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Button, Panel, PixelIcon } from '../ui';
 import { reminderLogRepo } from '../data/repo';
 import { completeReminder, reminderOpenPath } from '../../modules/reminders';
-import { INFO_KIND } from './types';
+import { isInfoKind } from './types';
 import { formatDateShort } from '../domain/dates';
 
 /** Напоминания, сработавшие, пока приложение было закрыто, — показываем внутри интерфейса. */
@@ -34,7 +34,7 @@ export function MissedReminders() {
                 {formatDateShort(r.date)} {at.toTimeString().slice(0, 5)}
               </span>
               <span style={{ flex: 1, minWidth: 120 }}>{r.title}</span>
-              {r.kind !== INFO_KIND && (
+              {!isInfoKind(r.kind) && (
                 <Button
                   small
                   variant="ghost"

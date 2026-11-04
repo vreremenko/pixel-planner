@@ -1,8 +1,9 @@
 /* Реестр напоминаний модулей (без React): им пользуются планировщик, список пропущенных и service worker. */
 import type { PlannedReminder, ReminderProvider, ReminderRef } from '../core/notifications/types';
+import { gymReminders } from './gym/reminders';
 import { plannerReminders } from './planner/reminders';
 
-const PROVIDERS: readonly ReminderProvider[] = [plannerReminders];
+const PROVIDERS: readonly ReminderProvider[] = [plannerReminders, gymReminders];
 
 const byKind = (kind: string) => PROVIDERS.find((p) => p.kinds.includes(kind));
 

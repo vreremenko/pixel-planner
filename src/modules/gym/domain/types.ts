@@ -53,6 +53,8 @@ export interface Workout extends SyncMeta {
   date: LocalDate;
   startedAt: number;
   finishedAt?: number;
+  /** Завершена автоматически (полчаса без действий): finishedAt — момент последнего действия. */
+  auto?: boolean;
   programId?: string;
   title: string;
 }

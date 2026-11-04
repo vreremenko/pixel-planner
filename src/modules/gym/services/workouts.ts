@@ -1,9 +1,9 @@
 /* Сценарии тренировки: начать, подходы, завершить, удалить. */
 import { today } from '../../../core/domain/dates';
 import { play } from '../../../core/sfx';
-import { lastSessionSets } from '../domain/logic';
+import { IDLE_MS, lastActivity, lastSessionSets } from '../domain/logic';
 import type { Program, WorkoutSet } from '../domain/types';
-import { setRepo, workoutRepo } from '../data/repo';
+import { setRepo, tables, workoutRepo } from '../data/repo';
 
 /** Начать тренировку: по дню программы (подходы заготовлены, цифры — из прошлого раза или цели) или пустую. */
 export async function startWorkout(program?: Program): Promise<string> {
@@ -88,6 +88,28 @@ export async function finishWorkout(workoutId: string): Promise<void> {
   if (!w) return;
   for (const s of await setRepo.byWorkout(workoutId)) if (!s.done) await setRepo.remove(s.id);
   await workoutRepo.save({ ...w, finishedAt: Date.now() });
+}
+
+/**
+ * Закрыть забытую тренировку: полчаса без действий — считаем, что человек закончил и не нажал «Завершить».
+ * Время окончания — последнее действие, а не «сейчас». Если ни одного подхода не отмечено, тренировка просто удаляется.
+ * Возвращает закрытую тренировку (для уведомления) или undefined.
+ */
+export async function autoFinishIdle(now = Date.now()): Promise<{ id: string; title: string; setsDone: number } | undefined> {
+  const w = await workoutRepo.active();
+  if (!w) return undefined;
+  // Берём и удалённые подходы: удаление — тоже действие
+  const all = await tables.sets.where('workoutId').equals(w.id).toArray();
+  const last = lastActivity(w, all);
+  if (now - last < IDLE_MS) return undefined;
+  const setsDone = all.filter((s) => !s.deletedAt && s.done).length;
+  if (setsDone === 0) {
+    await deleteWorkout(w.id);
+    return undefined;
+  }
+  for (const s of await setRepo.byWorkout(w.id)) if (!s.done) await setRepo.remove(s.id);
+  await workoutRepo.save({ ...w, finishedAt: last, auto: true });
+  return { id: w.id, title: w.title, setsDone };
 }
 
 export async function deleteWorkout(workoutId: string): Promise<void> {

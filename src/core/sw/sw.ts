@@ -7,7 +7,7 @@ import type { ReminderLog } from '../domain/types';
 import { apiUrl } from '../apiBase';
 import { authHeaders } from '../auth/session';
 import { snoozeReminder, SNOOZE_MS } from '../notifications/snooze';
-import { INFO_KIND } from '../notifications/types';
+import { isInfoKind } from '../notifications/types';
 import { completeReminder } from '../../modules/reminders';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -85,7 +85,7 @@ function showReminder(title: string, body: string, key: string, kind: ReminderLo
     // Всё нужное для кнопок — прямо в уведомлении, без опоры на базу
     data: extra ?? { key },
     // Кнопки действий (Chrome/Android/Edge; Safari их не показывает)
-    ...({ actions: kind === INFO_KIND ? [] : [
+    ...({ actions: isInfoKind(kind) ? [] : [
       { action: 'done', title: '✔ Выполнено' },
       { action: 'snooze', title: '⏰ Отложить 10 мин' },
     ] } as object),

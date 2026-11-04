@@ -15,6 +15,8 @@ export interface PlannedReminder {
 
 /** Информационное напоминание (сводка): без кнопок «Выполнено/Отложить» и без списка пропущенных. */
 export const INFO_KIND = 'summary';
+/** Сообщение без действий «Выполнено/Отложить»: утренняя сводка и автозавершение тренировки. */
+export const isInfoKind = (kind: string): boolean => kind === INFO_KIND || kind === 'workout';
 
 export type ReminderRef = Pick<ReminderLog, 'kind' | 'ref' | 'date'>;
 

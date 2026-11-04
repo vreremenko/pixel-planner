@@ -22,5 +22,5 @@ export const gymModule: ModuleManifest = {
     { id: 'gym', title: 'Тренировки', icon: 'dumbbell', accent: 'var(--c-gym)', to: '/gym', Component: lazyScreen(() => import('./screens/GymWidget'), (m) => m.GymWidget) },
   ],
   settingsPanel: lazyScreen(() => import('./screens/GymSettings'), (m) => m.GymSettings),
-  globals: [lazyScreen(() => import('./screens/RestTimerBar'), (m) => m.RestTimerBar)],
+  globals: [lazyScreen(() => import('./screens/RestTimerBar'), (m) => m.RestTimerBar), lazyScreen(() => import('./screens/AutoFinish'), (m) => m.AutoFinish)],
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestSet, e1rm, exerciseOrder, formatSet, lastSessionSets, programsFor, scheduleFor, summarize } from './logic';
+import { bestSet, e1rm, exerciseOrder, formatSet, lastActivity, lastSessionSets, programItemsFromSets, programsFor, scheduleFor, summarize } from './logic';
 import type { Program, Workout, WorkoutSet } from './types';
 import type { Weekday } from '../../../core/domain/types';
 import { CATALOG } from './catalog';
@@ -52,5 +52,22 @@ describe('логика тренировок', () => {
     expect(formatSet({ weight: 60, reps: 10 }, 'weight_reps')).toBe('60 × 10');
     expect(formatSet({ durationSec: 90 }, 'time')).toBe('1:30');
     expect(formatSet({ distanceM: 5000, durationSec: 1500 }, 'distance_time')).toBe('5 км · 25:00');
+  });
+});
+
+describe('свободная тренировка → программа', () => {
+  it('по упражнению: число выполненных подходов, диапазон повторов, рабочий вес', () => {
+    const sets = [set('a', 'x', 'squat', 1, 80, 10), set('b', 'x', 'squat', 2, 90, 8), set('c', 'x', 'squat', 3, 90, 8, false), set('d', 'x', 'bench-press', 4, 60, 8)];
+    expect(programItemsFromSets(sets, () => 'weight_reps')).toEqual([
+      { exerciseId: 'squat', sets: 2, reps: '8–10', weight: 90 },
+      { exerciseId: 'bench-press', sets: 1, reps: '8', weight: 60 },
+    ]);
+  });
+  it('время и дистанция — только число подходов', () => {
+    expect(programItemsFromSets([set('a', 'x', 'run', 1, 0, 0)], () => 'distance_time')).toEqual([{ exerciseId: 'run', sets: 1 }]);
+  });
+  it('последнее действие — начало или самое свежее изменение подхода', () => {
+    expect(lastActivity({ startedAt: 100 }, [])).toBe(100);
+    expect(lastActivity({ startedAt: 100 }, [{ updatedAt: 500 }, { updatedAt: 300 }])).toBe(500);
   });
 });

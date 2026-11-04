@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../../core/data/db';
 import { programRepo, setRepo, workoutRepo } from '../data/repo';
-import { addExercise, addSet, finishWorkout, startWorkout, toggleSet, updateSet } from './workouts';
+import { gymReminders } from '../reminders';
+import { addExercise, addSet, autoFinishIdle, finishWorkout, startWorkout, toggleSet, updateSet } from './workouts';
 
 describe('сценарии тренировки', () => {
   beforeEach(async () => {
@@ -34,5 +35,42 @@ describe('сценарии тренировки', () => {
     await addExercise(w, 'bench-press');
     await addSet(w, 'squat');
     expect((await setRepo.byWorkout(w)).map((x) => x.exerciseId)).toEqual(['squat', 'squat', 'bench-press']);
+  });
+
+  describe('забытая тренировка', () => {
+    const MIN = 60_000;
+    const begin = async () => {
+      const id = await startWorkout();
+      await addExercise(id, 'squat');
+      const sets = await setRepo.byWorkout(id);
+      await toggleSet(sets[0]!, true);
+      return { id, last: (await setRepo.byWorkout(id))[0]!.updatedAt };
+    };
+
+    it('до получаса не трогается, после — закрывается временем последнего действия', async () => {
+      const { id, last } = await begin();
+      expect(await autoFinishIdle(last + 29 * MIN)).toBeUndefined();
+      expect((await workoutRepo.get(id))?.finishedAt).toBeUndefined();
+      expect(await autoFinishIdle(last + 31 * MIN)).toMatchObject({ id, setsDone: 1 });
+      expect(await workoutRepo.get(id)).toMatchObject({ finishedAt: last, auto: true });
+    });
+
+    it('пустая тренировка (ни одного отмеченного подхода) просто удаляется', async () => {
+      const id = await startWorkout();
+      await addExercise(id, 'squat');
+      expect(await autoFinishIdle(Date.now() + 40 * MIN)).toBeUndefined();
+      expect(await workoutRepo.all()).toHaveLength(0);
+    });
+
+    it('напоминание: на момент last+30 мин, и после автозавершения тоже', async () => {
+      await db.table('settings').put({ id: 'settings', notificationsEnabled: true });
+      const { last } = await begin();
+      const at = new Date(last + 30 * MIN);
+      const before = await gymReminders.plan(new Date(last), new Date(at.getTime() + 1));
+      expect(before).toHaveLength(1);
+      expect(before[0]).toMatchObject({ kind: 'workout', fireAt: at.getTime(), title: 'Тренировка завершена' });
+      await autoFinishIdle(last + 31 * MIN);
+      expect(await gymReminders.plan(new Date(last), new Date(at.getTime() + 1))).toEqual(before);
+    });
   });
 });

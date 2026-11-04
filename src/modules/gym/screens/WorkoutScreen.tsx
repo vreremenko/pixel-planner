@@ -5,11 +5,13 @@ import { Button, Checkbox, ConfirmDialog, Modal, Panel, cx, toast } from '../../
 import { parseValue, formatValue } from '../../../core/domain/numbers';
 import { useExercises } from '../data/exercises';
 import { useAllSets, usePrefs, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
-import { exerciseOrder, formatSet, lastSessionSets, summarize, type WorkoutSummary } from '../domain/logic';
+import { exerciseOrder, formatSet, lastSessionSets, programItemsFromSets, summarize, type WorkoutSummary } from '../domain/logic';
 import type { ExerciseDef, Tracking, WorkoutSet } from '../domain/types';
 import { addExercise, addSet, deleteWorkout, finishWorkout, removeExercise, removeSet, toggleSet, updateSet } from '../services/workouts';
 import { useRestTimer } from '../restTimer';
 import { ExercisePicker } from './ExercisePicker';
+import { ProgramEditor } from './ProgramEditor';
+import { useIsMobile } from '../../../core/shell/topbarSlot';
 import s from './Gym.module.css';
 
 /** Поля подхода по типу записи: [подпись, поле, множитель для ввода]. */
@@ -86,6 +88,8 @@ export function WorkoutScreen() {
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const mobile = useIsMobile();
 
   if (workout === null) return <p className={s.dim}>Тренировка не найдена. <Link to="/gym">К тренировкам</Link></p>;
   if (!workout || !sets || !all || !workouts || !ex || !prefs) return null;
@@ -96,6 +100,14 @@ export function WorkoutScreen() {
     stopRest();
     await finishWorkout(workout.id);
     setSummary(summarize({ ...workout, finishedAt: Date.now() }, sets.filter((x) => x.done), all, workouts, ex.byId));
+  };
+
+  // Свободную тренировку (не из программы) можно сохранить как день программы
+  const canSave = !workout.programId && sets.some((x) => x.done);
+  const draftItems = () => programItemsFromSets(sets, (id) => ex.byId(id)?.tracking ?? 'weight_reps');
+  const done = () => {
+    setSaving(false);
+    void navigate('/gym');
   };
 
   const remove = async () => {
@@ -114,7 +126,7 @@ export function WorkoutScreen() {
           </h1>
           <span className={s.dim}>{active ? 'идёт тренировка' : new Date(workout.startedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
         </div>
-        {active && (
+        {active && !mobile && (
           <Button variant="primary" icon="check" onClick={() => void finish()}>
             Завершить
           </Button>
@@ -153,10 +165,20 @@ export function WorkoutScreen() {
               Упражнение
             </Button>
           )}
+          {!active && canSave && (
+            <Button icon="book" onClick={() => setSaving(true)}>
+              Сохранить как программу
+            </Button>
+          )}
           <Button variant="ghost" icon="trash" onClick={() => setConfirmDelete(true)}>
             Удалить тренировку
           </Button>
         </div>
+        {active && mobile && (
+          <Button variant="primary" icon="check" onClick={() => void finish()} style={{ width: '100%' }}>
+            Завершить тренировку
+          </Button>
+        )}
       </div>
       <ExercisePicker open={picking} onClose={() => setPicking(false)} onPick={(exId) => void addExercise(workout.id, exId)} />
       <ConfirmDialog open={confirmDelete} title="Удалить тренировку?" onClose={() => setConfirmDelete(false)} onConfirm={() => void remove()}>
@@ -171,7 +193,18 @@ export function WorkoutScreen() {
       >
         «{removing ? (ex.byId(removing)?.name ?? '') : ''}» и все его подходы в этой тренировке будут удалены.
       </ConfirmDialog>
-      <Modal open={summary !== null} onClose={() => void navigate('/gym')} title="Тренировка завершена" accent="var(--c-gym)" footer={<Button variant="primary" onClick={() => void navigate('/gym')}>Отлично</Button>}>
+      <Modal open={summary !== null} onClose={() => void navigate('/gym')} title="Тренировка завершена" accent="var(--c-gym)" footer={
+        canSave ? (
+          <>
+            <Button onClick={() => void navigate('/gym')}>Не сохранять</Button>
+            <Button variant="primary" icon="book" onClick={() => setSaving(true)}>
+              Сохранить как программу
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" onClick={() => void navigate('/gym')}>Отлично</Button>
+        )
+      }>
         {summary && (
           <>
             <p style={{ marginTop: 0 }}>
@@ -183,9 +216,11 @@ export function WorkoutScreen() {
             ) : (
               <p className={s.dim} style={{ marginBottom: 0 }}>Рекордов в этот раз нет — главное, что тренировка сделана.</p>
             )}
+            {canSave && <p className={s.hint}>Это была свободная тренировка. Сохранить её как день программы, чтобы повторять в следующий раз?</p>}
           </>
         )}
       </Modal>
+      {saving && <ProgramEditor draft={draftItems()} onClose={summary ? done : () => setSaving(false)} />}
     </>
   );
 }

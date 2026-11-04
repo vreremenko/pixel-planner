@@ -1,7 +1,7 @@
 /* Расчёты раздела тренировок: чистые функции без базы. */
 import { WEEKDAYS_SHORT, weekday } from '../../../core/domain/dates';
 import type { LocalDate, Weekday } from '../../../core/domain/types';
-import type { ExerciseDef, Program, Tracking, Workout, WorkoutSet } from './types';
+import type { ExerciseDef, Program, ProgramItem, Tracking, Workout, WorkoutSet } from './types';
 
 /** Расчётный максимум на одно повторение (формула Эпли); null — не силовой подход. */
 export function e1rm(weight: number | undefined, reps: number | undefined): number | null {
@@ -110,4 +110,29 @@ export function formatSet(s: Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' 
     case 'distance_time':
       return `${String(Math.round((s.distanceM ?? 0) / 100) / 10)} км${s.durationSec ? ` · ${time(s.durationSec)}` : ''}`;
   }
+}
+
+/** Сколько без действий тренировка считается забытой и закрывается сама. */
+export const IDLE_MS = 30 * 60_000;
+
+/** Момент последнего действия в идущей тренировке: начало или последнее изменение подхода (удаление тоже действие). */
+export function lastActivity(w: Pick<Workout, 'startedAt'>, sets: readonly Pick<WorkoutSet, 'updatedAt'>[]): number {
+  return sets.reduce((m, s) => Math.max(m, s.updatedAt), w.startedAt);
+}
+
+const dash = (a: number, b: number) => (a === b ? String(a) : `${String(a)}–${String(b)}`);
+
+/** Свободная тренировка → день программы: по упражнению — число выполненных подходов, диапазон повторов и рабочий вес. */
+export function programItemsFromSets(sets: readonly WorkoutSet[], tracking: (exerciseId: string) => Tracking): ProgramItem[] {
+  const done = sets.filter((s) => s.done);
+  return exerciseOrder(done).map((exerciseId) => {
+    const mine = done.filter((s) => s.exerciseId === exerciseId);
+    const item: ProgramItem = { exerciseId, sets: Math.min(20, mine.length) };
+    const t = tracking(exerciseId);
+    const reps = mine.map((s) => s.reps).filter((r): r is number => r !== undefined && r > 0);
+    if ((t === 'weight_reps' || t === 'reps') && reps.length > 0) item.reps = dash(Math.min(...reps), Math.max(...reps));
+    const weights = mine.map((s) => s.weight).filter((w): w is number => w !== undefined && w > 0);
+    if (t === 'weight_reps' && weights.length > 0) item.weight = Math.max(...weights);
+    return item;
+  });
 }

@@ -1,4 +1,4 @@
-import { INFO_KIND } from './types';
+import { isInfoKind } from './types';
 export interface NotifyPayload {
   key: string;
   kind: string;
@@ -31,7 +31,7 @@ async function swRegistration(): Promise<ServiceWorkerRegistration | undefined> 
 export async function showSystemNotification(p: NotifyPayload): Promise<boolean> {
   if (permission() !== 'granted') return false;
   const icon = `${import.meta.env.BASE_URL}icons/icon-192.png`;
-  const actions = p.kind === INFO_KIND ? [] : [
+  const actions = isInfoKind(p.kind) ? [] : [
     { action: 'done', title: '✔ Выполнено' },
     { action: 'snooze', title: '⏰ Отложить 10 мин' },
   ];
