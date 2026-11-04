@@ -98,6 +98,13 @@ export function WorkoutScreen() {
   const finish = async () => {
     // Тренировки больше нет — отдыхать не от чего
     stopRest();
+    // Ни одного отмеченного подхода — в историю такую тренировку не кладём
+    if (!sets.some((x) => x.done)) {
+      await deleteWorkout(workout.id);
+      toast('Нет отмеченных подходов — тренировка не сохранена', 'alert', 'var(--c-warn)');
+      void navigate('/gym');
+      return;
+    }
     await finishWorkout(workout.id);
     setSummary(summarize({ ...workout, finishedAt: Date.now() }, sets.filter((x) => x.done), all, workouts, ex.byId));
   };
