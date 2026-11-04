@@ -92,6 +92,8 @@ export interface OccurrenceOverride extends SyncMeta {
   order?: number;
   /** id отмеченных пунктов чек-листа в этот день. */
   checked?: string[];
+  /** Блоки этого экземпляра на треке дня. */
+  track?: TrackBlock[];
 }
 
 type OccurrenceStatus = 'pending' | 'done' | 'skipped' | 'missed';
@@ -113,6 +115,7 @@ export interface Occurrence {
   status: OccurrenceStatus;
   doneAt?: number;
   order: number;
+  track?: TrackBlock[];
 }
 
 export type HabitSchedule = { type: 'daily' } | { type: 'days'; days: Weekday[] };

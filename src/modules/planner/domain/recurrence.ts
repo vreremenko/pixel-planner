@@ -132,6 +132,7 @@ export function buildOccurrences(
       const time = 'time' in p ? p.time : s.time;
       if (time !== undefined) occ.time = time;
       if (o?.doneAt !== undefined) occ.doneAt = o.doneAt;
+      if (o?.track && o.track.length > 0 && !o.movedTo) occ.track = o.track;
       out.push(occ);
     }
   }

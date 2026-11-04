@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSplit, drag, fmtDuration, freeSlot, overlaps, split, type Placed } from './track';
+import { alignToTime, canSplit, drag, fmtDuration, freeSlot, overlaps, shiftRest, split, type Placed } from './track';
 
 const H = (h: number, m = 0) => h * 60 + m;
 const p = (key: string, s: number, e: number): Placed => ({ key, start: s, end: e });
@@ -57,5 +57,27 @@ describe('трек дня: разрез', () => {
 describe('трек дня: подписи', () => {
   it('длительность', () => {
     expect([30, 60, 90, 135].map(fmtDuration)).toEqual(['30 м', '1 ч', '1 ч 30 м', '2 ч 15 м']);
+  });
+});
+
+describe('трек дня: время задачи и сдвиг остатка', () => {
+  it('блоки едут за новым временем задачи, если помещаются в сутки', () => {
+    const blocks = [{ start: H(9), end: H(10) }, { start: H(11), end: H(12) }];
+    expect(alignToTime(blocks, '10:30')).toEqual([{ start: H(10, 30), end: H(11, 30) }, { start: H(12, 30), end: H(13, 30) }]);
+    expect(alignToTime(blocks, '23:30')).toEqual(blocks);
+  });
+  const it_ = (key: string, s: number, e: number, fixed = false) => ({ key, start: s, end: e, fixed });
+  it('первый невыполненный блок встаёт на ближайший шаг после «сейчас», промежутки сохраняются', () => {
+    const r = shiftRest([it_('a', H(9), H(10), true), it_('b', H(10), H(11)), it_('c', H(12), H(13))], H(10, 20));
+    expect(r).toEqual({ delta: 30, moves: { b: { start: H(10, 30), end: H(11, 30) }, c: { start: H(12, 30), end: H(13, 30) } } });
+  });
+  it('нечего сдвигать, если план не отстал', () => {
+    expect(shiftRest([it_('b', H(11), H(12))], H(10))).toBeNull();
+    expect(shiftRest([it_('a', H(9), H(10), true)], H(12))).toBeNull();
+  });
+  it('закреплённый блок в будущем обходится, не влезающее до полуночи — overflow', () => {
+    const r = shiftRest([it_('b', H(10), H(11)), it_('x', H(11), H(12), true)], H(10, 15));
+    expect(r).toEqual({ delta: 15, moves: { b: { start: H(12), end: H(13) } } });
+    expect(shiftRest([it_('b', H(20), H(23))], H(22))).toBe('overflow');
   });
 });

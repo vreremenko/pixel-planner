@@ -2,11 +2,12 @@ import { useMemo, useRef, useState } from 'react';
 import s from './Track.module.css';
 import { Button, Modal, PixelIcon, cx } from '../../../core/ui';
 import { useDay } from '../data/hooks';
-import { createRestOnTrack, setTaskTrack } from '../services/tasks';
+import { createRestOnTrack, setOccurrenceTrack, setTaskTrack } from '../services/tasks';
 import { useTrackHours } from '../stores/trackHours';
-import { STEP, canSplit, drag, fmtDuration, fmtTime, freeSlot, split, type DragMode, type Placed, type TrackBlock } from '../domain/track';
+import { STEP, canSplit, drag, fmtDuration, fmtTime, freeSlot, shiftRest, split, type DragMode, type Placed, type ShiftItem, type TrackBlock } from '../domain/track';
+import { minutesOf } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
-import type { Task } from '../domain/types';
+import type { Occurrence, Task } from '../domain/types';
 
 /** Высота одного часа на треке, px. */
 const PX_PER_HOUR = 56;
@@ -14,7 +15,7 @@ const PPM = PX_PER_HOUR / 60;
 
 const PALETTE = ['var(--c-task)', 'var(--c-backlog)', 'var(--c-gym)', 'var(--c-gold)', 'var(--c-warn)', 'var(--c-food)'];
 /** Цвет блока по первой метке: «отдых» всегда зелёный, остальные — по устойчивому хэшу названия. */
-function tagColor(task: Task): string {
+function tagColor(task: { tags: readonly string[] }): string {
   const tag = task.tags[0];
   if (!tag) return 'var(--c-text-muted)';
   if (tag.toLowerCase() === 'отдых') return 'var(--c-habit)';
@@ -30,6 +31,18 @@ interface Props {
   todayDate: LocalDate;
 }
 
+/** Всё, что может стоять на треке: обычная задача или экземпляр повторяющейся. */
+interface Item {
+  id: string;
+  title: string;
+  tags: string[];
+  time?: string;
+  done: boolean;
+  track: TrackBlock[];
+  task?: Task;
+  occ?: Occurrence;
+}
+
 interface Dragging {
   key: string;
   mode: DragMode;
@@ -43,41 +56,65 @@ interface Dragging {
 export function TrackModal({ open, onClose, date, todayDate }: Props) {
   const data = useDay(date, todayDate);
   const { from, to, set: setHours } = useTrackHours();
-  const bounds = useMemo(() => ({ from: from * 60, to: to * 60 }), [from, to]);
   const [sel, setSel] = useState<string | null>(null);
   const [dragging, setDragging] = useState<Dragging | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const tasks = useMemo(() => [...(data?.tasks ?? [])].sort((a, b) => a.order - b.order), [data]);
-  const placed = useMemo<Placed[]>(() => tasks.flatMap((t) => (t.track ?? []).map((b, i) => ({ key: `${t.id}:${String(i)}`, start: b.start, end: b.end }))), [tasks]);
+  const items = useMemo<Item[]>(() => {
+    const fromTasks = [...(data?.tasks ?? [])].sort((a, b) => a.order - b.order).map((t): Item => ({ id: t.id, title: t.title, tags: t.tags, ...(t.time ? { time: t.time } : {}), done: t.done, track: t.track ?? [], task: t }));
+    const fromOcc = (data?.occurrences ?? []).filter((o) => o.status === 'pending' || o.status === 'done').map((o): Item => ({ id: o.key, title: `↻ ${o.title}`, tags: o.tags, ...(o.time ? { time: o.time } : {}), done: o.status === 'done', track: o.track ?? [], occ: o }));
+    return [...fromTasks, ...fromOcc];
+  }, [data]);
+  const placed = useMemo<Placed[]>(() => items.flatMap((t) => t.track.map((b, i) => ({ key: `${t.id}:${String(i)}`, start: b.start, end: b.end }))), [items]);
+  // Блоки, выходящие за выбранные часы дня (например, после «сдвинуть остаток»), расширяют шкалу, а не пропадают
+  const bounds = useMemo(
+    () => ({ from: Math.min(from * 60, ...placed.map((p) => Math.floor(p.start / 60) * 60)), to: Math.max(to * 60, ...placed.map((p) => Math.ceil(p.end / 60) * 60)) }),
+    [from, to, placed],
+  );
   const shown = placed.map((p) => (dragging?.key === p.key ? { ...p, ...dragging.now } : p));
+  // id экземпляра повтора сам содержит «:», поэтому номер блока — после последнего двоеточия
   const byKey = (key: string) => {
-    const [id, i] = key.split(':');
-    const task = tasks.find((t) => t.id === id);
-    return task ? { task, index: Number(i) } : null;
+    const cut = key.lastIndexOf(':');
+    const item = items.find((t) => t.id === key.slice(0, cut));
+    return item ? { task: item, index: Number(key.slice(cut + 1)) } : null;
   };
 
-  const write = (task: Task, blocks: TrackBlock[]) => void setTaskTrack(task, blocks.sort((a, b) => a.start - b.start));
+  const write = (item: Item, blocks: TrackBlock[]) => void (item.occ ? setOccurrenceTrack(item.occ, blocks) : item.task ? setTaskTrack(item.task, blocks) : undefined);
   const patch = (key: string, next: TrackBlock) => {
     const ref = byKey(key);
     if (!ref) return;
-    const blocks = [...(ref.task.track ?? [])];
+    const blocks = [...ref.task.track];
     blocks[ref.index] = next;
     write(ref.task, blocks);
   };
 
-  const tray = tasks.filter((t) => !t.done && !(t.track && t.track.length > 0));
-  const place = (task: Task) => {
+  const tray = items.filter((t) => !t.done && t.track.length === 0);
+  const place = (item: Item) => {
     const len = 60;
-    const after = sel ? (placed.find((p) => p.key === sel)?.end ?? 0) : 0;
-    const at = freeSlot(placed, len, after, bounds) ?? freeSlot(placed, len, 0, bounds);
+    // Если у задачи уже есть время, ставим как можно ближе к нему
+    const wish = item.time ? minutesOf(item.time) : sel ? (placed.find((p) => p.key === sel)?.end ?? 0) : 0;
+    const at = freeSlot(placed, len, wish, bounds) ?? freeSlot(placed, len, 0, bounds);
     if (at === null) return;
-    write(task, [{ start: at, end: at + len }]);
+    write(item, [{ start: at, end: at + len }]);
   };
   const addRest = () => {
     const after = sel ? (placed.find((p) => p.key === sel)?.end ?? 0) : 0;
     const at = freeSlot(placed, 30, after, bounds) ?? freeSlot(placed, 30, 0, bounds);
     if (at !== null) void createRestOnTrack(date, { start: at, end: at + 30 });
+  };
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const isToday = date === todayDate;
+  const shiftItems: ShiftItem[] = placed.map((p) => ({ ...p, fixed: byKey(p.key)?.task.done ?? false }));
+  const shiftPlan = isToday ? shiftRest(shiftItems, nowMin) : null;
+  const shiftRestOfDay = () => {
+    if (!shiftPlan || shiftPlan === 'overflow') return;
+    for (const item of items) {
+      if (!item.track.some((_, i) => shiftPlan.moves[`${item.id}:${String(i)}`])) continue;
+      write(item, item.track.map((b, i) => shiftPlan.moves[`${item.id}:${String(i)}`] ?? b));
+    }
+    setSel(null);
   };
 
   const total = bounds.to - bounds.from;
@@ -115,7 +152,7 @@ export function TrackModal({ open, onClose, date, todayDate }: Props) {
     if (!cur || !sel) return;
     const ref = byKey(sel);
     if (!ref) return;
-    const blocks = [...(ref.task.track ?? [])];
+    const blocks = [...ref.task.track];
     const b = { start: cur.start, end: cur.end };
     if (kind === 'remove') {
       blocks.splice(ref.index, 1);
@@ -133,8 +170,6 @@ export function TrackModal({ open, onClose, date, todayDate }: Props) {
     patch(sel, drag(placed, { key: sel, ...b }, mode, delta, bounds));
   };
 
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
   const lines: number[] = [];
   for (let m = bounds.from; m <= bounds.to; m += 60) lines.push(m);
 
@@ -191,6 +226,16 @@ export function TrackModal({ open, onClose, date, todayDate }: Props) {
         Запланировано: <b>{fmtDuration(planned)}</b> · Свободно: <b>{fmtDuration(Math.max(0, total - planned))}</b>
       </p>
 
+      {isToday && shiftPlan !== null && (
+        <div className={s.shift}>
+          {shiftPlan === 'overflow' ? (
+            <span className={s.note}>Остаток дня не помещается до полуночи: сократите или уберите часть блоков.</span>
+          ) : (
+            <Button small onClick={shiftRestOfDay}>{`Сдвинуть остаток дня на ${fmtDuration(shiftPlan.delta)}`}</Button>
+          )}
+        </div>
+      )}
+
       <div className={s.trayTitle}>Не на треке</div>
       <div className={s.tray}>
         {tray.map((t) => (
@@ -202,7 +247,6 @@ export function TrackModal({ open, onClose, date, todayDate }: Props) {
           <PixelIcon name="plus" size={12} /> Отдых
         </button>
       </div>
-      {data && data.occurrences.length > 0 && <p className={s.note}>Повторяющиеся задачи пока не ставятся на трек.</p>}
 
       <div
         ref={trackRef}
@@ -224,7 +268,7 @@ export function TrackModal({ open, onClose, date, todayDate }: Props) {
         {shown.map((p) => {
           const ref = byKey(p.key);
           if (!ref) return null;
-          const parts = (ref.task.track ?? []).length;
+          const parts = ref.task.track.length;
           return (
             <div
               key={p.key}

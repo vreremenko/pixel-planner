@@ -4,7 +4,7 @@ import type { LocalDate, LocalTime } from '../../../core/domain/types';
 import type { ChecklistItem, Occurrence, OccurrenceOverride, Priority, RecurrenceEnd, RecurrencePattern, RecurrenceRule, RecurringSeries, ReminderSpec, Task } from '../domain/types';
 import { checkedIds, cleanChecklist, stripDone, toggleItem } from '../domain/checklist';
 import { normalizeReminders } from '../domain/reminderSpecs';
-import type { TrackBlock } from '../domain/track';
+import { alignToTime, fmtTime, type TrackBlock } from '../domain/track';
 import { stamp } from '../../../core/data/repo';
 import { overrideRepo, seriesRepo, tables, taskRepo } from '../data/repo';
 import { db } from '../../../core/data/db';
@@ -95,7 +95,7 @@ export async function updateTask(task: Task, draft: TaskDraft): Promise<void> {
   await taskRepo.put({
     ...rest,
     ...seriesFields(draft),
-    ...(!moved && keepTrack ? { track: keepTrack } : {}),
+    ...(!moved && keepTrack ? { track: draft.time ? alignToTime(keepTrack, draft.time) : keepTrack } : {}),
     date: draft.date,
     order: moved ? await nextOrder(draft.date) : task.order,
     wasInBacklog: task.wasInBacklog || draft.date === null,
@@ -174,10 +174,24 @@ export async function reorderTasks(items: readonly Task[]): Promise<void> {
   });
 }
 
-/** Записать блоки трека задачи (пустой список — задача уходит с трека). */
+/**
+ * Записать блоки трека задачи (пустой список — задача уходит с трека).
+ * Время задачи (а с ним и напоминания) следует за началом первого блока.
+ */
 export async function setTaskTrack(task: Task, blocks: readonly TrackBlock[]): Promise<void> {
   const { track: _track, ...rest } = task;
-  await taskRepo.put(blocks.length > 0 ? { ...rest, track: blocks.map(({ start, end }) => ({ start, end })) } : rest);
+  const sorted = [...blocks].sort((a, b) => a.start - b.start).map(({ start, end }) => ({ start, end }));
+  const first = sorted[0];
+  await taskRepo.put(first ? { ...rest, time: fmtTime(first.start), track: sorted } : rest);
+}
+
+/** То же для экземпляра повторяющейся задачи: блоки и время «только этого дня» лежат в его правке. */
+export async function setOccurrenceTrack(occ: Occurrence, blocks: readonly TrackBlock[]): Promise<void> {
+  const id = overrideId(occ.seriesId, occ.originalDate);
+  const { track: _track, ...cur } = (await overrideRepo.get(id)) ?? newOverride(occ.seriesId, occ.originalDate);
+  const sorted = [...blocks].sort((a, b) => a.start - b.start).map(({ start, end }) => ({ start, end }));
+  const first = sorted[0];
+  await overrideRepo.put(first ? { ...cur, patch: { ...cur.patch, time: fmtTime(first.start) }, track: sorted } : cur);
 }
 
 /** Новая задача «Отдых» сразу с блоком на треке (отдых не живёт без задачи: у него те же галочка, удаление и синхронизация). */
@@ -240,8 +254,10 @@ export async function editOccurrence(occ: Occurrence, draft: TaskDraft, scope: E
     patch.checklist = stripDone(items);
     const movedTo = draft.date && draft.date !== occ.originalDate ? draft.date : undefined;
     const cur = await overrideRepo.get(occ.key);
-    const { movedTo: _m, ...base } = cur ?? newOverride(occ.seriesId, occ.originalDate);
-    await overrideRepo.put({ ...base, patch, checked: checkedIds(items), ...(movedTo ? { movedTo } : {}) });
+    const { movedTo: _m, track, ...base } = cur ?? newOverride(occ.seriesId, occ.originalDate);
+    // Блоки трека относятся к своему дню; при смене времени едут за ним
+    const keepTrack = track && !movedTo ? (f.time ? alignToTime(track, f.time) : track) : undefined;
+    await overrideRepo.put({ ...base, patch, checked: checkedIds(items), ...(keepTrack ? { track: keepTrack } : {}), ...(movedTo ? { movedTo } : {}) });
     return;
   }
 

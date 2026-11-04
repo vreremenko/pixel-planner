@@ -68,6 +68,48 @@ export function split(b: TrackBlock): [TrackBlock, TrackBlock] | null {
   ];
 }
 
+/** Блоки после сдвига первого на новое время задачи («HH:MM»); не помещаются в сутки — возвращаются как есть. */
+export function alignToTime(blocks: readonly TrackBlock[], time: string): TrackBlock[] {
+  const first = blocks[0];
+  const [h, m] = time.split(':').map(Number);
+  if (!first || h === undefined || m === undefined) return [...blocks];
+  const delta = h * 60 + m - first.start;
+  const last = blocks[blocks.length - 1] ?? first;
+  if (delta === 0 || first.start + delta < 0 || last.end + delta > 1440) return [...blocks];
+  return blocks.map((b) => ({ start: b.start + delta, end: b.end + delta }));
+}
+
+export interface ShiftItem extends Placed {
+  /** Выполненные блоки остаются на месте. */
+  fixed: boolean;
+}
+
+/**
+ * «Сдвинуть остаток дня»: невыполненные блоки, которые ещё не закончились к минуте `now`, переезжают так,
+ * чтобы первый начался с ближайшего шага после `now`; промежутки между ними сохраняются, закреплённые блоки обходятся.
+ * null — сдвигать нечего; 'overflow' — остаток не помещается до конца суток.
+ */
+export function shiftRest(all: readonly ShiftItem[], now: number): { delta: number; moves: Record<string, TrackBlock> } | null | 'overflow' {
+  const movable = all.filter((b) => !b.fixed && b.end > now).sort((a, z) => a.start - z.start);
+  const first = movable[0];
+  if (!first) return null;
+  const target = Math.ceil(now / STEP) * STEP;
+  const delta = target - first.start;
+  if (delta <= 0) return null;
+  const fixed = all.filter((b) => b.fixed || b.end <= now);
+  const moves: Record<string, TrackBlock> = {};
+  let cursor = target;
+  for (const b of movable) {
+    let start = Math.max(b.start + delta, cursor);
+    const len = b.end - b.start;
+    for (const f of [...fixed].sort((a, z) => a.start - z.start)) if (start < f.end && start + len > f.start) start = f.end;
+    if (start + len > 1440) return 'overflow';
+    moves[b.key] = { start, end: start + len };
+    cursor = start + len;
+  }
+  return { delta, moves };
+}
+
 export const fmtTime = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 export function fmtDuration(m: number): string {

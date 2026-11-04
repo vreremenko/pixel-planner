@@ -166,3 +166,7 @@
   color: var(--c-text);
   font-weight: 400;
 }
+
+.shift {
+  margin: 0 0 var(--sp-2, 8px);
+}
