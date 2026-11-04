@@ -1,0 +1,245 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-3);
+}
+.stack {
+  display: grid;
+  gap: var(--gap-3);
+}
+.dim {
+  color: var(--c-text-muted);
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hint {
+  margin: var(--gap-2) 0;
+  color: var(--c-text-muted);
+}
+.label {
+  margin: var(--gap-3) 0 var(--gap-1);
+  color: var(--c-text-muted);
+}
+.below {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-top: var(--gap-3);
+}
+.credit {
+  margin: var(--gap-3) 0 0;
+  color: var(--c-text-muted);
+  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+}
+.dateNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-3);
+}
+.dateLabel {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Полосы */
+.kcalRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-1);
+}
+.kcal {
+  color: var(--c-food);
+  font-size: max(calc(24px * var(--fs-scale)), var(--fs-min));
+}
+.kcal.over {
+  color: var(--c-warn);
+}
+.track {
+  height: 8px;
+  background: var(--c-panel-3);
+}
+.track i {
+  display: block;
+  height: 100%;
+  background: var(--bar);
+}
+.macros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-3);
+  margin-top: var(--gap-3);
+}
+.barHead {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+/* Записи дня */
+.foods {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.entry {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid var(--c-panel-3);
+}
+.entry:first-child {
+  border-top: 0;
+}
+.entryBtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--gap-1) 0;
+  background: var(--c-panel);
+  border: 0;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.swipeBg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 16px;
+  background: color-mix(in srgb, var(--c-warn) 55%, var(--c-bg));
+  color: var(--c-text);
+}
+.swipeReady {
+  background: var(--c-warn);
+}
+
+/* Поиск */
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font: inherit;
+}
+.tabs {
+  margin-top: var(--gap-2);
+}
+.foodRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  border-top: 1px solid var(--c-panel-3);
+}
+.foodRow:first-child {
+  border-top: 0;
+}
+.foodBtn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 48px;
+  padding: var(--gap-2) 0;
+  background: none;
+  border: 0;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+/* Граммовка */
+.pickedName {
+  margin: 0 0 var(--gap-3);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-2);
+}
+.chip {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+}
+.chipOn {
+  border-color: var(--c-food);
+  color: var(--c-food);
+}
+.grams {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+}
+.total {
+  margin: var(--gap-3) 0;
+}
+.total b {
+  color: var(--c-food);
+  font-weight: inherit;
+}
+
+/* Формы */
+.grid3,
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-2);
+}
+.grid4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 767px) {
+  .grid4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ingredient {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  min-height: 44px;
+  border-top: 1px solid var(--c-panel-3);
+}
+.ingredient:first-child {
+  border-top: 0;
+}
+.gramsCell {
+  width: 64px;
+  box-sizing: border-box;
+  padding: 6px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font: inherit;
+  text-align: center;
+}

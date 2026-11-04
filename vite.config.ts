@@ -30,7 +30,8 @@ function csp(): Plugin {
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob:",
           "font-src 'self' data:",
-          `connect-src 'self' ${api}`.trim(),
+          // Open Food Facts: поиск продуктов в разделе «Питание» идёт прямо из браузера
+          `connect-src 'self' https://ru.openfoodfacts.org ${api}`.trim(),
           "manifest-src 'self'",
           "worker-src 'self'",
           "base-uri 'none'",

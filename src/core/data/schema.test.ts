@@ -14,6 +14,9 @@ describe('схема IndexedDB', () => {
     expect({ version: SCHEMA_VERSION, schema: schema() }).toMatchInlineSnapshot(`
       {
         "schema": {
+          "food_entries": "id, date, updatedAt",
+          "food_items": "id, updatedAt",
+          "food_prefs": "id, updatedAt",
           "gym_exercises": "id, updatedAt",
           "gym_prefs": "id, updatedAt",
           "gym_programs": "id, updatedAt",
@@ -28,7 +31,7 @@ describe('схема IndexedDB', () => {
           "settings": "id",
           "tasks": "id, date, updatedAt",
         },
-        "version": 4,
+        "version": 5,
       }
     `);
   });

@@ -2,14 +2,13 @@ import type { CSSProperties, TouchEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import s from './Day.module.css';
-import { Checkbox, PixelIcon, cx } from '../../../core/ui';
+import { Checkbox, PixelIcon, cx, useSwipe } from '../../../core/ui';
 import type { DayItem } from '../services/tasks';
 import { PRIORITY_COLOR, PRIORITY_LABEL } from './labels';
 import { checklistProgress } from '../domain/checklist';
 import { normalizeTag } from '../domain/tags';
 import { reminderLabel, reminderShort, remindersOf } from '../domain/reminderSpecs';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
-import { useSwipe } from './useSwipe';
 
 interface Props {
   item: DayItem;

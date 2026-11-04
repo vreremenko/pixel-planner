@@ -1,4 +1,4 @@
-/* Питание — раздел в разработке (виден только в dev-сборке). */
+/* Питание: дневник калорий и БЖУ, цели, справочник, продукты из Open Food Facts и свои блюда. */
 import { lazyScreen, type ModuleManifest } from '../../core/module';
 
 export const foodModule: ModuleManifest = {
@@ -6,9 +6,8 @@ export const foodModule: ModuleManifest = {
   title: 'Питание',
   icon: 'apple',
   accent: 'var(--c-food)',
-  status: 'draft',
   nav: [{ to: '/food', label: 'Питание', short: 'Питание', icon: 'apple', accent: 'var(--c-food)' }],
-  routes: [{ path: 'food', Component: lazyScreen(() => import('./FoodScreen'), (m) => m.FoodScreen) }],
+  routes: [{ path: 'food', Component: lazyScreen(() => import('./screens/FoodDiary'), (m) => m.FoodDiary) }],
   widgets: [
     {
       id: 'food',
@@ -16,7 +15,7 @@ export const foodModule: ModuleManifest = {
       icon: 'apple',
       accent: 'var(--c-food)',
       to: '/food',
-      Component: lazyScreen(() => import('./FoodScreen'), (m) => m.FoodWidget),
+      Component: lazyScreen(() => import('./screens/FoodWidget'), (m) => m.FoodWidget),
     },
   ],
 };

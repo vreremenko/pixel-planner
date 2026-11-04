@@ -11,4 +11,5 @@ export { ToastHost } from './Toasts';
 export { toast } from './toastStore';
 export { PixelIcon } from './PixelIcon';
 export { cx } from './cx';
+export { useSwipe } from './useSwipe';
 export type { IconName } from './icons';

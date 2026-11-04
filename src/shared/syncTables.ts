@@ -13,4 +13,7 @@ export const SYNC_TABLES = [
   'gym_workouts',
   'gym_sets',
   'gym_prefs',
+  'food_items',
+  'food_entries',
+  'food_prefs',
 ] as const;
