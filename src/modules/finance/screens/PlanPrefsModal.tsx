@@ -44,14 +44,18 @@ function CategoryList({ kind, title, categories }: { kind: CategoryKind; title: 
 }
 
 export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; average: Kopecks | null; categories: Category[]; onClose: () => void }) {
+  const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
   const [work, setWork] = useState<readonly Weekday[]>(prefs.workDays ?? ALL_DAYS);
   const [living, setLiving] = useState(prefs.livingManual === undefined ? '' : kopecksText(prefs.livingManual));
-
   const [percent, setPercent] = useState(prefs.savePercent === undefined ? '' : String(prefs.savePercent));
   const [showTips, setShowTips] = useState(!prefs.tipsOff);
   const [saveOn, setSaveOn] = useState(!!prefs.saveOn);
-  const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
   const [saveTo, setSaveTo] = useState(defaultSaveAccount(accounts, prefs) ?? jars[0]?.value ?? '');
+  const form = JSON.stringify([[...work].sort(), living, percent, showTips, saveOn, saveTo]);
+  // Снимок полей при открытии: по нему видно, что есть несохранённые правки.
+  const [opened] = useState(form);
+  const [asking, setAsking] = useState(false);
+  const close = () => (form === opened ? onClose() : setAsking(true));
 
   const save = async () => {
     const k = living.trim() ? toKopecks(living) : undefined;
@@ -73,9 +77,9 @@ export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }
   };
 
   return (
-    <Modal keepOnOutsideClick open onClose={onClose} title="Настройки" accent="var(--c-fin)" footer={
+    <Modal keepOnOutsideClick open onClose={close} title="Настройки" accent="var(--c-fin)" footer={
       <>
-        <Button onClick={onClose}>Отмена</Button>
+        <Button onClick={close}>Отмена</Button>
         <Button variant="primary" onClick={() => void save()}>Сохранить</Button>
       </>
     }>
@@ -98,6 +102,17 @@ export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }
         ))}
       <CategoryList kind="expense" title="Категории расходов" categories={categories} />
       <CategoryList kind="income" title="Категории доходов" categories={categories} />
+      <Modal open={asking} onClose={() => setAsking(false)} title="Сохранить изменения?" accent="var(--c-warn)" footer={
+        <>
+          <Button onClick={onClose}>Не сохранять</Button>
+          <Button variant="primary" onClick={() => {
+            setAsking(false);
+            void save();
+          }}>Сохранить</Button>
+        </>
+      }>
+        <p style={{ margin: 0 }}>Настройки изменены, но не сохранены.</p>
+      </Modal>
     </Modal>
   );
 }
