@@ -21,7 +21,10 @@ function buildPlan(today: LocalDate, accounts: Account[], txs: Tx[], payments: P
   const work = prefs.workDays ?? ALL_DAYS;
   const dues = openDues(payments, txs, today);
   const todayTx = txs.filter((t) => t.date === today && inPlan.has(t.accountId));
-  return { balance, money, average, living, work, dues, plan: dayPlan({ today, money, living, work, dues, todayTx }) };
+  const netIn = txs
+    .filter((t) => t.date === today && t.kind === 'transfer')
+    .reduce((a, t) => a + (inPlan.has(t.toAccountId ?? '') ? t.amount : 0) - (inPlan.has(t.accountId) ? t.amount : 0), 0);
+  return { balance, money, average, living, work, dues, plan: dayPlan({ today, money, living, work, dues, todayTx, netIn }) };
 }
 
 export type PlanView = ReturnType<typeof buildPlan>;

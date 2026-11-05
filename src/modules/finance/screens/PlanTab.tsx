@@ -6,7 +6,8 @@ import type { LocalDate } from '../../../core/domain/types';
 import type { PlanView } from '../data/hooks';
 import { rub, rubUp } from '../domain/money';
 import type { Due } from '../domain/plan';
-import type { Account, Payment } from '../domain/types';
+import { savedInMonth } from '../domain/save';
+import type { Account, Payment, Tx } from '../domain/types';
 import { AccountsModal } from './AccountsModal';
 import { PayModal } from './PayModal';
 import { PaymentEditor } from './PaymentEditor';
@@ -18,9 +19,10 @@ interface Props {
   view: PlanView;
   accounts: Account[];
   payments: Payment[];
+  txs: Tx[];
 }
 
-export function PlanTab({ today, view, accounts, payments }: Props) {
+export function PlanTab({ today, view, accounts, payments, txs }: Props) {
   const { plan, dues, balance, money, living } = view;
   const [paying, setPaying] = useState<Due | null>(null);
   const [editing, setEditing] = useState<Payment | 'new' | null>(null);
@@ -95,6 +97,12 @@ export function PlanTab({ today, view, accounts, payments }: Props) {
                 <span className={s.grow}>
                   {a.name}
                   {!a.inPlan && <span className={s.dim}> · не в плане</span>}
+                  {!a.inPlan && savedInMonth(txs, a.id, today) > 0 && (
+                    <>
+                      <br />
+                      <span className={s.good}>отложено в этом месяце: {rub(savedInMonth(txs, a.id, today))}</span>
+                    </>
+                  )}
                 </span>
                 <span>{rub(balance.get(a.id) ?? 0)}</span>
               </div>

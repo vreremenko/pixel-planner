@@ -27,6 +27,24 @@ describe('дневная цель', () => {
     expect(p.next).toBeCloseTo(2300 * R);
   });
 
+  it('перевод в копилку не двигает цель и не считается заработанным', () => {
+    const plain = dayPlan(base);
+    const income = tx({ kind: 'income', amount: 1000 * R });
+    const saved = dayPlan({ ...base, money: base.money + 900 * R, todayTx: [income], netIn: -100 * R });
+    expect(saved.target).toBe(plain.target);
+    expect(saved.earned).toBe(900 * R);
+    expect(saved.left).toBe(plain.target - 900 * R);
+  });
+
+  it('перевод из копилки в план уменьшает остаток цели, а без дохода заработанное не уходит в минус', () => {
+    const back = dayPlan({ ...base, money: base.money + 500 * R, todayTx: [], netIn: 500 * R });
+    expect(back.target).toBe(dayPlan(base).target);
+    expect(back.left).toBe(dayPlan(base).target - 500 * R);
+    const out = dayPlan({ ...base, money: base.money - 500 * R, todayTx: [], netIn: -500 * R });
+    expect(out.earned).toBe(0);
+    expect(out.left).toBe(dayPlan(base).target + 500 * R);
+  });
+
   it('доход сверх цели снижает темп, а цель дня не трогает', () => {
     const p = dayPlan({ ...base, money: base.money + 5000 * R, todayTx: [tx({ kind: 'income', amount: 5000 * R })] });
     expect(p.target).toBe(2300 * R);

@@ -108,25 +108,29 @@ export interface PlanInput {
   dues: readonly Due[];
   /** Операции сегодняшнего дня по счетам плана. */
   todayTx: readonly Tx[];
+  /** Переводы сегодня: сколько пришло на счета плана за вычетом ушедшего с них. */
+  netIn?: Kopecks;
 }
 
 /**
  * Цель дня считается от денег на его начало, поэтому не прыгает от каждой записи: доход идёт в «заработано»,
  * а траты сверх суммы на жизнь её увеличивают. Оплата срока сегодня ничего не меняет: денег меньше, но и срока нет.
  */
-export function dayPlan({ today, money, living, work, dues, todayTx }: PlanInput): DayPlan {
+export function dayPlan({ today, money, living, work, dues, todayTx, netIn = 0 }: PlanInput): DayPlan {
   const total = (list: readonly Tx[]) => list.reduce((a, t) => a + t.amount, 0);
   const expenses = todayTx.filter((t) => t.kind === 'expense');
   const paid = expenses.filter((t) => t.paymentId);
-  const earned = total(todayTx.filter((t) => t.kind === 'income'));
+  // Деньги, переведённые в копилку, не заработаны: цель от них не растёт, а «заработано» уменьшается.
+  const gained = total(todayTx.filter((t) => t.kind === 'income')) + netIn;
+  const earned = Math.max(0, gained);
   const spent = total(expenses) - total(paid);
   const paidNow = paid.map((t): Due => ({ paymentId: t.paymentId ?? '', name: '', date: t.dueDate ?? today, amount: t.amount, categoryId: t.categoryId ?? '' }));
-  const morning = pace(money - earned + spent + total(paid), [...dues, ...paidNow], living, work, today);
+  const morning = pace(money - gained + spent + total(paid), [...dues, ...paidNow], living, work, today);
   const dayOff = !work.includes(weekday(today));
   const target = dayOff ? 0 : morning.rate + Math.max(0, spent - living);
   const now = pace(money, dues, living, work, today);
   const next = pace(money - Math.max(0, living - spent), dues, living, work, addDays(today, 1));
-  return { ...now, dayOff, target, earned, left: Math.max(0, target - earned), next: next.rate };
+  return { ...now, dayOff, target, earned, left: Math.max(0, target - gained), next: next.rate };
 }
 
 /** Средний расход в день без обязательных платежей; null — истории пока мало. */

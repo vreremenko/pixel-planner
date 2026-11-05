@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react';
 import { ConfirmDialog, Panel, cx, useSwipe } from '../../../core/ui';
 import { formatDateDay } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
-import { txRepo } from '../data/repo';
 import { rub } from '../domain/money';
+import { linkedSaves } from '../domain/save';
 import { inMonth } from '../domain/stats';
 import type { Account, Category, Tx } from '../domain/types';
+import { removeTx } from '../services/money';
 import { MonthNav } from './MonthNav';
 import s from './Finance.module.css';
 
@@ -75,8 +76,8 @@ export function TxList({ month, onMonth, txs, accounts, categories, onOpen }: Pr
           ))}
         </Panel>
       </div>
-      <ConfirmDialog open={deleting !== null} title="Удалить операцию?" onClose={() => setDeleting(null)} onConfirm={() => deleting && void txRepo.remove(deleting.id)}>
-        {deleting?.paymentId ? 'Срок платежа снова станет неоплаченным.' : 'Балансы и статистика пересчитаются.'}
+      <ConfirmDialog open={deleting !== null} title="Удалить операцию?" onClose={() => setDeleting(null)} onConfirm={() => deleting && void removeTx(deleting, txs)}>
+        {deleting?.paymentId ? 'Срок платежа снова станет неоплаченным.' : deleting && linkedSaves(txs, deleting.id).length > 0 ? `Вместе с доходом удалится и отложенное: ${rub(linkedSaves(txs, deleting.id).reduce((a, t) => a + t.amount, 0))}.` : 'Балансы и статистика пересчитаются.'}
       </ConfirmDialog>
     </>
   );

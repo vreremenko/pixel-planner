@@ -55,7 +55,7 @@ export function FinanceScreen() {
         </Panel>
       ) : (
         <>
-          {!prefs.tipsOff && <TipBar today={today} view={view} txs={txs} categories={categories} savePercent={prefs.savePercent} />}
+          {!prefs.tipsOff && <TipBar today={today} view={view} txs={txs} categories={categories} savePercent={prefs.saveOn ? 0 : prefs.savePercent} />}
           <Segmented value={tab} options={TABS} onChange={setTab} label="Вкладки финансов" accent="var(--c-fin)" />
           <div className={s.actions}>
             <Button variant="primary" icon="plus" onClick={() => setEntry({ kind: 'income', tx: null })}>
@@ -66,13 +66,13 @@ export function FinanceScreen() {
             </Button>
             {live.length > 1 && <Button onClick={() => setEntry({ kind: 'transfer', tx: null })}>Перевод</Button>}
           </div>
-          {tab === 'plan' && <PlanTab today={today} view={view} accounts={accounts} payments={payments} />}
+          {tab === 'plan' && <PlanTab today={today} view={view} accounts={accounts} payments={payments} txs={txs} />}
           {tab === 'list' && <TxList month={month} onMonth={setMonth} txs={txs} accounts={accounts} categories={categories} onOpen={(t) => setEntry({ kind: t.kind, tx: t })} />}
           {tab === 'stats' && <StatsTab month={month} onMonth={setMonth} txs={txs} categories={categories} />}
         </>
       )}
-      {entry && <TxModal key={entry.tx?.id ?? entry.kind} kind={entry.kind} tx={entry.tx} today={today} accounts={accounts} categories={categories} txs={txs} onClose={() => setEntry(null)} />}
-      {settings && <PlanPrefsModal prefs={prefs} average={view.average} categories={categories} onClose={() => setSettings(false)} />}
+      {entry && <TxModal key={entry.tx?.id ?? entry.kind} kind={entry.kind} tx={entry.tx} today={today} accounts={accounts} categories={categories} txs={txs} view={view} prefs={prefs} onClose={() => setEntry(null)} />}
+      {settings && <PlanPrefsModal prefs={prefs} accounts={accounts} average={view.average} categories={categories} onClose={() => setSettings(false)} />}
     </>
   );
 }

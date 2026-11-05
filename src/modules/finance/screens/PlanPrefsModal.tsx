@@ -1,13 +1,14 @@
 /* Настройки плана: рабочие дни, сумма на жизнь и категории. */
 import { useState } from 'react';
-import { Button, Field, Modal, MultiToggle, TextInput, cx, inputClass, toast } from '../../../core/ui';
+import { Button, Field, Modal, MultiToggle, SelectInput, TextInput, cx, inputClass, toast } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
 import { categoryRepo, prefsRepo } from '../data/repo';
 import { kopecksText, rub, toKopecks } from '../domain/money';
 import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
-import { ALL_DAYS, type Category, type CategoryKind, type FinPrefs, type Kopecks } from '../domain/types';
+import { defaultSaveAccount, savingAccounts } from '../domain/save';
+import { ALL_DAYS, type Account, type Category, type CategoryKind, type FinPrefs, type Kopecks } from '../domain/types';
 import s from './Finance.module.css';
 
 const DAYS = ALL_DAYS.map((d) => ({ value: d, label: WEEKDAYS_SHORT[d] ?? '' }));
@@ -42,12 +43,15 @@ function CategoryList({ kind, title, categories }: { kind: CategoryKind; title: 
   );
 }
 
-export function PlanPrefsModal({ prefs, average, categories, onClose }: { prefs: FinPrefs; average: Kopecks | null; categories: Category[]; onClose: () => void }) {
+export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; average: Kopecks | null; categories: Category[]; onClose: () => void }) {
   const [work, setWork] = useState<readonly Weekday[]>(prefs.workDays ?? ALL_DAYS);
   const [living, setLiving] = useState(prefs.livingManual === undefined ? '' : kopecksText(prefs.livingManual));
 
   const [percent, setPercent] = useState(prefs.savePercent === undefined ? '' : String(prefs.savePercent));
   const [showTips, setShowTips] = useState(!prefs.tipsOff);
+  const [saveOn, setSaveOn] = useState(!!prefs.saveOn);
+  const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
+  const [saveTo, setSaveTo] = useState(defaultSaveAccount(accounts, prefs) ?? jars[0]?.value ?? '');
 
   const save = async () => {
     const k = living.trim() ? toKopecks(living) : undefined;
@@ -64,7 +68,7 @@ export function PlanPrefsModal({ prefs, average, categories, onClose }: { prefs:
       toast('Отметьте хотя бы один рабочий день', 'alert', 'var(--c-warn)');
       return;
     }
-    await prefsRepo.put({ workDays: [...work], ...(k === undefined ? {} : { livingManual: k }), ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }) });
+    await prefsRepo.put({ workDays: [...work], ...(k === undefined ? {} : { livingManual: k }), ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }), ...(saveOn ? { saveOn: true } : {}), ...(saveTo ? { saveAccountId: saveTo } : {}) });
     onClose();
   };
 
@@ -84,7 +88,14 @@ export function PlanPrefsModal({ prefs, average, categories, onClose }: { prefs:
       </p>
       <ToggleRow label="Показывать советы" hint="Строка над вкладками. Нажмите на неё, чтобы остановить текст, и ещё раз, чтобы увидеть другой совет." checked={showTips} onChange={setShowTips} color="var(--c-fin)" />
       <TextInput label="Откладывать с дохода, %" inputMode="decimal" placeholder={String(DEFAULT_SAVE_PERCENT)} value={percent} onChange={(e) => setPercent(e.target.value)} />
-      <p className={s.hint}>Совет покажет эту долю от свежего дохода, когда на платежи уже хватает. 0 отключает совет.</p>
+      <p className={s.hint}>Столько откладывать с дохода. Если откладывание ниже выключено, совет покажет эту долю от свежего дохода, когда на платежи хватает. 0 отключает совет.</p>
+      <ToggleRow label="Предлагать отложить при записи дохода" hint="Под суммой дохода появится строка: часть уйдёт переводом в копилку, весь доход при этом останется в статистике." checked={saveOn} onChange={setSaveOn} color="var(--c-fin)" />
+      {saveOn &&
+        (jars.length > 0 ? (
+          <SelectInput label="Копилка по умолчанию" value={saveTo} options={jars} onChange={(e) => setSaveTo(e.target.value)} />
+        ) : (
+          <p className={s.warn}>Нет счёта вне плана. Добавьте копилку на вкладке «План» в «Счета» и снимите у неё «Учитывать в плане».</p>
+        ))}
       <CategoryList kind="expense" title="Категории расходов" categories={categories} />
       <CategoryList kind="income" title="Категории доходов" categories={categories} />
     </Modal>

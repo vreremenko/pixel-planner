@@ -34,6 +34,8 @@ export interface Tx extends SyncMeta {
   /** Операция закрывает срок обязательного платежа. */
   paymentId?: string;
   dueDate?: LocalDate;
+  /** Перевод в копилку, созданный при записи этого дохода. */
+  fromTxId?: string;
 }
 
 export type Repeat = 'once' | 'week' | 'month' | 'year';
@@ -62,6 +64,10 @@ export interface FinPrefs extends SyncMeta {
   /** Какой процент дохода советовать откладывать; 0 — не советовать. */
   savePercent?: number;
   tipsOff?: boolean;
+  /** Предлагать отложить часть дохода при его записи. */
+  saveOn?: boolean;
+  /** Копилка по умолчанию. */
+  saveAccountId?: string;
 }
 
 export const ALL_DAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
