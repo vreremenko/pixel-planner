@@ -16,4 +16,9 @@ export const SYNC_TABLES = [
   'food_items',
   'food_entries',
   'food_prefs',
+  'fin_accounts',
+  'fin_categories',
+  'fin_tx',
+  'fin_payments',
+  'fin_prefs',
 ] as const;

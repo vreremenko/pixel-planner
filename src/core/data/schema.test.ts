@@ -14,6 +14,11 @@ describe('схема IndexedDB', () => {
     expect({ version: SCHEMA_VERSION, schema: schema() }).toMatchInlineSnapshot(`
       {
         "schema": {
+          "fin_accounts": "id, updatedAt",
+          "fin_categories": "id, updatedAt",
+          "fin_payments": "id, updatedAt",
+          "fin_prefs": "id, updatedAt",
+          "fin_tx": "id, date, updatedAt",
           "food_entries": "id, date, updatedAt",
           "food_items": "id, updatedAt",
           "food_prefs": "id, updatedAt",
@@ -31,7 +36,7 @@ describe('схема IndexedDB', () => {
           "settings": "id",
           "tasks": "id, date, updatedAt",
         },
-        "version": 5,
+        "version": 6,
       }
     `);
   });

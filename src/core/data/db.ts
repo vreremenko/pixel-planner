@@ -18,7 +18,7 @@ const CORE_TABLES = {
  * Версия схемы IndexedDB. Поднимать при любом изменении таблиц или индексов (свой модуль добавил
  * таблицу и т.п.) — иначе браузер не создаст новые таблицы. Тест-снимок схемы напомнит.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export function schema(): Record<string, string> {
   return { ...CORE_TABLES, ...MODULE_TABLES };
