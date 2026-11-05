@@ -1,6 +1,7 @@
 /* Счета: название, начальный остаток, участие в плане. */
 import { useState } from 'react';
-import { Button, Checkbox, Modal, TextInput, toast } from '../../../core/ui';
+import { ToggleRow } from '../../../core/settings/ToggleRow';
+import { Button, Modal, TextInput, toast } from '../../../core/ui';
 import { accountRepo } from '../data/repo';
 import { kopecksText, rub, toKopecks } from '../domain/money';
 import type { Account, Kopecks } from '../domain/types';
@@ -25,7 +26,7 @@ export function AccountForm({ account, onDone }: { account: Account | null; onDo
     <>
       <TextInput label="Название" placeholder="Карта" value={name} onChange={(e) => setName(e.target.value)} />
       <TextInput label={account ? 'Начальный остаток, ₽' : 'Сколько там сейчас, ₽'} inputMode="decimal" value={start} onChange={(e) => setStart(e.target.value)} />
-      <Checkbox checked={inPlan} onChange={setInPlan} label="Учитывать в плане" />
+      <ToggleRow checked={inPlan} onChange={setInPlan} label="Учитывать в плане" hint="Эти деньги пойдут на платежи. Для копилки галочку лучше снять." color="var(--c-fin)" />
       <div className={s.actions}>
         <Button variant="primary" onClick={() => void save()}>Сохранить</Button>
         {account && <Button variant="ghost" icon="trash" onClick={() => void accountRepo.save({ ...account, archived: true }).then(onDone)}>В архив</Button>}
