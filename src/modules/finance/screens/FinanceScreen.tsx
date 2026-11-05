@@ -9,6 +9,7 @@ import { AccountForm } from './AccountsModal';
 import { PlanPrefsModal } from './PlanPrefsModal';
 import { PlanTab } from './PlanTab';
 import { StatsTab } from './StatsTab';
+import { TipBar } from './TipBar';
 import { TxList } from './TxList';
 import { TxModal } from './TxModal';
 import s from './Finance.module.css';
@@ -54,6 +55,7 @@ export function FinanceScreen() {
         </Panel>
       ) : (
         <>
+          {!prefs.tipsOff && <TipBar today={today} view={view} txs={txs} categories={categories} savePercent={prefs.savePercent} />}
           <Segmented value={tab} options={TABS} onChange={setTab} label="Вкладки финансов" accent="var(--c-fin)" />
           <div className={s.actions}>
             <Button variant="primary" icon="plus" onClick={() => setEntry({ kind: 'income', tx: null })}>

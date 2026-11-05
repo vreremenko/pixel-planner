@@ -156,3 +156,43 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap-2);
 }
+.tip {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--gap-3);
+  padding: 4px var(--gap-2);
+  overflow: hidden;
+  text-align: left;
+  color: var(--c-fin);
+  background: var(--c-panel);
+  border: 2px solid var(--c-border);
+  border-left-color: var(--c-fin);
+  font: inherit;
+  font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
+  cursor: pointer;
+}
+.tipText {
+  display: inline-block;
+  white-space: nowrap;
+}
+.tipMoving {
+  animation: tip-run var(--tip-time) linear infinite;
+}
+.tipPaused {
+  animation-play-state: paused;
+}
+@keyframes tip-run {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(var(--tip-shift));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tipText {
+    white-space: normal;
+  }
+}

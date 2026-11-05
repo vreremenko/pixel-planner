@@ -1,10 +1,12 @@
 /* Настройки плана: рабочие дни, сумма на жизнь и категории. */
 import { useState } from 'react';
 import { Button, Field, Modal, MultiToggle, TextInput, cx, inputClass, toast } from '../../../core/ui';
+import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
 import { categoryRepo, prefsRepo } from '../data/repo';
 import { kopecksText, rub, toKopecks } from '../domain/money';
+import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
 import { ALL_DAYS, type Category, type CategoryKind, type FinPrefs, type Kopecks } from '../domain/types';
 import s from './Finance.module.css';
 
@@ -44,17 +46,25 @@ export function PlanPrefsModal({ prefs, average, categories, onClose }: { prefs:
   const [work, setWork] = useState<readonly Weekday[]>(prefs.workDays ?? ALL_DAYS);
   const [living, setLiving] = useState(prefs.livingManual === undefined ? '' : kopecksText(prefs.livingManual));
 
+  const [percent, setPercent] = useState(prefs.savePercent === undefined ? '' : String(prefs.savePercent));
+  const [showTips, setShowTips] = useState(!prefs.tipsOff);
+
   const save = async () => {
     const k = living.trim() ? toKopecks(living) : undefined;
     if (k === null) {
       toast('Сумма на жизнь не похожа на число', 'alert', 'var(--c-warn)');
       return;
     }
+    const p = percent.trim() ? Number(percent.replace(',', '.')) : undefined;
+    if (p !== undefined && !(p >= 0 && p <= 100)) {
+      toast('Процент должен быть от 0 до 100', 'alert', 'var(--c-warn)');
+      return;
+    }
     if (work.length === 0) {
       toast('Отметьте хотя бы один рабочий день', 'alert', 'var(--c-warn)');
       return;
     }
-    await prefsRepo.put({ workDays: [...work], ...(k === undefined ? {} : { livingManual: k }) });
+    await prefsRepo.put({ workDays: [...work], ...(k === undefined ? {} : { livingManual: k }), ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }) });
     onClose();
   };
 
@@ -72,6 +82,9 @@ export function PlanPrefsModal({ prefs, average, categories, onClose }: { prefs:
       <p className={s.hint}>
         {average === null ? 'Пока записей мало, поэтому среднее посчитать нельзя: укажите сумму сами.' : `Среднее за 30 дней: ${rub(average)}. Оставьте поле пустым, чтобы считать по среднему.`}
       </p>
+      <ToggleRow label="Показывать советы" hint="Строка над вкладками. Нажмите на неё, чтобы остановить текст, и ещё раз, чтобы увидеть другой совет." checked={showTips} onChange={setShowTips} color="var(--c-fin)" />
+      <TextInput label="Откладывать с дохода, %" inputMode="decimal" placeholder={String(DEFAULT_SAVE_PERCENT)} value={percent} onChange={(e) => setPercent(e.target.value)} />
+      <p className={s.hint}>Совет покажет эту долю от свежего дохода, когда на платежи уже хватает. 0 отключает совет.</p>
       <CategoryList kind="expense" title="Категории расходов" categories={categories} />
       <CategoryList kind="income" title="Категории доходов" categories={categories} />
     </Modal>

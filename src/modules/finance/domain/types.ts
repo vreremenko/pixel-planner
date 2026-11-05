@@ -59,6 +59,9 @@ export interface FinPrefs extends SyncMeta {
   workDays?: Weekday[];
   /** Сумма на жизнь в день, заданная вручную; без неё берётся среднее. */
   livingManual?: Kopecks;
+  /** Какой процент дохода советовать откладывать; 0 — не советовать. */
+  savePercent?: number;
+  tipsOff?: boolean;
 }
 
 export const ALL_DAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
