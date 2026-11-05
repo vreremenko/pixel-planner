@@ -123,7 +123,11 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
           <ToggleRow
             label={`Отложить ${String(percent)}% дохода`}
             checked={saving}
-            onChange={setSaveChoice}
+            onChange={(v) => {
+              // Повторное включение снова считает сумму от дохода, а не держит старую правку.
+              setSaveChoice(v);
+              setSaveText(null);
+            }}
             color="var(--c-fin)"
             hint={
               offer.covered
