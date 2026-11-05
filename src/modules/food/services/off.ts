@@ -1,16 +1,15 @@
 /*
  * Поиск магазинных продуктов в Open Food Facts (база под лицензией ODbL, нужна подпись источника).
- * Сервис разрешает запросы из браузера, поэтому наш сервер не участвует. Лимит — 10 поисков в минуту;
- * если поиск недоступен, вызывающий показывает сбой и остаётся со справочником.
+ * Запрос идёт через наш сервер: из России сервис напрямую не открывается.
+ * Если поиск недоступен, вызывающий показывает сбой и остаётся со справочником.
  */
+import { apiUrl } from '../../../core/apiBase';
 import type { FoodRef } from '../domain/types';
-
-export const OFF_ORIGIN = 'https://ru.openfoodfacts.org';
 
 interface OffProduct {
   code?: string;
   product_name?: string;
-  brands?: string;
+  brands?: string | string[];
   nutriments?: Record<string, number | string | undefined>;
 }
 
@@ -24,17 +23,17 @@ export function parseOff(p: OffProduct): FoodRef | null {
   const n = p.nutriments ?? {};
   const name = p.product_name?.trim();
   const energy = num(n['energy-kcal_100g']);
-  const kj = num(n.energy_100g);
+  const kj = num(n['energy-kj_100g'] ?? n.energy_100g);
   const kcal = energy ?? (kj === null ? null : kj / 4.184);
   const protein = num(n.proteins_100g);
   const fat = num(n.fat_100g);
   const carbs = num(n.carbohydrates_100g);
   if (!name || !p.code || kcal === null || kcal > 950 || protein === null || fat === null || carbs === null) return null;
-  const brand = p.brands?.split(',')[0]?.trim();
+  const brand = (Array.isArray(p.brands) ? p.brands[0] : p.brands?.split(',')[0])?.trim();
   return { id: `off:${p.code}`, name, kcal: Math.round(kcal), protein, fat, carbs, ...(brand ? { brand } : {}) };
 }
 
-const ATTEMPTS = 3;
+const ATTEMPTS = 2;
 const RETRY_MS = 1500;
 
 const pause = (ms: number, signal: AbortSignal) =>
@@ -46,15 +45,11 @@ const pause = (ms: number, signal: AbortSignal) =>
     });
   });
 
-/**
- * Сервис часто отвечает 503, причём без заголовка CORS, поэтому браузер видит просто сетевую ошибку.
- * Со второй-третьей попытки обычно проходит.
- */
+/** Сервис временами отвечает ошибкой, со второй попытки обычно проходит. */
 export async function searchOff(query: string, signal: AbortSignal): Promise<FoodRef[]> {
-  const params = new URLSearchParams({ search_terms: query, search_simple: '1', action: 'process', json: '1', page_size: '20', fields: 'code,product_name,brands,nutriments' });
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await fetch(`${OFF_ORIGIN}/cgi/search.pl?${params.toString()}`, { signal });
+      const res = await fetch(apiUrl(`food/search?q=${encodeURIComponent(query)}`), { signal });
       if (!res.ok) throw new Error(`off ${String(res.status)}`);
       const data = (await res.json()) as { products?: OffProduct[] };
       return (data.products ?? []).map(parseOff).filter((x): x is FoodRef => x !== null);

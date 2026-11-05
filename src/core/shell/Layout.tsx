@@ -7,6 +7,7 @@ import { MissedReminders } from '../notifications/MissedReminders';
 import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
 import { Goida } from '../easter/Goida';
+import { OfflineBar } from './OfflineBar';
 import { ACCOUNT, HOME, MORE, SETTINGS, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
@@ -69,23 +70,27 @@ export function Layout() {
         </nav>
       </aside>
       <header className={s.topbar}>
-        {/* На телефоне вместо логотипа — название экрана; заголовок страницы при этом прячется (класс pageTitle) */}
-        {current ? (
-          <div className={s.screenTitle} style={{ color: current.accent }}>
-            {current.label}
-          </div>
-        ) : (
-          <div className={s.logo}>
-            PIXEL<span>▪</span>PLANNER
-          </div>
-        )}
-        <div className={s.topActions} ref={setSlot} />
-        <NavLink to="/account" aria-label={signedIn ? 'Личный кабинет: вход выполнен' : 'Личный кабинет: войти'} className={s.account} data-signed-in={signedIn}>
-          <PixelIcon name="user" size={24} />
-        </NavLink>
+        <div className={s.topRow}>
+          {/* На телефоне вместо логотипа — название экрана; заголовок страницы при этом прячется (класс pageTitle) */}
+          {current ? (
+            <div className={s.screenTitle} style={{ color: current.accent }}>
+              {current.label}
+            </div>
+          ) : (
+            <div className={s.logo}>
+              PIXEL<span>▪</span>PLANNER
+            </div>
+          )}
+          <div className={s.topActions} ref={setSlot} />
+          <NavLink to="/account" aria-label={signedIn ? 'Личный кабинет: вход выполнен' : 'Личный кабинет: войти'} className={s.account} data-signed-in={signedIn}>
+            <PixelIcon name="user" size={24} />
+          </NavLink>
+        </div>
+        <OfflineBar className={s.offlineMobile} />
       </header>
       <Goida />
       <main id="main" className={s.main}>
+        <OfflineBar className={s.offlineDesktop} />
         <MissedReminders />
         <TopbarSlot.Provider value={slot}>
           <Suspense fallback={<p style={{ color: 'var(--c-text-dim)' }}>Загрузка…</p>}>

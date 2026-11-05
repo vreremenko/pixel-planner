@@ -22,6 +22,27 @@
   margin: var(--gap-2) 0;
   color: var(--c-text-muted);
 }
+/* Состояние поиска в Open Food Facts: рамка отделяет его от строк с продуктами */
+.status {
+  margin: var(--gap-2) 0;
+  padding: var(--gap-2) var(--gap-3);
+  border: 2px solid var(--c-food);
+  color: var(--c-food);
+}
+.statusError {
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+}
+.searching::after {
+  content: '▮';
+  margin-left: var(--gap-2);
+  animation: search-blink 1s steps(1) infinite;
+}
+@keyframes search-blink {
+  50% {
+    opacity: 0;
+  }
+}
 .label {
   margin: var(--gap-3) 0 var(--gap-1);
   color: var(--c-text-muted);

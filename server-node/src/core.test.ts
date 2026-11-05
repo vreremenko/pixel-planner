@@ -293,3 +293,49 @@ describe('push', () => {
     expect(sent).toEqual([]);
   });
 });
+
+describe('поиск продуктов', () => {
+  const hits = [{ code: '46', product_name: 'Кефир' }];
+  const ok = () => Promise.resolve(new Response(JSON.stringify({ hits, page: 1 })));
+
+  it('отдаёт найденное и повторный запрос берёт из кэша', async () => {
+    const urls: string[] = [];
+    const d = mk({
+      offFetch: (u) => {
+        urls.push(u as string);
+        return ok();
+      },
+    });
+    const first = await handle(req('GET', 'food/search', { query: { q: 'Кефир' } }), d);
+    expect(first.status).toBe(200);
+    expect(json(first)).toEqual({ products: hits });
+    expect((await handle(req('GET', 'food/search', { query: { q: ' кефир ' } }), d)).body).toBe(first.body);
+    expect(urls).toHaveLength(1);
+    expect(new URL(urls[0] ?? '').searchParams.get('q')).toBe('кефир');
+  });
+
+  it('убирает синтаксис запросов и отклоняет пустой запрос', async () => {
+    const urls: string[] = [];
+    const d = mk({
+      offFetch: (u) => {
+        urls.push(u as string);
+        return ok();
+      },
+    });
+    await handle(req('GET', 'food/search', { query: { q: 'brands:"кефир" 2,5%' } }), d);
+    expect(new URL(urls[0] ?? '').searchParams.get('q')).toBe('brands кефир 2,5%');
+    expect((await handle(req('GET', 'food/search', { query: { q: '"' } }), d)).status).toBe(400);
+    expect(urls).toHaveLength(1);
+  });
+
+  it('сбой сервиса не кэширует, частые запросы с одного адреса ограничивает', async () => {
+    const down = mk({ offFetch: () => Promise.resolve(new Response('', { status: 503 })) });
+    expect((await handle(req('GET', 'food/search', { query: { q: 'творог' } }), down)).status).toBe(502);
+    expect(down.offCache?.size).toBe(0);
+
+    const d = mk({ offFetch: ok });
+    for (let i = 0; i < 30; i++) expect((await handle(req('GET', 'food/search', { query: { q: `еда ${String(i)}` }, ip: '1.1.1.1' }), d)).status).toBe(200);
+    expect((await handle(req('GET', 'food/search', { query: { q: 'ещё еда' }, ip: '1.1.1.1' }), d)).status).toBe(429);
+    expect((await handle(req('GET', 'food/search', { query: { q: 'ещё еда' }, ip: '2.2.2.2' }), d)).status).toBe(200);
+  });
+});

@@ -118,8 +118,8 @@ export function FoodSearch({ date, meal, onPick, onEdit }: Props) {
           {query.length >= OFF_MIN_CHARS && (
             <>
               <div className={s.label}>Магазинные продукты</div>
-              {off?.status === 'loading' && <p className={s.hint}>Ищем в Open Food Facts…</p>}
-              {off?.status === 'error' && <p className={s.hint}>Open Food Facts сейчас недоступен. Попробуйте позже или введите продукт вручную.</p>}
+              {off?.status === 'loading' && <p className={`${s.status} ${s.searching}`} role="status">Ищем в Open Food Facts</p>}
+              {off?.status === 'error' && <p className={`${s.status} ${s.statusError}`} role="status">Open Food Facts сейчас недоступен. Попробуйте позже или введите продукт вручную.</p>}
               {off?.status === 'done' && (offList.length > 0 ? list(offList) : <p className={s.hint}>В Open Food Facts такого нет.</p>)}
             </>
           )}

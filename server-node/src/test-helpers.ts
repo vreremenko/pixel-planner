@@ -11,6 +11,7 @@ export const mk = (over: Partial<Deps> = {}, store: Store = new MemoryStore()): 
   env: { ALLOWED_ORIGINS: 'https://site.test', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' },
   now: () => 1_000_000,
   limiter: new RateLimiter(),
+  offCache: new Map(),
   ...over,
 });
 

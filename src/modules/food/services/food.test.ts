@@ -52,7 +52,11 @@ describe('Open Food Facts', () => {
   it('разбирает продукт и первую марку', () => {
     expect(parseOff({ code: '46', product_name: ' Творог 5% ', brands: 'Простоквашино, Danone', nutriments: n })).toEqual({ id: 'off:46', name: 'Творог 5%', brand: 'Простоквашино', kcal: 117, protein: 15, fat: 5, carbs: 3 });
   });
+  it('марки приходят и списком', () => {
+    expect(parseOff({ code: '46', product_name: 'Кефир', brands: ['Простоквашино'], nutriments: n })?.brand).toBe('Простоквашино');
+  });
   it('килоджоули переводит, неполный продукт отбрасывает', () => {
+    expect(parseOff({ code: '1', product_name: 'X', nutriments: { 'energy-kj_100g': 418.4, proteins_100g: 1, fat_100g: 1, carbohydrates_100g: 1 } })?.kcal).toBe(100);
     expect(parseOff({ code: '1', product_name: 'X', nutriments: { energy_100g: 418.4, proteins_100g: 1, fat_100g: 1, carbohydrates_100g: 1 } })?.kcal).toBe(100);
     expect(parseOff({ code: '1', product_name: 'X', nutriments: { proteins_100g: 1 } })).toBeNull();
     expect(parseOff({ code: '1', nutriments: n })).toBeNull();

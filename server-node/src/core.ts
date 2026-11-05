@@ -23,6 +23,9 @@ export interface Deps {
   now?: () => number;
   /** Ограничитель попыток входа и регистраций; в тестах подменяется, чтобы они не влияли друг на друга. */
   limiter?: RateLimiter;
+  /** Запрос к Open Food Facts и кэш его ответов; в тестах подменяются. */
+  offFetch?: typeof fetch;
+  offCache?: Map<string, OffCached>;
   /** Отправка push; в тестах подменяется. */
   send?: (env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown) => Promise<{ status: number; detail: string }>;
 }
@@ -47,6 +50,21 @@ const REGISTER_MAX_PER_IP = 10;
 const KIND_RE = /^[a-z][a-zA-Z0-9_-]{0,31}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Поиск продуктов: приложение идёт сюда, потому что из России Open Food Facts напрямую не открывается. */
+const OFF_SEARCH = 'https://search.openfoodfacts.org/search';
+const OFF_USER_AGENT = 'PixelPlanner/1.0 (https://github.com/vreremenko/pixel-planner)';
+const OFF_TIMEOUT_MS = 8_000;
+const OFF_CACHE_MS = 86_400_000;
+const OFF_CACHE_MAX = 500;
+const OFF_WINDOW_MS = 60_000;
+const OFF_MAX_PER_IP = 30;
+const OFF_QUERY_MAX = 80;
+
+interface OffCached {
+  at: number;
+  body: string;
+}
+
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -57,6 +75,7 @@ class HttpError extends Error {
 }
 
 const defaultLimiter = new RateLimiter();
+const defaultOffCache = new Map<string, OffCached>();
 
 /** Ответы с данными не должны оседать ни в чьём кэше. */
 const SAFE_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
@@ -103,6 +122,40 @@ async function requireUser(req: HttpReq, d: Deps): Promise<{ userId: string; tok
   const userId = await d.store.sessionUser(tokenHash(token), (d.now ?? Date.now)(), SESSION_MAX_IDLE_MS);
   if (!userId) throw new HttpError(401, 'unauthorized');
   return { userId, token };
+}
+
+/** Ответ Open Food Facts без лишних полей; одинаковые запросы разных пользователей уходят туда один раз в сутки. */
+async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  // Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
+  const q = (req.query.q ?? '').replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
+  if (q.length < 2) throw new HttpError(400, 'bad query');
+  const cache = d.offCache ?? defaultOffCache;
+  const hit = cache.get(q);
+  if (hit && now - hit.at < OFF_CACHE_MS) return { status: 200, headers: { ...SAFE_HEADERS }, body: hit.body };
+
+  const limiter = d.limiter ?? defaultLimiter;
+  const key = `off:${req.ip ?? 'unknown'}`;
+  if (limiter.count(key, OFF_WINDOW_MS, now) >= OFF_MAX_PER_IP) throw new HttpError(429, 'too many searches');
+  limiter.add(key, now);
+
+  const params = new URLSearchParams({ q, langs: 'ru', page_size: '20', fields: 'code,product_name,brands,nutriments' });
+  let data: { hits?: unknown[] };
+  try {
+    const res = await (d.offFetch ?? fetch)(`${OFF_SEARCH}?${params.toString()}`, { headers: { 'user-agent': OFF_USER_AGENT }, signal: AbortSignal.timeout(OFF_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`off ${String(res.status)}`);
+    data = (await res.json()) as { hits?: unknown[] };
+  } catch (e) {
+    console.warn('поиск Open Food Facts не удался', e);
+    throw new HttpError(502, 'off unavailable');
+  }
+  const body = JSON.stringify({ products: data.hits ?? [] });
+  cache.delete(q);
+  cache.set(q, { at: now, body });
+  if (cache.size > OFF_CACHE_MAX) for (const old of cache.keys()) {
+    cache.delete(old);
+    break;
+  }
+  return { status: 200, headers: { ...SAFE_HEADERS }, body };
 }
 
 async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
@@ -255,6 +308,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'GET' && parts[0] === 'config') {
     return json({ vapidPublicKey: d.env.VAPID_PUBLIC_KEY, push: Boolean(d.env.VAPID_PUBLIC_KEY && d.env.VAPID_PRIVATE_KEY) });
   }
+  if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта

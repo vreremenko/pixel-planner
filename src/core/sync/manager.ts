@@ -27,9 +27,13 @@ interface SyncStore {
   /** Состояние синхронизации (null — не вошли; undefined — ещё не прочитали). */
   state: SyncState | null | undefined;
   running: boolean;
+  /** Последний запрос к серверу не дошёл: нет сети или сервер не отвечает. */
+  unreachable: boolean;
 }
 
-const useSync = create<SyncStore>(() => ({ state: undefined, running: false }));
+const useSync = create<SyncStore>(() => ({ state: undefined, running: false, unreachable: false }));
+
+export const useUnreachable = (): boolean => useSync((s) => s.unreachable);
 
 class SessionLost extends Error {}
 
@@ -48,7 +52,7 @@ async function loadState(): Promise<SyncState | null> {
 async function saveState(s: SyncState | null): Promise<void> {
   if (s) await metaRepo.set(META_KEY, s);
   else await db.meta.delete(META_KEY);
-  useSync.setState({ state: s });
+  useSync.setState({ state: s, ...(s ? {} : { unreachable: false }) });
 }
 
 async function request(token: string, path: string, init: RequestInit = {}): Promise<Response> {
@@ -62,11 +66,14 @@ async function request(token: string, path: string, init: RequestInit = {}): Pro
       ...(typeof init.body === 'string' && init.body.length < KEEPALIVE_MAX_BYTES ? { keepalive: true } : {}),
       headers: { authorization: `Bearer ${token}`, ...(init.body ? { 'content-type': 'application/json' } : {}) },
     });
+    useSync.setState({ unreachable: false });
     if (res.status === 401) throw new SessionLost('Сессия закончилась');
     if (!res.ok) throw new Error(`Сервер ответил HTTP ${String(res.status)}`);
     return res;
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw new Error('Сервер не отвечает', { cause: e });
+    const aborted = e instanceof DOMException && e.name === 'AbortError';
+    if (aborted || e instanceof TypeError) useSync.setState({ unreachable: true });
+    if (aborted) throw new Error('Сервер не отвечает', { cause: e });
     throw e;
   } finally {
     clearTimeout(timer);
