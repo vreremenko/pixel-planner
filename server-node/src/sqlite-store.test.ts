@@ -107,8 +107,10 @@ describe('SqliteStore: админка', () => {
     await s.activityTouch('u', '2026-11-01');
     await s.syncPush('u', [rec('a', 100), rec('b', 5), { t: 'tasks', id: 'c', u: 100, d: '{"deletedAt":1}' }]);
     expect(await s.activitySince('2026-11-02')).toEqual([{ userId: 'u', day: '2026-11-06' }]);
-    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, lastSeen: 500, sessions: 1, pushDevices: 0 }]);
+    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, lastSeen: 500, sessions: 1, pushDevices: 0, appVersion: null }]);
     expect(await s.adminRecords(50)).toEqual([{ userId: 'u', table: 'tasks', records: 2, recent: 1 }]);
+    await s.sessionSetVersion('t', '0.22.0');
+    expect((await s.adminUsers())[0]?.appVersion).toBe('0.22.0');
     await s.userDelete('u');
     expect(await s.activitySince('2026-01-01')).toEqual([]);
   });

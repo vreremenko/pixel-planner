@@ -6,7 +6,7 @@ export class MemoryStore implements Store {
   private rows = new Map<string, SyncRow & { space: string }>();
   private devices = new Map<string, { endpoint: string; p256dh: string; auth: string; userId: string }>();
   private users = new Map<string, User & { createdAt: number }>();
-  private sessions = new Map<string, { userId: string; lastUsedAt: number }>();
+  private sessions = new Map<string, { userId: string; lastUsedAt: number; version?: string }>();
   private activity = new Set<string>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
@@ -134,6 +134,12 @@ export class MemoryStore implements Store {
     return Promise.resolve(s.userId);
   }
 
+  sessionSetVersion(tokenHash: string, version: string): Promise<void> {
+    const s = this.sessions.get(tokenHash);
+    if (s) s.version = version;
+    return Promise.resolve();
+  }
+
   sessionDelete(tokenHash: string): Promise<void> {
     this.sessions.delete(tokenHash);
     return Promise.resolve();
@@ -163,7 +169,8 @@ export class MemoryStore implements Store {
     return Promise.resolve(
       [...this.users.values()].map((u) => {
         const mine = sessions.filter((s) => s.userId === u.id);
-        return { id: u.id, email: u.email, createdAt: u.createdAt, lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length };
+        const appVersion = mine.filter((s) => s.version !== undefined).sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.version ?? null;
+        return { id: u.id, email: u.email, createdAt: u.createdAt, lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
       }),
     );
   }

@@ -1,5 +1,6 @@
 /* Запросы к серверу про аккаунт: регистрация, вход, выход, смена пароля, удаление. */
 import { apiUrl } from '../apiBase';
+import { APP_VERSION } from '../changelog';
 import type { Session } from './session';
 
 const MESSAGES: Record<string, string> = {
@@ -66,7 +67,7 @@ export const registerAccount = (email: string, password: string) =>
 export const loginAccount = (email: string, password: string) =>
   call('auth/login', { method: 'POST', body: { email, password, device: deviceLabel() } }) as Promise<Session>;
 
-export const currentUser = (token: string) => call('auth/me', { method: 'GET', token }) as Promise<Pick<Session, 'user'>>;
+export const currentUser = (token: string) => call(`auth/me?v=${APP_VERSION}`, { method: 'GET', token }) as Promise<Pick<Session, 'user'>>;
 
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 

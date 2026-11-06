@@ -23,7 +23,7 @@ export function startAuth(): () => void {
   return off;
 }
 
-/** Роль могли поменять на сервере: сверяем при запуске, а без связи работает сохранённая. */
+/** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
   if (!fresh || Boolean(fresh.user.admin) === Boolean(session.user.admin)) return;
@@ -34,6 +34,7 @@ async function refreshRole(session: Session): Promise<void> {
 async function enter(session: Session): Promise<void> {
   await saveSession(session);
   await attachAccount(session);
+  void refreshRole(session);
 }
 
 export async function register(email: string, password: string): Promise<void> {

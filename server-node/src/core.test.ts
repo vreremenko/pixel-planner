@@ -394,6 +394,17 @@ describe('админка', () => {
     expect(res.body).not.toContain('Секретная');
   });
 
+  it('показывает версию приложения и не принимает мусор вместо неё', async () => {
+    const d = mk({ env });
+    const boss = await register(d, 'boss@site.ru');
+    const version = async () => (json(await stats(d, boss)) as { list: { version: string | null }[] }).list[0]?.version;
+    expect(await version()).toBeNull();
+    await handle(req('GET', 'auth/me', { token: boss, query: { v: '<script>' } }), d);
+    expect(await version()).toBeNull();
+    await handle(req('GET', 'auth/me', { token: boss, query: { v: '0.22.0' } }), d);
+    expect(await version()).toBe('0.22.0');
+  });
+
   it('удаление аккаунта стирает и его активность', async () => {
     const d = mk({ env });
     const user = await register(d, 'a@b.ru');

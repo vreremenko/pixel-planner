@@ -52,6 +52,7 @@ const REGISTER_WINDOW_MS = 3_600_000;
 const REGISTER_MAX_PER_IP = 10;
 /** Вид напоминания задаёт модуль клиента ('task', 'habit'…) — проверяем только форму. */
 const KIND_RE = /^[a-z][a-zA-Z0-9_-]{0,31}$/;
+const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Поиск продуктов: приложение идёт сюда, потому что из России Open Food Facts напрямую не открывается. */
@@ -279,6 +280,8 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   if (action === 'me' && req.method === 'GET') {
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
+    const version = req.query.v ?? '';
+    if (VERSION_RE.test(version)) await d.store.sessionSetVersion(tokenHash(token), version);
     return json({ user: publicUser(user, d.env) });
   }
 

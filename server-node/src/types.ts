@@ -75,6 +75,8 @@ export interface AdminUserRow {
   lastSeen: number | null;
   sessions: number;
   pushDevices: number;
+  /** Версия приложения на самом свежем устройстве; null — приложение ещё не сообщало её. */
+  appVersion: string | null;
 }
 
 /** Количество записей пользователя в таблице, без содержимого; удалённые не считаются. */
@@ -119,6 +121,7 @@ export interface Store {
   sessionCreate(s: { tokenHash: string; userId: string; device: string; now: number }): Promise<void>;
   /** Владелец сессии; сессия, не использовавшаяся дольше maxIdleMs, не считается. Заодно помечает время использования. */
   sessionUser(tokenHash: string, now: number, maxIdleMs: number): Promise<string | null>;
+  sessionSetVersion(tokenHash: string, version: string): Promise<void>;
   sessionDelete(tokenHash: string): Promise<void>;
   /** Закрыть все сессии пользователя, кроме одной (смена пароля). */
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void>;
