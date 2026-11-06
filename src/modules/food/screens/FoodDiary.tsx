@@ -5,7 +5,7 @@ import { TopbarActions } from '../../../core/shell/TopbarActions';
 import { useToday } from '../../../core/shell/useToday';
 import { addDays, formatDateDay } from '../../../core/domain/dates';
 import { useDayEntries, useFoodPrefs } from '../data/hooks';
-import { portionOf, sumEntries } from '../domain/logic';
+import { macroLine, portionOf, sumEntries } from '../domain/logic';
 import { MEALS, type FoodEntry, type Meal } from '../domain/types';
 import { copyMeal, removeEntry, setGrams } from '../services/entries';
 import { AddFoodModal } from './AddFoodModal';
@@ -16,6 +16,7 @@ import s from './Food.module.css';
 
 function EntryRow({ entry, onOpen, onDelete }: { entry: FoodEntry; onOpen: () => void; onDelete: () => void }) {
   const swipe = useSwipe({ onLeft: onDelete });
+  const portion = portionOf(entry, entry.grams);
   return (
     <li className={s.entry}>
       <div aria-hidden className={cx(s.swipeBg, swipe.pastThreshold && s.swipeReady)} style={{ opacity: swipe.dx < 0 ? 1 : 0 }}>
@@ -25,9 +26,9 @@ function EntryRow({ entry, onOpen, onDelete }: { entry: FoodEntry; onOpen: () =>
         <span className={s.grow}>
           {entry.name}
           <br />
-          <span className={s.dim}>{entry.grams} г</span>
+          <span className={s.entryMeta}>{entry.grams}&nbsp;г · {macroLine(portion)}</span>
         </span>
-        <span className={s.dim}>{portionOf(entry, entry.grams).kcal}</span>
+        <span className={s.dim}>{portion.kcal}</span>
       </button>
     </li>
   );
@@ -93,11 +94,14 @@ export function FoodDiary() {
               }
             >
               {mine.length > 0 ? (
-                <ul className={s.foods}>
-                  {mine.map((e) => (
-                    <EntryRow key={e.id} entry={e} onOpen={() => setEditing(e)} onDelete={() => setDeleting(e)} />
-                  ))}
-                </ul>
+                <>
+                  <p className={s.mealMacros}>{macroLine(sumEntries(mine))}</p>
+                  <ul className={s.foods}>
+                    {mine.map((e) => (
+                      <EntryRow key={e.id} entry={e} onOpen={() => setEditing(e)} onDelete={() => setDeleting(e)} />
+                    ))}
+                  </ul>
+                </>
               ) : before.length > 0 ? (
                 <Button small variant="ghost" icon="plus" onClick={() => void copyMeal(before, date)}>
                   Как вчера: {sumEntries(before).kcal} ккал

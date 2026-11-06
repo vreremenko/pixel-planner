@@ -14,6 +14,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.21.0',
+    date: '2026-11-06',
+    title: 'БЖУ в приёмах пищи',
+    items: ['Питание: у каждого приёма пищи теперь видны белки, жиры и углеводы за весь приём, а у каждого продукта — рядом с весом порции.'],
+  },
+  {
     version: '0.20.2',
     date: '2026-11-06',
     title: 'Спокойная цель дня',

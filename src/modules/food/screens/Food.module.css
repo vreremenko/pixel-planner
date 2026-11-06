@@ -113,6 +113,14 @@
 }
 
 /* Записи дня */
+.mealMacros {
+  margin: 0 0 var(--gap-1);
+  color: var(--c-food);
+}
+.entryMeta {
+  color: var(--c-text-muted);
+  font-size: var(--fs-small);
+}
 .foods {
   list-style: none;
   margin: 0;
