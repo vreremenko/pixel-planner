@@ -72,6 +72,9 @@
   border: 2px solid var(--c-panel-3);
   overflow-wrap: anywhere;
 }
+.metric:only-child {
+  grid-column: 1 / -1;
+}
 .metric b {
   display: block;
   font-weight: normal;

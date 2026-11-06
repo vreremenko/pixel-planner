@@ -1,14 +1,13 @@
-/* Настройки плана: рабочие дни, сумма на жизнь и категории. */
+/* Настройки плана: рабочие дни, откладывание, советы и категории. */
 import { useState } from 'react';
 import { Button, Field, Modal, MultiToggle, SelectInput, TextInput, cx, inputClass, toast } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
 import { categoryRepo, prefsRepo } from '../data/repo';
-import { kopecksText, rub, toKopecks } from '../domain/money';
 import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
 import { defaultSaveAccount, savingAccounts } from '../domain/save';
-import { ALL_DAYS, type Account, type Category, type CategoryKind, type FinPrefs, type Kopecks } from '../domain/types';
+import { ALL_DAYS, type Account, type Category, type CategoryKind, type FinPrefs } from '../domain/types';
 import s from './Finance.module.css';
 
 const DAYS = ALL_DAYS.map((d) => ({ value: d, label: WEEKDAYS_SHORT[d] ?? '' }));
@@ -43,26 +42,20 @@ function CategoryList({ kind, title, categories }: { kind: CategoryKind; title: 
   );
 }
 
-export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; average: Kopecks | null; categories: Category[]; onClose: () => void }) {
+export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; categories: Category[]; onClose: () => void }) {
   const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
   const [work, setWork] = useState<readonly Weekday[]>(prefs.workDays ?? ALL_DAYS);
-  const [living, setLiving] = useState(prefs.livingManual === undefined ? '' : kopecksText(prefs.livingManual));
   const [percent, setPercent] = useState(prefs.savePercent === undefined ? '' : String(prefs.savePercent));
   const [showTips, setShowTips] = useState(!prefs.tipsOff);
   const [saveOn, setSaveOn] = useState(!!prefs.saveOn);
   const [saveTo, setSaveTo] = useState(defaultSaveAccount(accounts, prefs) ?? jars[0]?.value ?? '');
-  const form = JSON.stringify([[...work].sort(), living, percent, showTips, saveOn, saveTo]);
+  const form = JSON.stringify([[...work].sort(), percent, showTips, saveOn, saveTo]);
   // Снимок полей при открытии: по нему видно, что есть несохранённые правки.
   const [opened] = useState(form);
   const [asking, setAsking] = useState(false);
   const close = () => (form === opened ? onClose() : setAsking(true));
 
   const save = async () => {
-    const k = living.trim() ? toKopecks(living) : undefined;
-    if (k === null) {
-      toast('Сумма на жизнь не похожа на число', 'alert', 'var(--c-warn)');
-      return;
-    }
     const p = percent.trim() ? Number(percent.replace(',', '.')) : undefined;
     if (p !== undefined && !(p >= 0 && p <= 100)) {
       toast('Процент должен быть от 0 до 100', 'alert', 'var(--c-warn)');
@@ -72,7 +65,7 @@ export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }
       toast('Отметьте хотя бы один рабочий день', 'alert', 'var(--c-warn)');
       return;
     }
-    await prefsRepo.put({ workDays: [...work], ...(k === undefined ? {} : { livingManual: k }), ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }), ...(saveOn ? { saveOn: true } : {}), ...(saveTo ? { saveAccountId: saveTo } : {}) });
+    await prefsRepo.put({ workDays: [...work], ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }), ...(saveOn ? { saveOn: true } : {}), ...(saveTo ? { saveAccountId: saveTo } : {}) });
     onClose();
   };
 
@@ -86,10 +79,6 @@ export function PlanPrefsModal({ prefs, accounts, average, categories, onClose }
       <Field label="Рабочие дни">
         <MultiToggle values={work} options={DAYS} onChange={setWork} label="Рабочие дни" />
       </Field>
-      <TextInput label="На жизнь в день, ₽" inputMode="decimal" placeholder={average === null ? 'Например, 800' : String(Math.round(average / 100))} value={living} onChange={(e) => setLiving(e.target.value)} />
-      <p className={s.hint}>
-        {average === null ? 'Пока записей мало, поэтому среднее посчитать нельзя: укажите сумму сами.' : `Среднее за 30 дней: ${rub(average)}. Оставьте поле пустым, чтобы считать по среднему.`}
-      </p>
       <ToggleRow label="Показывать советы" hint="Строка над вкладками. Нажмите на неё, чтобы остановить текст, и ещё раз, чтобы увидеть другой совет." checked={showTips} onChange={setShowTips} color="var(--c-fin)" />
       <TextInput label="Откладывать с дохода, %" inputMode="decimal" placeholder={String(DEFAULT_SAVE_PERCENT)} value={percent} onChange={(e) => setPercent(e.target.value)} />
       <p className={s.hint}>Столько откладывать с дохода. Если откладывание ниже выключено, совет покажет эту долю от свежего дохода, когда на платежи хватает. 0 отключает совет.</p>

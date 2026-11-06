@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { addDays } from '../../../core/domain/dates';
 import type { Account, Payment, Tx } from './types';
 import { ALL_DAYS } from './types';
-import { balances, dayPlan, livingAverage, occurrences, openDues, pace, type Due } from './plan';
+import { balances, dayPlan, livingTypical, occurrences, openDues, pace, type Due } from './plan';
 import { byCategory, lastMonths, totals } from './stats';
 import { rub, rubUp, toKopecks } from './money';
 
@@ -51,10 +52,11 @@ describe('дневная цель', () => {
     expect(p.next).toBeLessThan(2300 * R);
   });
 
-  it('траты в пределах суммы на жизнь цель не меняют, перерасход её увеличивает', () => {
-    const spend = (v: number) => dayPlan({ ...base, money: base.money - v * R, todayTx: [tx({ amount: v * R })] }).target;
-    expect(spend(500)).toBe(2300 * R);
-    expect(spend(1800)).toBe(3300 * R);
+  it('трата цель дня не меняет, перерасход расходится по следующим дням', () => {
+    const spend = (v: number) => dayPlan({ ...base, money: base.money - v * R, todayTx: [tx({ amount: v * R })] });
+    expect(spend(500).target).toBe(2300 * R);
+    expect(spend(1800).target).toBe(2300 * R);
+    expect(spend(1800).next - spend(800).next).toBeCloseTo((1000 / 14) * R);
   });
 
   it('ранний тесный срок важнее позднего', () => {
@@ -129,10 +131,34 @@ describe('деньги', () => {
     expect(b.get('b')).toBe(50 * R);
   });
 
-  it('среднее на жизнь без платежей; при короткой истории его нет', () => {
-    const list = [tx({ date: '2026-10-26', amount: 1000 * R }), tx({ date: '2026-11-01', amount: 1000 * R }), tx({ date: '2026-11-01', amount: 9000 * R, paymentId: 'p' }), tx({ date: '2026-11-05', amount: 7000 * R })];
-    expect(livingAverage(list, '2026-11-05')).toBe(200 * R);
-    expect(livingAverage(list.slice(1), '2026-11-05')).toBeNull();
+  describe('обычный расход', () => {
+    const today = '2026-11-29';
+    // Четыре полные недели: 1–7, 8–14, 15–21 и 22–28 ноября, значения идут от старой недели к новой.
+    const weeks = (...sums: number[]) => sums.map((v, i) => tx({ date: addDays('2026-11-01', i * 7), amount: v * R }));
+
+    it('разовая покупка на него не влияет', () => {
+      expect(livingTypical(weeks(3500, 3500, 53_500, 3500), today)).toBe(500 * R);
+    });
+
+    it('сортирует недели как числа, а не как строки', () => {
+      expect(livingTypical(weeks(10_000, 700, 900, 7000), today)).toBe(Math.round((7900 * R) / 2 / 7));
+      expect(livingTypical(weeks(10_000, 700, 900), '2026-11-22')).toBe(Math.round((900 * R) / 7));
+    });
+
+    it('не считает платежи, переводы, доходы и сегодняшние траты', () => {
+      const other = [tx({ date: '2026-11-22', amount: 9000 * R, paymentId: 'p' }), tx({ date: '2026-11-22', kind: 'income', amount: 9000 * R }), tx({ date: '2026-11-22', kind: 'transfer', amount: 9000 * R }), tx({ date: today, amount: 9000 * R })];
+      expect(livingTypical([...weeks(700, 700, 700, 700), ...other], today)).toBe(100 * R);
+    });
+
+    it('пустая неделя тоже считается', () => {
+      expect(livingTypical(weeks(1400, 0, 1400, 0), today)).toBe(100 * R);
+    });
+
+    it('берёт только полные недели, без них ответа нет', () => {
+      expect(livingTypical([tx({ date: '2026-11-23', amount: 700 * R })], today)).toBeNull();
+      expect(livingTypical([tx({ date: '2026-11-22', amount: 700 * R })], today)).toBe(100 * R);
+      expect(livingTypical([], today)).toBeNull();
+    });
   });
 
   it('разбирает и показывает суммы', () => {

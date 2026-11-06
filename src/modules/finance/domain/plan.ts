@@ -11,9 +11,8 @@ import type { Account, Kopecks, Payment, Tx } from './types';
 const HORIZON_DAYS = 31;
 /** Старее этого неоплаченный срок считается забытым и в план не идёт. */
 const OVERDUE_DAYS = 62;
-const LIVING_WINDOW_DAYS = 30;
-/** С меньшей историей среднему верить рано. */
-const LIVING_MIN_DAYS = 7;
+/** Сколько последних недель смотрим, чтобы понять обычный расход. */
+const LIVING_WEEKS = 4;
 
 export interface Due {
   paymentId: string;
@@ -114,7 +113,7 @@ export interface PlanInput {
 
 /**
  * Цель дня считается от денег на его начало, поэтому не прыгает от каждой записи: доход идёт в «заработано»,
- * а траты сверх суммы на жизнь её увеличивают. Оплата срока сегодня ничего не меняет: денег меньше, но и срока нет.
+ * а траты меняют только темп со следующего дня. Оплата срока сегодня ничего не меняет: денег меньше, но и срока нет.
  */
 export function dayPlan({ today, money, living, work, dues, todayTx, netIn = 0 }: PlanInput): DayPlan {
   const total = (list: readonly Tx[]) => list.reduce((a, t) => a + t.amount, 0);
@@ -127,21 +126,36 @@ export function dayPlan({ today, money, living, work, dues, todayTx, netIn = 0 }
   const paidNow = paid.map((t): Due => ({ paymentId: t.paymentId ?? '', name: '', date: t.dueDate ?? today, amount: t.amount, categoryId: t.categoryId ?? '' }));
   const morning = pace(money - gained + spent + total(paid), [...dues, ...paidNow], living, work, today);
   const dayOff = !work.includes(weekday(today));
-  const target = dayOff ? 0 : morning.rate + Math.max(0, spent - living);
+  const target = dayOff ? 0 : morning.rate;
   const now = pace(money, dues, living, work, today);
   const next = pace(money - Math.max(0, living - spent), dues, living, work, addDays(today, 1));
   return { ...now, dayOff, target, earned, left: Math.max(0, target - gained), next: next.rate };
 }
 
-/** Средний расход в день без обязательных платежей; null — истории пока мало. */
-export function livingAverage(txs: readonly Tx[], today: LocalDate): Kopecks | null {
-  const from = addDays(today, -LIVING_WINDOW_DAYS);
-  const spent = txs.filter((t) => t.kind === 'expense' && !t.paymentId && t.date >= from && t.date < today);
+/** Серединное значение: разовый всплеск на него не влияет. */
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/**
+ * Обычный расход в день без обязательных платежей: медиана трат за полные недели перед сегодняшним днём.
+ * Дорогая покупка уже вычтена из денег на счетах, поэтому в прогноз будущих трат она попадать не должна.
+ * null — ещё нет ни одной полной недели записей.
+ */
+export function livingTypical(txs: readonly Tx[], today: LocalDate): Kopecks | null {
+  const spent = txs.filter((t) => t.kind === 'expense' && !t.paymentId && t.date < today);
   const first = spent.reduce<LocalDate | null>((a, t) => (a === null || t.date < a ? t.date : a), null);
   if (first === null) return null;
-  const days = diffDays(today, first);
-  if (days < LIVING_MIN_DAYS) return null;
-  return Math.round(spent.reduce((a, t) => a + t.amount, 0) / days);
+  const count = Math.min(LIVING_WEEKS, Math.floor(diffDays(today, first) / 7));
+  if (count === 0) return null;
+  const weeks = new Array<Kopecks>(count).fill(0);
+  for (const t of spent) {
+    const week = Math.floor((diffDays(today, t.date) - 1) / 7);
+    if (week < count) weeks[week] = (weeks[week] ?? 0) + t.amount;
+  }
+  return Math.round(median(weeks) / 7);
 }
 
 /** Балансы счетов: начальный остаток плюс все операции. */

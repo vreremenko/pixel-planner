@@ -92,7 +92,7 @@ function generalFrom(today: LocalDate): string[] {
 export function tips(input: TipInput): string[] {
   const { today, living, dues } = input;
   const overdue = dues.filter((d) => d.date < today).map((d) => `«${d.name}»: срок прошёл, ${rub(d.amount)}.`);
-  const unset = living === 0 ? 'На жизнь указано 0 ₽, поэтому цель занижена. Задайте сумму в настройках.' : null;
+  const unset = living === 0 ? 'Обычные траты пока не в плане, поэтому цель занижена. Записывайте расходы: хватит недели.' : null;
   const personal = [...overdue, unset, shortage(input), saveFromIncome(input), growth(input)].filter((t) => t !== null);
   return [...personal, ...generalFrom(today)];
 }

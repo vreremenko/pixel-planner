@@ -72,7 +72,7 @@ export function FinanceScreen() {
         </>
       )}
       {entry && <TxModal key={entry.tx?.id ?? entry.kind} kind={entry.kind} tx={entry.tx} today={today} accounts={accounts} categories={categories} txs={txs} view={view} prefs={prefs} onClose={() => setEntry(null)} />}
-      {settings && <PlanPrefsModal prefs={prefs} accounts={accounts} average={view.average} categories={categories} onClose={() => setSettings(false)} />}
+      {settings && <PlanPrefsModal prefs={prefs} accounts={accounts} categories={categories} onClose={() => setSettings(false)} />}
     </>
   );
 }

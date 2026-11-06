@@ -22,7 +22,7 @@ describe('советы по данным', () => {
     const list = tips({ ...base, living: 0, covered: false, dues: [due('Старый', '2026-11-01', 100), due('Юристы', '2026-11-15', 17_000)] });
     expect(list[0]).toContain('Старый');
     expect(list[0]).toContain('срок прошёл');
-    expect(list[1]).toContain('На жизнь указано 0');
+    expect(list[1]).toContain('Обычные траты пока не в плане');
     expect(list[2]).toContain('Юристы');
     expect(GENERAL_TIPS).toContain(list[3]);
   });

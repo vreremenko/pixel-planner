@@ -59,8 +59,6 @@ export interface Payment extends SyncMeta {
 
 export interface FinPrefs extends SyncMeta {
   workDays?: Weekday[];
-  /** Сумма на жизнь в день, заданная вручную; без неё берётся среднее. */
-  livingManual?: Kopecks;
   /** Какой процент дохода советовать откладывать; 0 — не советовать. */
   savePercent?: number;
   tipsOff?: boolean;
