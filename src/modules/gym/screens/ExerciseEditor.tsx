@@ -68,7 +68,7 @@ export function ExerciseEditor({ open, onClose, exercise, onSaved }: { open: boo
         <MultiToggle values={secondary} options={MUSCLE_OPTIONS.filter((o) => !primary.includes(o.value))} onChange={setSecondary} label="Вспомогательные мышцы" />
       </Field>
       <Field label="Техника (каждый пункт с новой строки)">
-        <textarea className={inputClass} rows={4} value={technique} onChange={(e) => setTechnique(e.target.value)} style={{ width: '100%' }} />
+        <textarea className={inputClass} rows={4} value={technique} onChange={(e) => setTechnique(e.target.value)} />
       </Field>
     </Modal>
   );

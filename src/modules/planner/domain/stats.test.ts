@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeStats, heatLevel, percentDelta } from './stats';
+import { heatLevel } from '../../../core/charts/heat';
+import { computeStats, percentDelta } from './stats';
 import type { Habit, HabitLog, Occurrence, Task } from './types';
 
 const t = (p: Partial<Task>): Task => ({

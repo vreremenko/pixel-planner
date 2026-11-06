@@ -126,7 +126,7 @@
 }
 .iconGrid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
   gap: 4px;
 }
 .iconPick {
@@ -166,8 +166,7 @@
 }
 .countRow {
   display: flex;
-  /* Одна строка у всех привычек: кнопка не должна «прыгать» на другую строку из-за длинной единицы */
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-2);
   margin-bottom: var(--gap-3);
@@ -196,24 +195,25 @@
 .unit {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: var(--unit-max, 72px);
+  max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--c-text-dim);
   font-size: max(calc(18px * var(--fs-scale)), var(--fs-min));
 }
-@media (max-width: 359px) {
-  /* Совсем узкий экран: кнопке разрешено уйти на вторую строку, она остаётся справа */
-  .countRow {
-    flex-wrap: wrap;
-  }
-}
-/* Кнопка всегда у правого края карточки и одной ширины («Записать» / «Обновить») */
+/* На широком экране кнопка у правого края и одной ширины («Записать» / «Обновить»),
+   на телефоне — своей строкой у всех привычек, иначе полю остаётся три цифры */
 .countBtn {
   margin-left: auto;
   flex: 0 0 auto;
   min-width: 132px;
+}
+@media (max-width: 639px) {
+  .countBtn {
+    flex: 1 0 100%;
+    margin-left: var(--px);
+  }
 }
 .tiles {
   display: grid;
@@ -248,7 +248,8 @@
   text-overflow: ellipsis;
 }
 .tile .suffix {
-  margin-left: 4px;
+  display: block;
+  margin-top: 2px;
   font-family: var(--font-body);
   font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-dim);

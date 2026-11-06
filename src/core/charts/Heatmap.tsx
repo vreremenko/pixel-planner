@@ -13,6 +13,7 @@ interface Props {
 
 const C = 14; // клетка
 const G = 3; // зазор
+const LABEL_WEEKS = 3; // подписи месяцев ближе этого наезжают друг на друга
 
 /** Тепловая карта активности: колонки — недели, строки — дни недели (Пн сверху). */
 export function Heatmap({ values, end, weeks = 20, title }: Props) {
@@ -26,18 +27,20 @@ export function Heatmap({ values, end, weeks = 20, title }: Props) {
 
   const cells = [];
   let lastMonth = -1;
+  let lastLabelWeek = -LABEL_WEEKS;
   const monthLabels = [];
   for (let w = 0; w < weeks; w++) {
     const weekStart = addDays(start, w * 7);
     const { m } = parseLocalDate(weekStart);
-    if (m !== lastMonth) {
+    if (m !== lastMonth && w - lastLabelWeek >= LABEL_WEEKS) {
+      lastLabelWeek = w;
       monthLabels.push(
         <text key={`m${w}`} x={left + w * (C + G)} y={10} fill="var(--c-text-muted)" fontFamily="var(--font-body)" fontSize="13">
           {MONTHS[m - 1]?.slice(0, 3)}
         </text>,
       );
-      lastMonth = m;
     }
+    lastMonth = m;
     for (let d = 0; d < 7; d++) {
       const date = addDays(weekStart, d);
       if (date > end) continue;
@@ -64,8 +67,8 @@ export function Heatmap({ values, end, weeks = 20, title }: Props) {
   }
 
   return (
-    <figure style={{ margin: 0, overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ minWidth: 360, maxWidth: width * 2, display: 'block' }} shapeRendering="crispEdges" role="img" aria-label={title}>
+    <figure style={{ margin: 0 }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: width * 2, display: 'block' }} shapeRendering="crispEdges" role="img" aria-label={title}>
         {monthLabels}
         {[0, 2, 4].map((d) => (
           <text key={d} x={0} y={top + d * (C + G) + 11} fill="var(--c-text-muted)" fontFamily="var(--font-body)" fontSize="12">

@@ -105,16 +105,6 @@
     align-self: center;
   }
 }
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  padding: 2px 8px;
-  border: var(--px) solid var(--c-border);
-  font-size: var(--fs-small);
-}
 .timer {
   position: fixed;
   left: 50%;

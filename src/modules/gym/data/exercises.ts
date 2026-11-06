@@ -4,7 +4,7 @@ import { CATALOG } from '../domain/catalog';
 import type { CustomExercise, ExerciseDef } from '../domain/types';
 import { exerciseRepo } from './repo';
 
-export const customToDef = (c: CustomExercise): ExerciseDef => ({ ...c, custom: true });
+const customToDef = (c: CustomExercise): ExerciseDef => ({ ...c, custom: true });
 
 export function useExercises(): { list: ExerciseDef[]; byId: (id: string) => ExerciseDef | undefined } | undefined {
   const custom = useLiveQuery(() => exerciseRepo.all(), []);

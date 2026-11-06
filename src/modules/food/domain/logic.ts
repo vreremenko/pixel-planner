@@ -1,7 +1,7 @@
 /* Расчёты раздела питания: чистые функции без базы. */
 import type { FoodEntry, FoodRef, Ingredient, Macros, Meal, Profile } from './types';
 
-export const ZERO: Macros = { kcal: 0, protein: 0, fat: 0, carbs: 0 };
+const ZERO: Macros = { kcal: 0, protein: 0, fat: 0, carbs: 0 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 

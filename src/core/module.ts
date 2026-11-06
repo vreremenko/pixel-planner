@@ -16,14 +16,14 @@ export interface ModuleNavItem {
   accent: string;
 }
 
-export interface ModuleRoute {
+interface ModuleRoute {
   /** Путь относительно корня ('habits', 'tag/:tag'). Главная — «Сводка» ядра. */
   path: string;
   Component: ComponentType;
 }
 
 /** Карточка раздела на «Сводке». */
-export interface ModuleWidget {
+interface ModuleWidget {
   id: string;
   title: string;
   icon: IconName;

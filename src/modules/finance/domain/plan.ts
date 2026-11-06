@@ -8,7 +8,7 @@ import type { LocalDate, Weekday } from '../../../core/domain/types';
 import type { Account, Kopecks, Payment, Tx } from './types';
 
 /** Смотрим на месяц вперёд: после оплаты квартиры цель сразу считается от следующего срока, без провала в ноль. */
-export const HORIZON_DAYS = 31;
+const HORIZON_DAYS = 31;
 /** Старее этого неоплаченный срок считается забытым и в план не идёт. */
 const OVERDUE_DAYS = 62;
 const LIVING_WINDOW_DAYS = 30;

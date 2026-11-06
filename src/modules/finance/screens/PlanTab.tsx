@@ -54,7 +54,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
           {dues.map((d) => (
             <li key={`${d.paymentId}:${d.date}`} className={s.row}>
               <div className={s.line}>
-                <button type="button" className={`${s.rowBtn} ${s.grow}`} onClick={() => setEditing(payments.find((p) => p.id === d.paymentId) ?? null)}>
+                <button type="button" className={s.rowBtn} onClick={() => setEditing(payments.find((p) => p.id === d.paymentId) ?? null)}>
                   <span className={s.grow}>
                     {d.name}
                     <br />
@@ -63,7 +63,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
                       {d.date < today ? ', просрочен' : ''}
                     </span>
                   </span>
-                  <span>
+                  <span className={s.amount}>
                     {rub(d.amount)}
                     <br />
                     <span className={plan.covered.has(d) ? s.good : s.dim}>{plan.covered.has(d) ? 'хватает' : 'копим'}</span>
@@ -83,7 +83,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
                   <br />
                   <span className={s.dim}>{p.repeat === 'once' ? 'Оплачен или срок прошёл' : 'Следующий срок позже месяца'}</span>
                 </span>
-                <span>{rub(p.amount)}</span>
+                <span className={s.amount}>{rub(p.amount)}</span>
               </button>
             </li>
           ))}
@@ -104,7 +104,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
                     </>
                   )}
                 </span>
-                <span>{rub(balance.get(a.id) ?? 0)}</span>
+                <span className={s.amount}>{rub(balance.get(a.id) ?? 0)}</span>
               </div>
             </li>
           ))}

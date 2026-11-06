@@ -5,7 +5,7 @@ import { Checkbox, PixelIcon, cx } from '../../../core/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { useHabitLogs, useHabits } from '../data/hooks';
 import { isScheduled } from '../domain/streaks';
-import { formatValue } from '../domain/habitStats';
+import { formatValue } from '../../../core/domain/numbers';
 import { isCountHabit } from '../domain/types';
 import { toggleHabit } from '../services/habits';
 import s from './Widgets.module.css';

@@ -13,7 +13,7 @@ interface Props {
 
 const W = 600;
 const H = 180;
-const LEFT = 60;
+const LEFT = 84;
 const TOP = 14;
 const BOTTOM = 22;
 
@@ -98,7 +98,7 @@ export function TrendChart({ points, average, unit, title }: Props) {
           <g pointerEvents="none">
             {(() => {
               const label = `${formatDateShort(hp.date)}: ${hp.value === null ? 'нет записи' : `${formatValue(hp.value)} ${unit}`}`;
-              const w = label.length * 8 + 14;
+              const w = label.length * 11 + 14;
               const x = Math.min(Math.max(LEFT, xOf(hover) - w / 2), W - w - 2);
               return (
                 <>

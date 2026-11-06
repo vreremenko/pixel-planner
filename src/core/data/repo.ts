@@ -8,13 +8,29 @@ import { SYNC_TABLES } from '../../shared/syncTables';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { currentTimeZone } from '../domain/dates';
 
-export const newId = (): string => crypto.randomUUID();
+const newId = (): string => crypto.randomUUID();
 /** Запись существует и не удалена (удаление — tombstone с deletedAt, чтобы оно синхронизировалось). */
 export const alive = <T extends SyncMeta>(x: T | undefined): x is T => x !== undefined && !x.deletedAt;
 
 export function stamp<T extends Partial<SyncMeta>>(x: T): T & SyncMeta {
   const now = Date.now();
   return { ...x, id: x.id ?? newId(), createdAt: x.createdAt ?? now, updatedAt: now };
+}
+
+/** Новая или изменённая запись: служебные поля заполнит stamp. */
+export type New<T extends SyncMeta> = Omit<T, keyof SyncMeta> & Partial<SyncMeta>;
+
+/** Записать с отметкой времени (новый id, если нет). */
+export async function saveRow<T extends SyncMeta>(table: { put: (x: T) => Promise<unknown> }, x: New<T>): Promise<T> {
+  const row = stamp(x) as T;
+  await table.put(row);
+  return row;
+}
+
+/** Мягкое удаление: запись остаётся с deletedAt, чтобы удаление дошло до других устройств. */
+export async function removeRow(table: { update: (id: string, changes: object) => Promise<unknown> }, id: string): Promise<void> {
+  const now = Date.now();
+  await table.update(id, { deletedAt: now, updatedAt: now });
 }
 
 export const reminderLogRepo = {

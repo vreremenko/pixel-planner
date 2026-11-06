@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button, Checkbox, Panel, PixelIcon, cx } from '../../../core/ui';
 import { type LocalDate } from '../../../core/domain/types';
 import { isCountHabit, type Habit } from '../domain/types';
-import { formatValue, parseValue } from '../domain/habitStats';
+import { formatValue, parseValue } from '../../../core/domain/numbers';
 import { addDays, endOfMonth, parseLocalDate, startOfMonth, weekday, WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import { habitStreak, isScheduled } from '../domain/streaks';
 import { setHabitValue, toggleHabit } from '../services/habits';

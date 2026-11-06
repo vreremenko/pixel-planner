@@ -10,7 +10,7 @@ export function e1rm(weight: number | undefined, reps: number | undefined): numb
 }
 
 /** Числовая «сила» подхода для сравнения: по типу записи упражнения. */
-export function setScore(s: WorkoutSet, tracking: Tracking): number {
+function setScore(s: WorkoutSet, tracking: Tracking): number {
   switch (tracking) {
     case 'weight_reps':
       return e1rm(s.weight, s.reps) ?? 0;

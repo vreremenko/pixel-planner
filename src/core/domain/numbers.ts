@@ -46,9 +46,9 @@ export function formatCompact(n: number): string {
   return suffix ? `${text} ${suffix}` : text;
 }
 
-/** Разбор введённого числа: запятая или точка; null — не число или отрицательное. */
+/** Разбор введённого числа: запятая или точка, пробелы между разрядами; null — не число или отрицательное. */
 export function parseValue(text: string): number | null {
-  const t = text.trim().replace(',', '.');
+  const t = text.replace(/\s/g, '').replace(',', '.');
   if (t === '') return null;
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 && n <= 1_000_000_000 ? n : null;

@@ -67,7 +67,6 @@
 /* Строка задачи: галочка, название на всю ширину, под ним мелко время, метки и значки.
    Приоритет — цвет полосы слева. */
 .item {
-  --ic: var(--c-task);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -421,6 +420,7 @@
   background: none;
   color: var(--c-backlog);
   font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 .tagChip:hover:not(:disabled) {

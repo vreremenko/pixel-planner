@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildSeries, compactParts, countStats, formatCompact, formatValue, movingAverage, parseValue } from './habitStats';
+import { compactParts, formatCompact, formatValue, parseValue } from '../../../core/domain/numbers';
+import { buildSeries, countStats, movingAverage } from './habitStats';
 
 const vals = (o: Record<string, number>) => new Map(Object.entries(o));
 
@@ -53,6 +54,8 @@ describe('ввод чисел', () => {
   it('parseValue', () => {
     expect(parseValue('25')).toBe(25);
     expect(parseValue(' 2,5 ')).toBe(2.5);
+    expect(parseValue('1 503,33')).toBe(1503.33);
+    expect(parseValue('1\u00a0503')).toBe(1503);
     expect(parseValue('0')).toBe(0);
     expect(parseValue('')).toBeNull();
     expect(parseValue('abc')).toBeNull();

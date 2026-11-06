@@ -48,7 +48,7 @@ export function AccountsModal({ accounts, balance, onClose }: { accounts: Accoun
               <li key={a.id} className={s.row}>
                 <button type="button" className={s.rowBtn} onClick={() => setEditing(a)}>
                   <span className={s.grow}>{a.name}</span>
-                  <span>{rub(balance.get(a.id) ?? 0)}</span>
+                  <span className={s.amount}>{rub(balance.get(a.id) ?? 0)}</span>
                 </button>
               </li>
             ))}

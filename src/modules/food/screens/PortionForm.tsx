@@ -41,7 +41,7 @@ export function PortionForm({ food, grams: initial, action, onSubmit }: Props) {
       <p className={s.total}>
         <b>{part.kcal} ккал</b> <span className={s.dim}>{macroLine(part)}</span>
       </p>
-      <Button type="submit" variant="primary" disabled={grams <= 0} style={{ width: '100%' }}>
+      <Button type="submit" variant="primary" disabled={grams <= 0} className={s.wide}>
         {action}
       </Button>
     </form>

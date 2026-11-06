@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatCompact } from '../domain/numbers';
 
 interface Bar {
   label: string;
@@ -49,6 +50,10 @@ export function BarChart({ bars, color = 'var(--c-task)', rows = 24, title }: Pr
           const h = b.value === 0 ? 0 : Math.max(1, Math.round((b.value / max) * rows));
           const x = i * (colW + gap) * B + (gap * B) / 2;
           const active = hover === i;
+          // Подсказка шире столбца, поэтому её рамка считается по длине числа и не выходит за график
+          const tip = formatCompact(b.value);
+          const tipW = tip.length * 11 + 12;
+          const tipX = Math.max(0, Math.min(x + (colW * B - tipW) / 2, width - tipW));
           return (
             <g
               key={b.label}
@@ -72,9 +77,9 @@ export function BarChart({ bars, color = 'var(--c-task)', rows = 24, title }: Pr
               </text>
               {active && (
                 <g>
-                  <rect x={x - 6} y={chartH - h * B - 26} width={colW * B + 12} height={20} fill="var(--c-bg)" stroke="var(--c-gold)" strokeWidth={2} />
-                  <text x={x + (colW * B) / 2} y={chartH - h * B - 11} textAnchor="middle" fill="var(--c-text)" fontFamily="var(--font-digits)" fontSize="18">
-                    {b.value}
+                  <rect x={tipX} y={Math.max(0, chartH - h * B - 26)} width={tipW} height={20} fill="var(--c-bg)" stroke="var(--c-gold)" strokeWidth={2} />
+                  <text x={tipX + tipW / 2} y={Math.max(0, chartH - h * B - 26) + 15} textAnchor="middle" fill="var(--c-text)" fontFamily="var(--font-digits)" fontSize="18">
+                    {tip}
                   </text>
                 </g>
               )}

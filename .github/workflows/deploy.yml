@@ -29,7 +29,7 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
-          # push-API остаётся на Cloudflare Workers
+          # Адрес нашего сервера (синхронизация и push)
           VITE_API_BASE: ${{ vars.API_BASE }}
       - uses: actions/upload-pages-artifact@v3
         with:

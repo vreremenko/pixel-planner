@@ -19,7 +19,7 @@ function Shares({ list, categories, color }: { list: CategoryShare[]; categories
       <div key={c.categoryId} className={s.barRow}>
         <div className={s.barHead}>
           <span className={s.grow}>{name}</span>
-          <span>
+          <span className={s.amount}>
             {rub(c.sum)} <span className={s.dim}>{Math.round(c.share * 100)}%</span>
           </span>
         </div>

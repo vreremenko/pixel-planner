@@ -17,13 +17,25 @@
   gap: var(--gap-2);
   margin-top: var(--gap-3);
 }
+/* На телефоне кнопки делят строку поровну и не остаются лесенкой */
+@media (max-width: 767px) {
+  .actions > * {
+    flex: 1 1 96px;
+    padding-inline: 6px;
+  }
+}
 .dim {
   color: var(--c-text-muted);
 }
 .grow {
-  flex: 1;
+  flex: 1 1 140px;
   min-width: 0;
-  overflow-wrap: anywhere;
+}
+/* Сумма не рвётся посреди числа: если рядом мало места, она уходит на свою строку */
+.amount {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
 }
 .hint {
   margin: var(--gap-2) 0;
@@ -35,6 +47,9 @@
   font-size: max(calc(28px * var(--fs-scale)), var(--fs-min));
   line-height: 1.3;
   color: var(--c-fin);
+}
+.progressNote {
+  margin-top: var(--gap-1);
 }
 .warn {
   margin: var(--gap-2) 0 0;
@@ -79,8 +94,9 @@
 .rowBtn,
 .line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--gap-3);
+  gap: var(--gap-1) var(--gap-3);
   width: 100%;
   min-height: 44px;
   padding: var(--gap-2) 0;
@@ -94,6 +110,16 @@
   font: inherit;
   cursor: pointer;
   touch-action: pan-y;
+}
+/* Платёж: описание на всю строку, кнопка рядом или под ним у правого края */
+.line {
+  justify-content: flex-end;
+}
+.line > .rowBtn {
+  flex: 1 1 260px;
+  width: auto;
+  min-width: 0;
+  padding: 0;
 }
 .swipeBg {
   position: absolute;
@@ -147,8 +173,9 @@
 }
 .barHead {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--gap-2);
+  gap: var(--gap-1) var(--gap-2);
   margin-bottom: var(--gap-1);
 }
 .grid2 {

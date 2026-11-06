@@ -1,3 +1,4 @@
+import type { New } from '../../../core/data/repo';
 import type { SyncMeta } from '../../../core/domain/types';
 import type { CustomExercise, Program } from '../domain/types';
 import { exerciseRepo, programRepo } from '../data/repo';
@@ -21,5 +22,5 @@ export async function moveProgram(id: string, dir: -1 | 1): Promise<void> {
   await programRepo.save({ ...b, order: a.order });
 }
 
-export const saveExercise = (x: Omit<CustomExercise, keyof SyncMeta> & Partial<SyncMeta>) => exerciseRepo.save(x);
+export const saveExercise = (x: New<CustomExercise>) => exerciseRepo.save(x);
 export const deleteExercise = (id: string) => exerciseRepo.remove(id);

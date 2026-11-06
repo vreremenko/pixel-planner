@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Modal, TextInput, toast } from '../../../core/ui';
-import { formatValue, parseValue } from '../domain/habitStats';
+import { formatValue, parseValue } from '../../../core/domain/numbers';
 import { formatDateLong } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit } from '../domain/types';

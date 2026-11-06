@@ -2,10 +2,6 @@ import { addDays, rangeDates } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import type { DayPoint } from '../../../core/domain/numbers';
 
-// Форматирование чисел и точка ряда — общие (графики ядра), здесь переэкспорт для модуля
-export { compactParts, formatCompact, formatValue, parseValue, type CompactParts, type DayPoint } from '../../../core/domain/numbers';
-
-
 /** Значения привычки по каждому дню диапазона [from, to]. */
 export function buildSeries(values: ReadonlyMap<LocalDate, number>, from: LocalDate, to: LocalDate): DayPoint[] {
   return rangeDates(from, to).map((date) => ({ date, value: values.get(date) ?? null }));

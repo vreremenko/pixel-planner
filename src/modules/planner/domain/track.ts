@@ -15,7 +15,7 @@ export const STEP = 15;
 /** Рабочие часы трека по умолчанию: подъём и отбой. */
 export const DEFAULT_HOURS = { from: 6, to: 23 } as const;
 
-export const snap = (min: number): number => Math.round(min / STEP) * STEP;
+const snap = (min: number): number => Math.round(min / STEP) * STEP;
 
 /** Блок пересекается с другими (кроме ignore). Касание краями не считается. */
 export function overlaps(all: readonly Placed[], start: number, end: number, ignore?: string): boolean {

@@ -13,7 +13,7 @@ function Bar({ label, value, goal, color }: { label: string; value: number; goal
         <span>{label}</span>
         <span className={s.dim}>
           {Math.round(value)}
-          {goal ? ` / ${String(goal)}` : ''}
+          {goal ? ` / ${String(goal)}` : ''} г
         </span>
       </div>
       <div className={s.track}>
@@ -36,9 +36,9 @@ export function Bars({ eaten, goal }: { eaten: Macros; goal: Macros | undefined 
         <i style={{ width: `${String(pct)}%` }} />
       </div>
       <div className={s.macros}>
-        <Bar label="Белки, г" value={eaten.protein} goal={goal?.protein} color="var(--c-task)" />
-        <Bar label="Жиры, г" value={eaten.fat} goal={goal?.fat} color="var(--c-gold)" />
-        <Bar label="Углев., г" value={eaten.carbs} goal={goal?.carbs} color="var(--c-gym)" />
+        <Bar label="Белки" value={eaten.protein} goal={goal?.protein} color="var(--c-task)" />
+        <Bar label="Жиры" value={eaten.fat} goal={goal?.fat} color="var(--c-gold)" />
+        <Bar label="Углеводы" value={eaten.carbs} goal={goal?.carbs} color="var(--c-gym)" />
       </div>
     </>
   );

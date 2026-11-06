@@ -25,7 +25,7 @@ function TxRow({ tx, title, sub, onOpen, onDelete }: { tx: Tx; title: string; su
           <br />
           <span className={s.dim}>{sub}</span>
         </span>
-        <span className={tx.kind === 'income' ? s.good : undefined}>
+        <span className={cx(s.amount, tx.kind === 'income' && s.good)}>
           {sign}
           {rub(tx.amount)}
         </span>

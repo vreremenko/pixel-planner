@@ -14,6 +14,9 @@ import { HabitValueDialog } from './HabitValueDialog';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
 import { fs } from '../../../core/ui/fs';
 
+const NO_DAYS: ReadonlySet<LocalDate> = new Set();
+const NO_VALUES: ReadonlyMap<LocalDate, number> = new Map();
+
 export function HabitsScreen() {
   const habits = useHabits();
   const logs = useHabitLogs();
@@ -55,7 +58,6 @@ export function HabitsScreen() {
     }
     return m;
   }, [logs]);
-  const noValues = new Map<LocalDate, number>();
   const find = (id: string | null) => (id ? (habits ?? []).find((h) => h.id === id) : undefined);
   const detail = find(detailId);
   const valueHabit = find(valueFor?.habitId ?? null);
@@ -68,7 +70,19 @@ export function HabitsScreen() {
   const active = (habits ?? []).filter((h) => !h.archived);
   const archived = (habits ?? []).filter((h) => h.archived);
   const { y, m } = parseLocalDate(month);
-  const empty = new Set<LocalDate>();
+  const card = (h: Habit) => (
+    <HabitCard
+      key={h.id}
+      habit={h}
+      done={doneBy.get(h.id) ?? NO_DAYS}
+      values={valuesBy.get(h.id) ?? NO_VALUES}
+      month={month}
+      todayDate={todayDate}
+      onEdit={() => setEditing(h)}
+      onOpen={() => setDetailId(h.id)}
+      onPickDay={(date) => setValueFor({ habitId: h.id, date })}
+    />
+  );
 
   return (
     <>
@@ -97,39 +111,15 @@ export function HabitsScreen() {
         </div>
       )}
       <div className={s.list}>
-        {active.map((h) => (
-          <HabitCard
-            key={h.id}
-            habit={h}
-            done={doneBy.get(h.id) ?? empty}
-            values={valuesBy.get(h.id) ?? noValues}
-            month={month}
-            todayDate={todayDate}
-            onEdit={() => setEditing(h)}
-            onOpen={() => setDetailId(h.id)}
-            onPickDay={(date) => setValueFor({ habitId: h.id, date })}
-          />
-        ))}
+        {active.map(card)}
       </div>
       {archived.length > 0 && (
         <details className={s.archived}>
-          <summary className="title" style={{ fontSize: fs(10), cursor: 'pointer', color: 'var(--c-text-dim)' }}>
+          <summary className="title" style={{ fontSize: fs(14), cursor: 'pointer', color: 'var(--c-text-dim)' }}>
             Архив ({archived.length})
           </summary>
           <div className={s.list} style={{ marginTop: 12 }}>
-            {archived.map((h) => (
-              <HabitCard
-            key={h.id}
-            habit={h}
-            done={doneBy.get(h.id) ?? empty}
-            values={valuesBy.get(h.id) ?? noValues}
-            month={month}
-            todayDate={todayDate}
-            onEdit={() => setEditing(h)}
-            onOpen={() => setDetailId(h.id)}
-            onPickDay={(date) => setValueFor({ habitId: h.id, date })}
-          />
-            ))}
+            {archived.map(card)}
           </div>
         </details>
       )}
@@ -138,7 +128,7 @@ export function HabitsScreen() {
         <HabitDetail
           habit={detail}
           unit={detail.tracking.unit}
-          values={valuesBy.get(detail.id) ?? noValues}
+          values={valuesBy.get(detail.id) ?? NO_VALUES}
           todayDate={todayDate}
           onAdd={(date) => setValueFor({ habitId: detail.id, date })}
           onEdit={() => setEditing(detail)}
@@ -150,7 +140,7 @@ export function HabitsScreen() {
           habit={valueHabit}
           unit={valueHabit.tracking.unit}
           date={valueFor.date}
-          values={valuesBy.get(valueHabit.id) ?? noValues}
+          values={valuesBy.get(valueHabit.id) ?? NO_VALUES}
           todayDate={todayDate}
           onClose={() => setValueFor(null)}
         />

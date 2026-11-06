@@ -28,7 +28,7 @@ export function PlanHeadline({ plan, hasDues }: { plan: DayPlan; hasDues: boolea
       <div className={s.dim}>{plan.left > 0 ? 'Сегодня осталось заработать' : 'Цель на сегодня выполнена'}</div>
       <div className={s.big}>{rubUp(plan.left)}</div>
       <ProgressBar value={plan.earned / plan.target} color="var(--c-fin)" label="Заработано сегодня" />
-      <div className={s.dim}>
+      <div className={`${s.dim} ${s.progressNote}`}>
         Заработано {rub(plan.earned)} из {rubUp(plan.target)}
       </div>
     </>

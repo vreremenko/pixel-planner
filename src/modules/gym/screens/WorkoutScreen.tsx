@@ -182,7 +182,7 @@ export function WorkoutScreen() {
           </Button>
         </div>
         {active && mobile && (
-          <Button variant="primary" icon="check" onClick={() => void finish()} style={{ width: '100%' }}>
+          <Button variant="primary" icon="check" onClick={() => void finish()}>
             Завершить тренировку
           </Button>
         )}

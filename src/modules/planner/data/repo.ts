@@ -1,6 +1,6 @@
 /* Репозитории планировщика: задачи, повторы, привычки. */
 import { db } from '../../../core/data/db';
-import { alive } from '../../../core/data/repo';
+import { alive, removeRow } from '../../../core/data/repo';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit, HabitLog, OccurrenceOverride, RecurringSeries, Task } from '../domain/types';
 
@@ -51,7 +51,7 @@ export const taskRepo = {
     await tables.tasks.bulkPut(ts.map((t) => ({ ...t, updatedAt: now })));
   },
   async remove(id: string) {
-    await tables.tasks.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
+    await removeRow(tables.tasks, id);
   },
 };
 
@@ -67,7 +67,7 @@ export const seriesRepo = {
     await tables.series.put({ ...s, updatedAt: Date.now() });
   },
   async remove(id: string) {
-    await tables.series.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
+    await removeRow(tables.series, id);
   },
 };
 
@@ -99,7 +99,7 @@ export const habitRepo = {
     await tables.habits.put({ ...h, updatedAt: Date.now() });
   },
   async remove(id: string) {
-    await tables.habits.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
+    await removeRow(tables.habits, id);
   },
 };
 

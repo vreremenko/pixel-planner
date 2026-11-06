@@ -10,11 +10,34 @@
 .date {
   color: var(--c-text-dim);
 }
+/* Карточки стоят ровной сеткой: в ряду одна высота, последний ряд растягивается на всю ширину */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gap-4);
-  align-items: start;
+}
+@media (min-width: 768px) and (max-width: 1179px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 1180px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .grid > * {
+    grid-column: span 2;
+  }
+  .grid > :nth-last-child(2):nth-child(3n + 1),
+  .grid > :nth-last-child(2):nth-child(3n + 1) + * {
+    grid-column: span 3;
+  }
+  .grid > :last-child:nth-child(3n + 1) {
+    grid-column: 1 / -1;
+  }
 }
 .cardLink {
   display: inline-flex;

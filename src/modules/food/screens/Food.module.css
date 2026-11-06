@@ -109,6 +109,7 @@
   display: flex;
   flex-direction: column;
   margin-bottom: 4px;
+  font-size: var(--fs-small);
 }
 
 /* Записи дня */
@@ -215,6 +216,9 @@
 .chipOn {
   border-color: var(--c-food);
   color: var(--c-food);
+}
+.wide {
+  width: calc(100% - var(--px) * 2);
 }
 .grams {
   display: flex;

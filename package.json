@@ -1,7 +1,7 @@
 {
   "name": "pixel-planner",
   "private": true,
-  "version": "0.20.0",
+  "version": "0.20.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -52,7 +52,6 @@
     "workbox-routing": "^7.4.1"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true,
-    "workerd@1.20261023.1": true
+    "esbuild@0.28.2": true
   }
 }

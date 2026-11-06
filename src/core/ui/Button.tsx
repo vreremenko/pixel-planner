@@ -25,7 +25,7 @@ export function Button({ variant = 'default', icon, small, label, children, clas
       title={label}
       {...rest}
     >
-      {icon && <PixelIcon name={icon} size={small ? 16 : 16} />}
+      {icon && <PixelIcon name={icon} size={16} />}
       {children}
     </button>
   );
