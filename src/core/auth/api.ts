@@ -11,6 +11,9 @@ const MESSAGES: Record<string, string> = {
   too_many_attempts: 'Слишком много попыток. Подождите немного и повторите',
   unauthorized: 'Нужно войти заново',
   forbidden: 'Нет доступа',
+  bad_code: 'Неверный или устаревший код',
+  code_cooldown: 'Код уже отправлен. Подождите минуту',
+  mail_unavailable: 'Письма пока не отправляются. Попробуйте позже',
 };
 
 /** Ошибка с понятным пользователю текстом. */
@@ -68,6 +71,14 @@ export const loginAccount = (email: string, password: string) =>
   call('auth/login', { method: 'POST', body: { email, password, device: deviceLabel() } }) as Promise<Session>;
 
 export const currentUser = (token: string) => call(`auth/me?v=${APP_VERSION}`, { method: 'GET', token }) as Promise<Pick<Session, 'user'>>;
+
+export const sendVerifyCode = (token: string) => call('auth/verify/send', { method: 'POST', token, body: {} });
+
+export const verifyEmail = (token: string, code: string) => call('auth/verify', { method: 'POST', token, body: { code } });
+
+export const requestPasswordReset = (email: string) => call('auth/reset/request', { method: 'POST', body: { email } });
+
+export const confirmPasswordReset = (email: string, code: string, newPassword: string) => call('auth/reset', { method: 'POST', body: { email, code, newPassword } });
 
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 

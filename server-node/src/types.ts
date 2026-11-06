@@ -53,6 +53,19 @@ export interface User {
   id: string;
   email: string;
   passHash: string;
+  emailVerified?: boolean;
+}
+
+export type CodeKind = 'verify' | 'reset';
+
+/** Код из письма; в базе лежит только его хеш. */
+export interface EmailCode {
+  userId: string;
+  kind: CodeKind;
+  codeHash: string;
+  expiresAt: number;
+  sentAt: number;
+  attempts: number;
 }
 
 export interface DueRow extends ScheduleItem {
@@ -73,6 +86,7 @@ export interface AdminUserRow {
   createdAt: number;
   /** Когда последний раз пользовались сессией; null — активных сессий нет. */
   lastSeen: number | null;
+  emailVerified: boolean;
   sessions: number;
   pushDevices: number;
   /** Версия приложения на самом свежем устройстве; null — приложение ещё не сообщало её. */
@@ -115,6 +129,7 @@ export interface Store {
   userByEmail(email: string): Promise<User | null>;
   userById(id: string): Promise<User | null>;
   userSetPassword(id: string, passHash: string): Promise<void>;
+  userSetVerified(id: string, now: number): Promise<void>;
   /** Удалить пользователя со всеми его данными: синхронизацией, устройствами, напоминаниями, сессиями. */
   userDelete(id: string): Promise<void>;
 
@@ -125,6 +140,14 @@ export interface Store {
   sessionDelete(tokenHash: string): Promise<void>;
   /** Закрыть все сессии пользователя, кроме одной (смена пароля). */
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void>;
+  /** Закрыть все сессии пользователя (сброс пароля). */
+  sessionsDeleteAll(userId: string): Promise<void>;
+
+  /** Заменить код этого вида: действует только последний. */
+  codeSet(c: EmailCode): Promise<void>;
+  codeGet(userId: string, kind: CodeKind): Promise<EmailCode | null>;
+  codeAttempt(userId: string, kind: CodeKind): Promise<void>;
+  codeDelete(userId: string, kind: CodeKind): Promise<void>;
 
   /** Отметить, что пользователь был активен в этот день (YYYY-MM-DD). */
   activityTouch(userId: string, day: string): Promise<void>;

@@ -2,10 +2,11 @@ import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, Panel, TextInput, rowClass, toast } from '../ui';
 import { changePassword, logout, removeAccount, useAuth } from '../auth/store';
 import { AuthModal } from './AuthModal';
+import { VerifyEmailDialog } from './VerifyEmailDialog';
 
 const fail = (e: unknown) => toast(e instanceof Error ? e.message : 'Что-то пошло не так', 'alert', 'var(--c-warn)');
 
-type Dialog = 'login' | 'register' | 'logout' | 'password' | 'delete' | null;
+type Dialog = 'login' | 'register' | 'logout' | 'password' | 'delete' | 'verify' | null;
 
 /** Диалог с одним полем пароля (подтверждение удаления) или двумя (смена пароля). */
 function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClose: () => void }) {
@@ -80,6 +81,16 @@ export function AccountPanel() {
           <p style={{ marginTop: 0 }}>
             Вы вошли как <b>{session.user.email}</b>. Задачи и привычки сохраняются на сервере и доступны на всех устройствах, где вы вошли.
           </p>
+          {session.user.emailVerified === false && (
+            <>
+              <p style={{ color: 'var(--c-warn)' }}>Почта не подтверждена.</p>
+              <div className={rowClass} style={{ marginBottom: 12 }}>
+                <Button variant="habit" icon="check" onClick={() => setDialog('verify')}>
+                  Подтвердить почту
+                </Button>
+              </div>
+            </>
+          )}
           <div className={rowClass}>
             <Button icon="left" onClick={() => setDialog('logout')}>
               Выйти
@@ -108,6 +119,7 @@ export function AccountPanel() {
       <p style={{ marginBottom: 0, color: 'var(--c-text-dim)', fontSize: 17 }}>На сервере данные хранятся без шифрования. Пароль мы не видим и сохранить не можем.</p>
 
       {(dialog === 'login' || dialog === 'register') && <AuthModal mode={dialog} onClose={() => setDialog(null)} />}
+      {dialog === 'verify' && session && <VerifyEmailDialog email={session.user.email} onClose={() => setDialog(null)} />}
       {(dialog === 'password' || dialog === 'delete') && <PasswordDialog kind={dialog} onClose={() => setDialog(null)} />}
       <Modal
         open={dialog === 'logout'}

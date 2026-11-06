@@ -74,6 +74,7 @@ export function buildStats({ now, admins, users, activity, records }: StatsInput
       .map((u) => ({
         email: u.email,
         admin: admins.includes(u.email),
+        verified: u.emailVerified,
         createdAt: u.createdAt,
         lastSeen: u.lastSeen,
         sessions: u.sessions,

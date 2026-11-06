@@ -26,7 +26,7 @@ export function startAuth(): () => void {
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
-  if (!fresh || Boolean(fresh.user.admin) === Boolean(session.user.admin)) return;
+  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified)) return;
   const current = await loadSession();
   if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }
@@ -45,6 +45,32 @@ export async function login(email: string, password: string): Promise<void> {
   await enter(await api.loginAccount(email, password));
 }
 
+export const requestReset = async (email: string): Promise<void> => {
+  await api.requestPasswordReset(email);
+};
+
+/** Новый пароль закрывает все сессии аккаунта, поэтому сразу входим с ним. */
+export async function resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+  await api.confirmPasswordReset(email, code, newPassword);
+  await login(email, newPassword);
+}
+
+async function currentSession(): Promise<Session> {
+  const session = await loadSession();
+  if (!session) throw new api.AuthError('unauthorized', 'Нужно войти заново');
+  return session;
+}
+
+export async function resendVerifyCode(): Promise<void> {
+  await api.sendVerifyCode((await currentSession()).token);
+}
+
+export async function confirmEmail(code: string): Promise<void> {
+  const session = await currentSession();
+  await api.verifyEmail(session.token, code);
+  await saveSession({ ...session, user: { ...session.user, emailVerified: true } });
+}
+
 /** Выйти. С eraseLocal данные стираются с этого устройства (для чужого или общего телефона). */
 export async function logout(eraseLocal: boolean): Promise<void> {
   const session = await loadSession();
@@ -56,16 +82,12 @@ export async function logout(eraseLocal: boolean): Promise<void> {
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
-  const session = await loadSession();
-  if (!session) throw new api.AuthError('unauthorized', 'Нужно войти заново');
-  await api.changePassword(session.token, oldPassword, newPassword);
+  await api.changePassword((await currentSession()).token, oldPassword, newPassword);
 }
 
 /** Удалить аккаунт и данные на сервере. Данные на устройстве остаются. */
 export async function removeAccount(password: string): Promise<void> {
-  const session = await loadSession();
-  if (!session) throw new api.AuthError('unauthorized', 'Нужно войти заново');
-  await api.deleteAccount(session.token, password);
+  await api.deleteAccount((await currentSession()).token, password);
   // Подписки устройств сервер удалил вместе с аккаунтом
   const push = await metaRepo.get<{ deviceId: string; enabled: boolean }>('push');
   if (push) await metaRepo.set('push', { ...push, enabled: false });

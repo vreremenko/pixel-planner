@@ -3,11 +3,12 @@
  * но без привязки к платформе: запрос и хранилище приходят снаружи, поэтому её можно проверять тестами
  * (хранилище в памяти — memory-store.ts, боевое — sqlite-store.ts на SQLite).
  */
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
-import type { DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
+import type { SendMail } from './mail.ts';
+import type { CodeKind, DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
 
 export interface Env {
@@ -29,6 +30,8 @@ export interface Deps {
   /** Запрос к Open Food Facts и кэш его ответов; в тестах подменяются. */
   offFetch?: typeof fetch;
   offCache?: Map<string, OffCached>;
+  /** Отправка писем; без неё коды не выдаются. */
+  sendMail?: SendMail;
   /** Отправка push; в тестах подменяется. */
   send?: (env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown) => Promise<{ status: number; detail: string }>;
 }
@@ -50,6 +53,11 @@ const LOGIN_MAX_PER_EMAIL = 8;
 const LOGIN_MAX_PER_IP = 40;
 const REGISTER_WINDOW_MS = 3_600_000;
 const REGISTER_MAX_PER_IP = 10;
+const CODE_TTL_MS = 15 * 60_000;
+const CODE_RESEND_MS = 60_000;
+const CODE_MAX_ATTEMPTS = 5;
+const RESET_WINDOW_MS = 3_600_000;
+const RESET_MAX_PER_IP = 20;
 /** Вид напоминания задаёт модуль клиента ('task', 'habit'…) — проверяем только форму. */
 const KIND_RE = /^[a-z][a-zA-Z0-9_-]{0,31}$/;
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
@@ -218,7 +226,7 @@ async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: s
 
 const bad = (status: number, error: string) => new HttpError(status, error);
 
-const publicUser = (u: { id: string; email: string }, env: Env) => ({ id: u.id, email: u.email, ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
+const publicUser = (u: { id: string; email: string; emailVerified?: boolean }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
@@ -227,6 +235,41 @@ async function openSession(d: Deps, userId: string, device: string): Promise<str
   await d.store.sessionCreate({ tokenHash: tokenHash(token), userId, device: device.slice(0, 80), now });
   await d.store.activityTouch(userId, dayOf(now));
   return token;
+}
+
+const codeHash = (userId: string, kind: CodeKind, code: string): string => tokenHash(`${userId}:${kind}:${code}`);
+
+const CODE_MAIL: Record<CodeKind, { subject: string; lead: string }> = {
+  verify: { subject: 'Подтверждение почты', lead: 'Код для подтверждения почты в PIXEL PLANNER' },
+  reset: { subject: 'Восстановление пароля', lead: 'Код для восстановления пароля в PIXEL PLANNER' },
+};
+
+/**
+ * Выдать код и отправить письмо. Письмо уходит в фоне: иначе по времени ответа было бы видно, есть ли такая почта.
+ * false — прошлый код отправлен только что.
+ */
+async function issueCode(d: Deps, user: { id: string; email: string }, kind: CodeKind, now: number): Promise<boolean> {
+  const send = d.sendMail;
+  if (!send) throw bad(503, 'mail_unavailable');
+  const old = await d.store.codeGet(user.id, kind);
+  if (old && now - old.sentAt < CODE_RESEND_MS) return false;
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  await d.store.codeSet({ userId: user.id, kind, codeHash: codeHash(user.id, kind, code), expiresAt: now + CODE_TTL_MS, sentAt: now, attempts: 0 });
+  const { subject, lead } = CODE_MAIL[kind];
+  send(user.email, subject, `${lead}: ${code}\n\nКод действует 15 минут. Если это были не вы, просто не отвечайте на письмо.`).catch((e: unknown) => {
+    console.warn('письмо не отправлено', e);
+  });
+  return true;
+}
+
+/** Верный ли код; после нескольких ошибок он сгорает. Погашает код вызывающий, когда дело сделано. */
+async function checkCode(d: Deps, userId: string, kind: CodeKind, code: unknown, now: number): Promise<boolean> {
+  const row = await d.store.codeGet(userId, kind);
+  if (!row || now > row.expiresAt || typeof code !== 'string') return false;
+  if (row.codeHash === codeHash(userId, kind, code.trim())) return true;
+  if (row.attempts + 1 >= CODE_MAX_ATTEMPTS) await d.store.codeDelete(userId, kind);
+  else await d.store.codeAttempt(userId, kind);
+  return false;
 }
 
 async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpRes> {
@@ -247,6 +290,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const id = randomUUID();
     if (!(await d.store.userCreate({ id, email, passHash: await hashPassword(password), now }))) throw bad(409, 'email_taken');
     const token = await openSession(d, id, typeof b.device === 'string' ? b.device : '');
+    if (d.sendMail) await issueCode(d, { id, email }, 'verify', now);
     return json({ token, user: publicUser({ id, email }, d.env) }, 201);
   }
 
@@ -273,6 +317,33 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return json({ token, user: publicUser(user, d.env) });
   }
 
+  // POST /api/auth/reset/request {email}: ответ одинаковый, есть такая почта или нет
+  if (action === 'reset' && parts[2] === 'request' && req.method === 'POST') {
+    if (!d.sendMail) throw bad(503, 'mail_unavailable');
+    const b = readJson(req.body) as { email?: unknown };
+    const email = typeof b.email === 'string' ? normalizeEmail(b.email) : '';
+    if (limiter.count(`reset:${ip}`, RESET_WINDOW_MS, now) >= RESET_MAX_PER_IP) throw bad(429, 'too_many_attempts');
+    limiter.add(`reset:${ip}`, now);
+    const user = await d.store.userByEmail(email);
+    if (user) await issueCode(d, user, 'reset', now);
+    return json({ ok: true });
+  }
+
+  // POST /api/auth/reset {email, code, newPassword}: заодно подтверждает почту и закрывает все сессии
+  if (action === 'reset' && parts.length === 2 && req.method === 'POST') {
+    const b = readJson(req.body) as { email?: unknown; code?: unknown; newPassword?: unknown };
+    if (limiter.count(`reset:${ip}`, RESET_WINDOW_MS, now) >= RESET_MAX_PER_IP) throw bad(429, 'too_many_attempts');
+    limiter.add(`reset:${ip}`, now);
+    if (typeof b.newPassword !== 'string' || !isValidPassword(b.newPassword)) throw bad(400, 'weak_password');
+    const user = typeof b.email === 'string' ? await d.store.userByEmail(normalizeEmail(b.email)) : null;
+    if (!user || !(await checkCode(d, user.id, 'reset', b.code, now))) throw bad(400, 'bad_code');
+    await d.store.userSetPassword(user.id, await hashPassword(b.newPassword));
+    await d.store.userSetVerified(user.id, now);
+    await d.store.codeDelete(user.id, 'reset');
+    await d.store.sessionsDeleteAll(user.id);
+    return json({ ok: true });
+  }
+
   // Остальное — только для вошедшего пользователя
   const { userId, token } = await requireUser(req, d);
 
@@ -283,6 +354,23 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const version = req.query.v ?? '';
     if (VERSION_RE.test(version)) await d.store.sessionSetVersion(tokenHash(token), version);
     return json({ user: publicUser(user, d.env) });
+  }
+
+  // POST /api/auth/verify/send: отправить код ещё раз
+  if (action === 'verify' && parts[2] === 'send' && req.method === 'POST') {
+    const user = await d.store.userById(userId);
+    if (!user) throw bad(401, 'unauthorized');
+    if (!user.emailVerified && !(await issueCode(d, user, 'verify', now))) throw bad(429, 'code_cooldown');
+    return json({ ok: true });
+  }
+
+  // POST /api/auth/verify {code}
+  if (action === 'verify' && parts.length === 2 && req.method === 'POST') {
+    const b = readJson(req.body) as { code?: unknown };
+    if (!(await checkCode(d, userId, 'verify', b.code, now))) throw bad(400, 'bad_code');
+    await d.store.userSetVerified(userId, now);
+    await d.store.codeDelete(userId, 'verify');
+    return json({ ok: true });
   }
 
   // POST /api/auth/logout

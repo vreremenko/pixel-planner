@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { ActivityRow, AdminRecordRow, AdminUserRow, Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -39,6 +39,11 @@ export class SqliteStore implements Store {
         created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
+      CREATE TABLE IF NOT EXISTS email_codes (
+        user_id TEXT NOT NULL, kind TEXT NOT NULL, code_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL, sent_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, kind)
+      );
       CREATE TABLE IF NOT EXISTS activity (day TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
     `);
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
@@ -46,6 +51,8 @@ export class SqliteStore implements Store {
     if (!cols.some((c) => c.name === 'user_id')) this.db.exec('ALTER TABLE devices ADD COLUMN user_id TEXT');
     const sessionCols = this.db.prepare('PRAGMA table_info(sessions)').all() as unknown as { name: string }[];
     if (!sessionCols.some((c) => c.name === 'app_version')) this.db.exec('ALTER TABLE sessions ADD COLUMN app_version TEXT');
+    const userCols = this.db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
+    if (!userCols.some((c) => c.name === 'email_verified_at')) this.db.exec('ALTER TABLE users ADD COLUMN email_verified_at INTEGER');
     this.db.exec('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id IS NULL)');
     this.db.exec('DELETE FROM devices WHERE user_id IS NULL');
   }
@@ -178,8 +185,8 @@ export class SqliteStore implements Store {
   }
 
   private user(where: 'id' | 'email', value: string): User | null {
-    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash FROM users WHERE ${where} = ?`).get(value) as User | undefined;
-    return r ?? null;
+    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash, email_verified_at AS verifiedAt FROM users WHERE ${where} = ?`).get(value) as (User & { verifiedAt: number | null }) | undefined;
+    return r ? { id: r.id, email: r.email, passHash: r.passHash, emailVerified: r.verifiedAt !== null } : null;
   }
 
   userByEmail(email: string): Promise<User | null> {
@@ -195,6 +202,11 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  userSetVerified(id: string, now: number): Promise<void> {
+    this.db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?').run(now, id);
+    return Promise.resolve();
+  }
+
   userDelete(id: string): Promise<void> {
     this.tx(() => {
       this.db.prepare('DELETE FROM sync_records WHERE space = ?').run(id);
@@ -203,6 +215,7 @@ export class SqliteStore implements Store {
       this.db.prepare('DELETE FROM devices WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM email_codes WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
     });
     return Promise.resolve();
@@ -236,6 +249,35 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  sessionsDeleteAll(userId: string): Promise<void> {
+    this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    return Promise.resolve();
+  }
+
+  codeSet(c: EmailCode): Promise<void> {
+    this.db
+      .prepare('INSERT OR REPLACE INTO email_codes (user_id, kind, code_hash, expires_at, sent_at, attempts) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(c.userId, c.kind, c.codeHash, c.expiresAt, c.sentAt, c.attempts);
+    return Promise.resolve();
+  }
+
+  codeGet(userId: string, kind: CodeKind): Promise<EmailCode | null> {
+    const r = this.db
+      .prepare('SELECT user_id AS userId, kind, code_hash AS codeHash, expires_at AS expiresAt, sent_at AS sentAt, attempts FROM email_codes WHERE user_id = ? AND kind = ?')
+      .get(userId, kind) as EmailCode | undefined;
+    return Promise.resolve(r ?? null);
+  }
+
+  codeAttempt(userId: string, kind: CodeKind): Promise<void> {
+    this.db.prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE user_id = ? AND kind = ?').run(userId, kind);
+    return Promise.resolve();
+  }
+
+  codeDelete(userId: string, kind: CodeKind): Promise<void> {
+    this.db.prepare('DELETE FROM email_codes WHERE user_id = ? AND kind = ?').run(userId, kind);
+    return Promise.resolve();
+  }
+
   activityTouch(userId: string, day: string): Promise<void> {
     this.db.prepare('INSERT OR IGNORE INTO activity (day, user_id) VALUES (?, ?)').run(day, userId);
     return Promise.resolve();
@@ -248,15 +290,15 @@ export class SqliteStore implements Store {
   adminUsers(): Promise<AdminUserRow[]> {
     const rows = this.db
       .prepare(
-        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt,
+        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt, u.email_verified_at IS NOT NULL AS emailVerified,
                 (SELECT MAX(last_used_at) FROM sessions s WHERE s.user_id = u.id) AS lastSeen,
                 (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id) AS sessions,
                 (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS pushDevices,
                 (SELECT app_version FROM sessions s WHERE s.user_id = u.id AND app_version IS NOT NULL ORDER BY last_used_at DESC LIMIT 1) AS appVersion
          FROM users u`,
       )
-      .all() as unknown as AdminUserRow[];
-    return Promise.resolve(rows);
+      .all() as unknown as (Omit<AdminUserRow, 'emailVerified'> & { emailVerified: number })[];
+    return Promise.resolve(rows.map((r) => ({ ...r, emailVerified: r.emailVerified === 1 })));
   }
 
   adminRecords(recentSince: number): Promise<AdminRecordRow[]> {

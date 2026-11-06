@@ -1,6 +1,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, TextInput, toast } from '../ui';
 import { login, register } from '../auth/store';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
 
 type Mode = 'login' | 'register';
 
@@ -11,6 +12,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const isRegister = mode === 'register';
 
   const submit = async (e: SyntheticEvent) => {
@@ -19,7 +21,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
     setError(null);
     try {
       await (isRegister ? register(email, password) : login(email, password));
-      toast(isRegister ? 'Аккаунт создан. Данные теперь сохраняются на сервере' : 'Вы вошли в аккаунт', 'check', 'var(--c-habit)');
+      toast(isRegister ? 'Аккаунт создан. Подтвердите почту в личном кабинете' : 'Вы вошли в аккаунт', 'check', 'var(--c-habit)');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось войти');
@@ -27,6 +29,8 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
       setBusy(false);
     }
   };
+
+  if (resetting) return <ResetPasswordDialog email={email} onClose={() => setResetting(false)} onDone={onClose} />;
 
   return (
     <Modal keepOnOutsideClick open onClose={onClose} title={isRegister ? 'Создать аккаунт' : 'Вход в аккаунт'} accent="var(--c-habit)">
@@ -59,6 +63,11 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
           >
             {isRegister ? 'Уже есть аккаунт' : 'Создать аккаунт'}
           </Button>
+          {!isRegister && (
+            <Button variant="ghost" onClick={() => setResetting(true)}>
+              Забыли пароль?
+            </Button>
+          )}
         </div>
         {isRegister && <p style={{ color: 'var(--c-text-dim)', marginBottom: 0 }}>Данные, которые уже есть на этом устройстве, перейдут в новый аккаунт.</p>}
       </form>

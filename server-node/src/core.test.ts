@@ -415,3 +415,85 @@ describe('админка', () => {
     expect(s.active.day).toBe(1);
   });
 });
+
+describe('письма с кодами', () => {
+  const NEW = 'новый пароль из письма';
+  let now = 1_000_000;
+  const setup = () => {
+    now = 1_000_000;
+    const mails: { to: string; text: string }[] = [];
+    const d = mk({ now: () => now, sendMail: (to, _subject, text) => {
+      mails.push({ to, text });
+      return Promise.resolve();
+    } });
+    const lastCode = () => /: (\d{6})/.exec(mails.at(-1)?.text ?? '')?.[1] ?? '';
+    return { d, mails, lastCode };
+  };
+  const post = (d: Deps, path: string, body: unknown, token?: string) => handle(req('POST', path, { body, ...(token ? { token } : {}) }), d);
+  const me = async (d: Deps, token: string) => json(await handle(req('GET', 'auth/me', { token }), d)).user as { emailVerified: boolean };
+
+  it('регистрация присылает код, он подтверждает почту', async () => {
+    const { d, mails, lastCode } = setup();
+    const token = await register(d, 'a@b.ru');
+    expect(mails.map((m) => m.to)).toEqual(['a@b.ru']);
+    expect((await me(d, token)).emailVerified).toBe(false);
+    expect((await post(d, 'auth/verify', { code: '000000x' }, token)).status).toBe(400);
+    expect((await post(d, 'auth/verify', { code: ` ${lastCode()} ` }, token)).status).toBe(200);
+    expect((await me(d, token)).emailVerified).toBe(true);
+    expect((await post(d, 'auth/verify', { code: lastCode() }, token)).status).toBe(400);
+  });
+
+  it('повторная отправка не чаще раза в минуту', async () => {
+    const { d, mails } = setup();
+    const token = await register(d, 'a@b.ru');
+    expect(json(await post(d, 'auth/verify/send', {}, token)).error).toBe('code_cooldown');
+    now += 61_000;
+    expect((await post(d, 'auth/verify/send', {}, token)).status).toBe(200);
+    expect(mails).toHaveLength(2);
+  });
+
+  it('код сгорает после пяти ошибок и через 15 минут', async () => {
+    const { d, lastCode } = setup();
+    const token = await register(d, 'a@b.ru');
+    const good = lastCode();
+    const wrong = good === '111111' ? '222222' : '111111';
+    for (let i = 0; i < 5; i++) await post(d, 'auth/verify', { code: wrong }, token);
+    expect((await post(d, 'auth/verify', { code: good }, token)).status).toBe(400);
+    now += 61_000;
+    await post(d, 'auth/verify/send', {}, token);
+    now += 16 * 60_000;
+    expect((await post(d, 'auth/verify', { code: lastCode() }, token)).status).toBe(400);
+  });
+
+  it('сброс пароля: меняет пароль, подтверждает почту и закрывает все сессии', async () => {
+    const { d, lastCode } = setup();
+    const token = await register(d, 'a@b.ru');
+    now += 61_000;
+    expect((await post(d, 'auth/reset/request', { email: 'A@b.ru' })).status).toBe(200);
+    expect((await post(d, 'auth/reset', { email: 'a@b.ru', code: lastCode(), newPassword: 'коротко' })).status).toBe(400);
+    expect((await post(d, 'auth/reset', { email: 'a@b.ru', code: lastCode(), newPassword: NEW })).status).toBe(200);
+    expect((await handle(req('GET', 'auth/me', { token }), d)).status).toBe(401);
+    expect((await post(d, 'auth/login', { email: 'a@b.ru', password: PASSWORD })).status).toBe(401);
+    const login = await post(d, 'auth/login', { email: 'a@b.ru', password: NEW });
+    expect((json(login).user as { emailVerified: boolean }).emailVerified).toBe(true);
+    expect((await post(d, 'auth/reset', { email: 'a@b.ru', code: lastCode(), newPassword: NEW })).status).toBe(400);
+  });
+
+  it('код подтверждения не подходит для сброса, а чужая почта отвечает так же', async () => {
+    const { d, mails, lastCode } = setup();
+    await register(d, 'a@b.ru');
+    expect((await post(d, 'auth/reset', { email: 'a@b.ru', code: lastCode(), newPassword: NEW })).status).toBe(400);
+    const unknown = await post(d, 'auth/reset/request', { email: 'нет@такой.ru' });
+    expect(unknown.status).toBe(200);
+    expect(json(unknown)).toEqual({ ok: true });
+    expect(mails).toHaveLength(1);
+    expect((await post(d, 'auth/reset', { email: 'нет@такой.ru', code: '123456', newPassword: NEW })).status).toBe(400);
+  });
+
+  it('без настроек почты регистрация работает, а отправка кодов честно отказывает', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    expect(json(await post(d, 'auth/verify/send', {}, token)).error).toBe('mail_unavailable');
+    expect(json(await post(d, 'auth/reset/request', { email: 'a@b.ru' })).error).toBe('mail_unavailable');
+  });
+});

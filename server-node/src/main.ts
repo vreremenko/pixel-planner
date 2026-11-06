@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { handle, sendDue, type Env } from './core.ts';
+import { createMailer } from './mail.ts';
 import { SqliteStore } from './sqlite-store.ts';
 
 const env: Env = {
@@ -15,6 +16,7 @@ const env: Env = {
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   ADMIN_EMAILS: process.env.ADMIN_EMAILS,
 };
+const sendMail = createMailer(process.env);
 const port = Number(process.env.PORT ?? 8787);
 const dbPath = process.env.DB_PATH ?? './data/pixel-planner.sqlite';
 mkdirSync(dirname(dbPath), { recursive: true });
@@ -53,7 +55,7 @@ const server = createServer((req, res) => {
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k.toLowerCase()] = v;
       const out = await handle(
         { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
-        { store, env },
+        { store, env, ...(sendMail ? { sendMail } : {}) },
       );
       res.writeHead(out.status, out.headers).end(out.status === 204 ? undefined : out.body);
     } catch (e) {

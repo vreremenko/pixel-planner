@@ -97,6 +97,33 @@ describe('SqliteStore: аккаунты', () => {
   });
 });
 
+describe('SqliteStore: почта', () => {
+  it('подтверждение, коды и закрытие всех сессий', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.userCreate({ id: 'u', email: 'a@b.ru', passHash: 'h', now: 1 });
+    expect((await s.userById('u'))?.emailVerified).toBe(false);
+    await s.userSetVerified('u', 5);
+    expect((await s.userByEmail('a@b.ru'))?.emailVerified).toBe(true);
+    expect((await s.adminUsers())[0]?.emailVerified).toBe(true);
+    const code = { userId: 'u', kind: 'reset' as const, codeHash: 'x', expiresAt: 9, sentAt: 1, attempts: 0 };
+    await s.codeSet(code);
+    await s.codeAttempt('u', 'reset');
+    expect(await s.codeGet('u', 'reset')).toEqual({ ...code, attempts: 1 });
+    expect(await s.codeGet('u', 'verify')).toBeNull();
+    await s.codeSet({ ...code, codeHash: 'y' });
+    expect((await s.codeGet('u', 'reset'))?.attempts).toBe(0);
+    await s.codeDelete('u', 'reset');
+    expect(await s.codeGet('u', 'reset')).toBeNull();
+    await s.sessionCreate({ tokenHash: 'a', userId: 'u', device: '', now: 1 });
+    await s.sessionCreate({ tokenHash: 'b', userId: 'u', device: '', now: 1 });
+    await s.sessionsDeleteAll('u');
+    expect(await s.sessionUser('a', 2, 100)).toBeNull();
+    await s.codeSet(code);
+    await s.userDelete('u');
+    expect(await s.codeGet('u', 'reset')).toBeNull();
+  });
+});
+
 describe('SqliteStore: админка', () => {
   it('считает активность, сессии и записи без удалённых', async () => {
     const s = new SqliteStore(':memory:');
@@ -107,7 +134,7 @@ describe('SqliteStore: админка', () => {
     await s.activityTouch('u', '2026-11-01');
     await s.syncPush('u', [rec('a', 100), rec('b', 5), { t: 'tasks', id: 'c', u: 100, d: '{"deletedAt":1}' }]);
     expect(await s.activitySince('2026-11-02')).toEqual([{ userId: 'u', day: '2026-11-06' }]);
-    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, lastSeen: 500, sessions: 1, pushDevices: 0, appVersion: null }]);
+    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, emailVerified: false, lastSeen: 500, sessions: 1, pushDevices: 0, appVersion: null }]);
     expect(await s.adminRecords(50)).toEqual([{ userId: 'u', table: 'tasks', records: 2, recent: 1 }]);
     await s.sessionSetVersion('t', '0.22.0');
     expect((await s.adminUsers())[0]?.appVersion).toBe('0.22.0');

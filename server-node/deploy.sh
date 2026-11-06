@@ -40,6 +40,8 @@ set -a; source "$ENV_FILE"; set +a
   echo "VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY"
   echo "VAPID_SUBJECT=$VAPID_SUBJECT"
   echo "ADMIN_EMAILS=${ADMIN_EMAILS:-}"
+  echo "SMTP_USER=${SMTP_USER:-}"
+  echo "SMTP_PASS=${SMTP_PASS:-}"
 } | "${SSH[@]}" 'umask 077; cat > /etc/pixel-planner.env; chown root:pp /etc/pixel-planner.env; chmod 640 /etc/pixel-planner.env'
 
 echo "== служба systemd"

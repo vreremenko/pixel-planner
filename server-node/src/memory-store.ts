@@ -1,4 +1,4 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -8,6 +8,7 @@ export class MemoryStore implements Store {
   private users = new Map<string, User & { createdAt: number }>();
   private sessions = new Map<string, { userId: string; lastUsedAt: number; version?: string }>();
   private activity = new Set<string>();
+  private codes = new Map<string, EmailCode>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
   syncPull(space: string, after: number, limit: number): Promise<SyncRow[]> {
@@ -114,11 +115,18 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  userSetVerified(id: string): Promise<void> {
+    const u = this.users.get(id);
+    if (u) u.emailVerified = true;
+    return Promise.resolve();
+  }
+
   async userDelete(id: string): Promise<void> {
     await this.syncDelete(id);
     for (const [did, d] of this.devices) if (d.userId === id) await this.deviceDelete(did);
     for (const [t, s] of this.sessions) if (s.userId === id) this.sessions.delete(t);
     for (const a of this.activity) if (a.endsWith(`|${id}`)) this.activity.delete(a);
+    for (const [k, c] of this.codes) if (c.userId === id) this.codes.delete(k);
     this.users.delete(id);
   }
 
@@ -150,6 +158,31 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  sessionsDeleteAll(userId: string): Promise<void> {
+    for (const [t, s] of this.sessions) if (s.userId === userId) this.sessions.delete(t);
+    return Promise.resolve();
+  }
+
+  codeSet(c: EmailCode): Promise<void> {
+    this.codes.set(`${c.userId}|${c.kind}`, { ...c });
+    return Promise.resolve();
+  }
+
+  codeGet(userId: string, kind: CodeKind): Promise<EmailCode | null> {
+    return Promise.resolve(this.codes.get(`${userId}|${kind}`) ?? null);
+  }
+
+  codeAttempt(userId: string, kind: CodeKind): Promise<void> {
+    const c = this.codes.get(`${userId}|${kind}`);
+    if (c) c.attempts++;
+    return Promise.resolve();
+  }
+
+  codeDelete(userId: string, kind: CodeKind): Promise<void> {
+    this.codes.delete(`${userId}|${kind}`);
+    return Promise.resolve();
+  }
+
   activityTouch(userId: string, day: string): Promise<void> {
     this.activity.add(`${day}|${userId}`);
     return Promise.resolve();
@@ -170,7 +203,7 @@ export class MemoryStore implements Store {
       [...this.users.values()].map((u) => {
         const mine = sessions.filter((s) => s.userId === u.id);
         const appVersion = mine.filter((s) => s.version !== undefined).sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.version ?? null;
-        return { id: u.id, email: u.email, createdAt: u.createdAt, lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
+        return { id: u.id, email: u.email, createdAt: u.createdAt, emailVerified: Boolean(u.emailVerified), lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
       }),
     );
   }
