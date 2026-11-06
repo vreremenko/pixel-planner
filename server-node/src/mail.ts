@@ -12,6 +12,9 @@ export interface MailEnv {
   MAIL_TO_CONSOLE?: string;
 }
 
+/** Сервер отправки по адресу ящика: так в настройках хватает адреса и пароля. */
+export const smtpHost = (user: string): string => (/@(yandex\.[a-z]+|ya\.ru)$/i.test(user) ? 'smtp.yandex.ru' : 'smtp.mail.ru');
+
 export function createMailer(env: MailEnv): SendMail | undefined {
   if (env.MAIL_TO_CONSOLE) {
     return (to, subject, text) => {
@@ -22,7 +25,7 @@ export function createMailer(env: MailEnv): SendMail | undefined {
   const { SMTP_USER: user, SMTP_PASS: pass } = env;
   if (!user || !pass) return undefined;
   const port = Number(env.SMTP_PORT ?? 465);
-  const transport = createTransport({ host: env.SMTP_HOST ?? 'smtp.mail.ru', port, secure: port === 465, auth: { user, pass } });
+  const transport = createTransport({ host: env.SMTP_HOST ?? smtpHost(user), port, secure: port === 465, auth: { user, pass } });
   return async (to, subject, text) => {
     await transport.sendMail({ from: `PIXEL PLANNER <${user}>`, to, subject, text });
   };

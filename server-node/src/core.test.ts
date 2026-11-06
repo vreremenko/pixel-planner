@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle, sendDue, type Deps } from './core.ts';
+import { smtpHost } from './mail.ts';
 import { MemoryStore } from './memory-store.ts';
 import { json, mk, register, req } from './test-helpers.ts';
 
@@ -495,5 +496,13 @@ describe('письма с кодами', () => {
     const token = await register(d, 'a@b.ru');
     expect(json(await post(d, 'auth/verify/send', {}, token)).error).toBe('mail_unavailable');
     expect(json(await post(d, 'auth/reset/request', { email: 'a@b.ru' })).error).toBe('mail_unavailable');
+  });
+});
+
+describe('сервер почты', () => {
+  it('выбирается по адресу ящика', () => {
+    expect(smtpHost('app@yandex.ru')).toBe('smtp.yandex.ru');
+    expect(smtpHost('app@ya.ru')).toBe('smtp.yandex.ru');
+    expect(smtpHost('app@mail.ru')).toBe('smtp.mail.ru');
   });
 });
