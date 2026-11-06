@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   bad_credentials: 'Неверная почта или пароль',
   too_many_attempts: 'Слишком много попыток. Подождите немного и повторите',
   unauthorized: 'Нужно войти заново',
+  forbidden: 'Нет доступа',
 };
 
 /** Ошибка с понятным пользователю текстом. */
@@ -65,9 +66,13 @@ export const registerAccount = (email: string, password: string) =>
 export const loginAccount = (email: string, password: string) =>
   call('auth/login', { method: 'POST', body: { email, password, device: deviceLabel() } }) as Promise<Session>;
 
+export const currentUser = (token: string) => call('auth/me', { method: 'GET', token }) as Promise<Pick<Session, 'user'>>;
+
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 
 export const changePassword = (token: string, oldPassword: string, newPassword: string) =>
   call('auth/password', { method: 'POST', token, body: { oldPassword, newPassword } });
+
+export const adminStats = <T>(token: string) => call('admin/stats', { method: 'GET', token }) as Promise<T>;
 
 export const deleteAccount = (token: string, password: string) => call('auth/account', { method: 'DELETE', token, body: { password } });

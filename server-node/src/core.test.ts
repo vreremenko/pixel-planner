@@ -339,3 +339,68 @@ describe('поиск продуктов', () => {
     expect((await handle(req('GET', 'food/search', { query: { q: 'ещё еда' }, ip: '2.2.2.2' }), d)).status).toBe(200);
   });
 });
+
+describe('админка', () => {
+  const env = { ALLOWED_ORIGINS: 'https://site.test', ADMIN_EMAILS: ' Boss@Site.ru , x@y.ru' };
+  const stats = (d: Deps, token?: string) => handle(req('GET', 'admin/stats', token ? { token } : {}), d);
+  const food = (id: string, u: number, extra: object = {}) => ({ t: 'food_entries', id, u, d: JSON.stringify({ id, updatedAt: u, name: 'Секретная еда', ...extra }) });
+
+  it('пускает только админа: без входа 401, обычному пользователю 403', async () => {
+    const d = mk({ env });
+    const user = await register(d, 'a@b.ru');
+    const boss = await register(d, 'boss@site.ru');
+    expect((await stats(d)).status).toBe(401);
+    expect((await stats(d, user)).status).toBe(403);
+    expect((await stats(d, boss)).status).toBe(200);
+  });
+
+  it('без настройки админов нет ни у кого', async () => {
+    const d = mk();
+    expect((await stats(d, await register(d, 'boss@site.ru'))).status).toBe(403);
+  });
+
+  it('признак админа приходит только админу', async () => {
+    const d = mk({ env });
+    const user = await register(d, 'a@b.ru');
+    const boss = await register(d, 'boss@site.ru');
+    expect(json(await handle(req('GET', 'auth/me', { token: user }), d)).user).not.toHaveProperty('admin');
+    expect((json(await handle(req('GET', 'auth/me', { token: boss }), d)).user as { admin?: boolean }).admin).toBe(true);
+  });
+
+  it('считает активность по дням и возвращение на следующей неделе', async () => {
+    let now = 1_800_000_000_000;
+    const d = mk({ env, now: () => now });
+    const user = await register(d, 'a@b.ru');
+    const boss = await register(d, 'boss@site.ru');
+    await handle(req('GET', 'auth/me', { token: user }), d);
+    await handle(req('GET', 'auth/me', { token: user }), d);
+    now += 8 * 86_400_000;
+    const s = json(await stats(d, boss)) as { active: { day: number; week: number; month: number }; returned: { previous: number; back: number }; days: { users: number }[]; list: { email: string; activeDays: number }[] };
+    expect(s.active).toEqual({ day: 1, week: 1, month: 2 });
+    expect(s.returned).toEqual({ previous: 2, back: 1 });
+    expect(s.days).toHaveLength(7);
+    expect(s.list.find((u) => u.email === 'a@b.ru')?.activeDays).toBe(1);
+  });
+
+  it('считает записи по разделам без удалённых, настроек и содержимого', async () => {
+    const d = mk({ env, now: () => 1_000_000_000 });
+    const boss = await register(d, 'boss@site.ru');
+    const records = [food('a', 999_999_000), food('b', 1000), food('c', 999_999_000, { deletedAt: 5 }), { t: 'food_prefs', id: 'p', u: 999_999_000, d: '{"id":"p"}' }];
+    await handle(req('PUT', 'sync', { token: boss, body: { records } }), d);
+    const res = await stats(d, boss);
+    const s = json(res) as { modules: { name: string; records: number; users: number; active: number }[]; list: { records: Record<string, number> }[] };
+    expect(s.modules).toEqual([{ name: 'Питание', records: 2, users: 1, active: 1 }]);
+    expect(s.list[0]?.records).toEqual({ Питание: 2 });
+    expect(res.body).not.toContain('Секретная');
+  });
+
+  it('удаление аккаунта стирает и его активность', async () => {
+    const d = mk({ env });
+    const user = await register(d, 'a@b.ru');
+    const boss = await register(d, 'boss@site.ru');
+    await handle(req('DELETE', 'auth/account', { token: user, body: { password: PASSWORD } }), d);
+    const s = json(await stats(d, boss)) as { users: { total: number }; active: { day: number } };
+    expect(s.users.total).toBe(1);
+    expect(s.active.day).toBe(1);
+  });
+});

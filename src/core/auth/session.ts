@@ -4,7 +4,7 @@ import { metaRepo } from '../data/repo';
 
 export interface Session {
   token: string;
-  user: { id: string; email: string };
+  user: { id: string; email: string; admin?: boolean };
 }
 
 const KEY = 'session';

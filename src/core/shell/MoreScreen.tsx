@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PixelIcon } from '../ui';
 import type { ModuleNavItem } from '../module';
-import { SETTINGS, useModules } from './nav';
+import { ADMIN, SETTINGS, useIsAdmin, useModules } from './nav';
 import s from './Shell.module.css';
 
 function Tile({ n }: { n: ModuleNavItem }) {
@@ -17,6 +17,7 @@ function Tile({ n }: { n: ModuleNavItem }) {
 
 export function MoreScreen() {
   const modules = useModules();
+  const admin = useIsAdmin();
   return (
     <>
       <h1 className="glow pageTitle" style={{ marginBottom: 8 }}>
@@ -50,6 +51,7 @@ export function MoreScreen() {
       )}
       <h2 className={s.groupTitle}>Приложение</h2>
       <div className={s.tiles}>
+        {admin && <Tile n={ADMIN} />}
         <Tile n={SETTINGS} />
       </div>
     </>

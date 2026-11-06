@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
+import { buildStats, dayOf } from './admin.ts';
 import type { DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
 
@@ -15,6 +16,8 @@ export interface Env {
   VAPID_SUBJECT?: string;
   /** Через запятую: откуда разрешены запросы (фронтенд на GitHub Pages). */
   ALLOWED_ORIGINS?: string;
+  /** Через запятую: почты админов. Хранится в настройках сервера, а не в коде: репозиторий открытый. */
+  ADMIN_EMAILS?: string;
 }
 
 export interface Deps {
@@ -30,6 +33,7 @@ export interface Deps {
   send?: (env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown) => Promise<{ status: number; detail: string }>;
 }
 
+const DAY_MS = 86_400_000;
 const MAX_ITEMS = 500;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
@@ -119,9 +123,23 @@ function parseSyncRecord(x: unknown): SyncIn | null {
 async function requireUser(req: HttpReq, d: Deps): Promise<{ userId: string; token: string }> {
   const token = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1];
   if (!token || !TOKEN_RE.test(token)) throw new HttpError(401, 'unauthorized');
-  const userId = await d.store.sessionUser(tokenHash(token), (d.now ?? Date.now)(), SESSION_MAX_IDLE_MS);
+  const now = (d.now ?? Date.now)();
+  const userId = await d.store.sessionUser(tokenHash(token), now, SESSION_MAX_IDLE_MS);
   if (!userId) throw new HttpError(401, 'unauthorized');
+  await d.store.activityTouch(userId, dayOf(now));
   return { userId, token };
+}
+
+const adminEmails = (env: Env): string[] => (env.ADMIN_EMAILS ?? '').split(',').map(normalizeEmail).filter(Boolean);
+
+/** Права админа определяет только сервер: скрытая вкладка в приложении ничего не защищает. */
+async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const { userId } = await requireUser(req, d);
+  const admins = adminEmails(d.env);
+  const user = await d.store.userById(userId);
+  if (!user || !admins.includes(user.email)) throw new HttpError(403, 'forbidden');
+  const [users, activity, records] = await Promise.all([d.store.adminUsers(), d.store.activitySince(dayOf(now - 30 * DAY_MS)), d.store.adminRecords(now - 7 * DAY_MS)]);
+  return json(buildStats({ now, admins, users, activity, records }));
 }
 
 /** Ответ Open Food Facts без лишних полей; одинаковые запросы разных пользователей уходят туда один раз в сутки. */
@@ -199,12 +217,14 @@ async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: s
 
 const bad = (status: number, error: string) => new HttpError(status, error);
 
-const publicUser = (u: { id: string; email: string }) => ({ id: u.id, email: u.email });
+const publicUser = (u: { id: string; email: string }, env: Env) => ({ id: u.id, email: u.email, ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
   const token = newToken();
-  await d.store.sessionCreate({ tokenHash: tokenHash(token), userId, device: device.slice(0, 80), now: (d.now ?? Date.now)() });
+  const now = (d.now ?? Date.now)();
+  await d.store.sessionCreate({ tokenHash: tokenHash(token), userId, device: device.slice(0, 80), now });
+  await d.store.activityTouch(userId, dayOf(now));
   return token;
 }
 
@@ -226,7 +246,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const id = randomUUID();
     if (!(await d.store.userCreate({ id, email, passHash: await hashPassword(password), now }))) throw bad(409, 'email_taken');
     const token = await openSession(d, id, typeof b.device === 'string' ? b.device : '');
-    return json({ token, user: { id, email } }, 201);
+    return json({ token, user: publicUser({ id, email }, d.env) }, 201);
   }
 
   // POST /api/auth/login {email, password}
@@ -249,7 +269,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     }
     limiter.reset(keyEmail);
     const token = await openSession(d, user.id, typeof b.device === 'string' ? b.device : '');
-    return json({ token, user: publicUser(user) });
+    return json({ token, user: publicUser(user, d.env) });
   }
 
   // Остальное — только для вошедшего пользователя
@@ -259,7 +279,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   if (action === 'me' && req.method === 'GET') {
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
-    return json({ user: publicUser(user) });
+    return json({ user: publicUser(user, d.env) });
   }
 
   // POST /api/auth/logout
@@ -310,6 +330,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   }
   if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
+  if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
   if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {

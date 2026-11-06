@@ -96,3 +96,20 @@ describe('SqliteStore: аккаунты', () => {
     store.close();
   });
 });
+
+describe('SqliteStore: админка', () => {
+  it('считает активность, сессии и записи без удалённых', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.userCreate({ id: 'u', email: 'a@b.ru', passHash: 'h', now: 1 });
+    await s.sessionCreate({ tokenHash: 't', userId: 'u', device: '', now: 500 });
+    await s.activityTouch('u', '2026-11-06');
+    await s.activityTouch('u', '2026-11-06');
+    await s.activityTouch('u', '2026-11-01');
+    await s.syncPush('u', [rec('a', 100), rec('b', 5), { t: 'tasks', id: 'c', u: 100, d: '{"deletedAt":1}' }]);
+    expect(await s.activitySince('2026-11-02')).toEqual([{ userId: 'u', day: '2026-11-06' }]);
+    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, lastSeen: 500, sessions: 1, pushDevices: 0 }]);
+    expect(await s.adminRecords(50)).toEqual([{ userId: 'u', table: 'tasks', records: 2, recent: 1 }]);
+    await s.userDelete('u');
+    expect(await s.activitySince('2026-01-01')).toEqual([]);
+  });
+});

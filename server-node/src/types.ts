@@ -62,6 +62,30 @@ export interface DueRow extends ScheduleItem {
   auth: string;
 }
 
+export interface ActivityRow {
+  userId: string;
+  day: string;
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  createdAt: number;
+  /** Когда последний раз пользовались сессией; null — активных сессий нет. */
+  lastSeen: number | null;
+  sessions: number;
+  pushDevices: number;
+}
+
+/** Количество записей пользователя в таблице, без содержимого; удалённые не считаются. */
+export interface AdminRecordRow {
+  userId: string;
+  table: string;
+  records: number;
+  /** Сколько из них менялось после указанного времени. */
+  recent: number;
+}
+
 /** Хранилище. Реализации: YDB (боевая) и в памяти (тесты). Все методы атомарны сами по себе. */
 export interface Store {
   /** Записи пространства с seq > after, по возрастанию seq, не больше limit. */
@@ -98,4 +122,10 @@ export interface Store {
   sessionDelete(tokenHash: string): Promise<void>;
   /** Закрыть все сессии пользователя, кроме одной (смена пароля). */
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void>;
+
+  /** Отметить, что пользователь был активен в этот день (YYYY-MM-DD). */
+  activityTouch(userId: string, day: string): Promise<void>;
+  activitySince(day: string): Promise<ActivityRow[]>;
+  adminUsers(): Promise<AdminUserRow[]>;
+  adminRecords(recentSince: number): Promise<AdminRecordRow[]>;
 }

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -39,6 +39,7 @@ export class SqliteStore implements Store {
         created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
+      CREATE TABLE IF NOT EXISTS activity (day TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
     `);
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
     const cols = this.db.prepare('PRAGMA table_info(devices)').all() as unknown as { name: string }[];
@@ -199,6 +200,7 @@ export class SqliteStore implements Store {
       this.db.prepare('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id = ?)').run(id);
       this.db.prepare('DELETE FROM devices WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
     });
     return Promise.resolve();
@@ -225,5 +227,38 @@ export class SqliteStore implements Store {
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void> {
     this.db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(userId, keepTokenHash);
     return Promise.resolve();
+  }
+
+  activityTouch(userId: string, day: string): Promise<void> {
+    this.db.prepare('INSERT OR IGNORE INTO activity (day, user_id) VALUES (?, ?)').run(day, userId);
+    return Promise.resolve();
+  }
+
+  activitySince(day: string): Promise<ActivityRow[]> {
+    return Promise.resolve(this.db.prepare('SELECT user_id AS userId, day FROM activity WHERE day >= ?').all(day) as unknown as ActivityRow[]);
+  }
+
+  adminUsers(): Promise<AdminUserRow[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt,
+                (SELECT MAX(last_used_at) FROM sessions s WHERE s.user_id = u.id) AS lastSeen,
+                (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id) AS sessions,
+                (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS pushDevices
+         FROM users u`,
+      )
+      .all() as unknown as AdminUserRow[];
+    return Promise.resolve(rows);
+  }
+
+  adminRecords(recentSince: number): Promise<AdminRecordRow[]> {
+    // Содержимое записи не читаем: удалённую видно по служебному полю в тексте
+    const rows = this.db
+      .prepare(
+        `SELECT space AS userId, tbl AS "table", COUNT(*) AS records, SUM(updated_at >= ?) AS recent
+         FROM sync_records WHERE data NOT LIKE '%"deletedAt":%' GROUP BY space, tbl`,
+      )
+      .all(recentSince) as unknown as AdminRecordRow[];
+    return Promise.resolve(rows);
   }
 }

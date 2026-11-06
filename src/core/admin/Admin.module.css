@@ -1,0 +1,54 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4);
+  min-width: 0;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr));
+  gap: var(--gap-2);
+}
+.metric {
+  padding: var(--gap-2);
+  border: 2px solid var(--c-panel-3);
+  min-width: 0;
+}
+.metric b {
+  display: block;
+  font-weight: normal;
+  color: var(--c-text);
+}
+.chart {
+  margin-top: var(--gap-3);
+}
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  padding: var(--gap-2) 0;
+  border-top: 1px solid var(--c-panel-3);
+}
+.row:first-child {
+  border-top: 0;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dim {
+  color: var(--c-text-muted);
+  font-size: var(--fs-small);
+}
+.hint {
+  margin: var(--gap-2) 0 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-small);
+}

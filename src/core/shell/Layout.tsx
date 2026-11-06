@@ -8,7 +8,7 @@ import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
 import { Goida } from '../easter/Goida';
 import { OfflineBar } from './OfflineBar';
-import { ACCOUNT, HOME, MORE, SETTINGS, useMobileNav, useModules } from './nav';
+import { ACCOUNT, ADMIN, HOME, MORE, SETTINGS, useIsAdmin, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
   return items.map((n) => (
@@ -42,7 +42,8 @@ export function Layout() {
   const modules = useModules();
   const mobile = useMobileNav();
   const signedIn = Boolean(useAuth((st) => st.session));
-  const allItems = useMemo(() => [HOME, ...modules.flatMap((m) => m.nav), ACCOUNT, SETTINGS, MORE], [modules]);
+  const admin = useIsAdmin();
+  const allItems = useMemo(() => [HOME, ...modules.flatMap((m) => m.nav), ACCOUNT, ADMIN, SETTINGS, MORE], [modules]);
   const current = useCurrentItem(allItems);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
@@ -66,7 +67,7 @@ export function Layout() {
           ))}
         </nav>
         <nav className={s.sideFooter} aria-label="Приложение">
-          <NavLinks items={[ACCOUNT, SETTINGS]} />
+          <NavLinks items={admin ? [ACCOUNT, ADMIN, SETTINGS] : [ACCOUNT, SETTINGS]} />
         </nav>
       </aside>
       <header className={s.topbar}>

@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { createHashRouter, RouterProvider, type RouteObject } from 'react-router';
 import { Layout } from './Layout';
 import { SettingsScreen } from '../settings/SettingsScreen';
@@ -15,6 +15,8 @@ import { applyMode } from '../settings/mode';
 import { WhatsNew } from '../whatsnew/WhatsNew';
 
 // Маршруты всех разделов сборки: выключенный в настройках раздел пропадает из меню, но его ссылки работают
+const AdminScreen = lazy(() => import('../admin/AdminScreen').then((m) => ({ default: m.AdminScreen })));
+
 const moduleRoutes: RouteObject[] = MODULES.flatMap((m) => m.routes.map(({ path, Component }) => ({ path, element: <Component /> })));
 
 const router = createHashRouter([
@@ -27,6 +29,7 @@ const router = createHashRouter([
       { path: 'more', element: <MoreScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
       { path: 'account', element: <AccountScreen /> },
+      { path: 'admin', element: <AdminScreen /> },
       // Неизвестный адрес — сводка
       { path: '*', element: <Dashboard /> },
     ],

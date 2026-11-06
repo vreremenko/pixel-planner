@@ -13,6 +13,7 @@ const env: Env = {
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
   VAPID_SUBJECT: process.env.VAPID_SUBJECT,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+  ADMIN_EMAILS: process.env.ADMIN_EMAILS,
 };
 const port = Number(process.env.PORT ?? 8787);
 const dbPath = process.env.DB_PATH ?? './data/pixel-planner.sqlite';

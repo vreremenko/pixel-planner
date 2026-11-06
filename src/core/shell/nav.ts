@@ -1,15 +1,20 @@
 /* Что показывать в меню и на «Сводке» с учётом выключенных разделов и выбора пунктов нижнего меню. */
 import { useMemo } from 'react';
 import type { ModuleManifest, ModuleNavItem } from '../module';
+import { useAuth } from '../auth/store';
 import { useSettings } from '../stores/settings';
 import { MODULES } from '../../modules';
 
 export const HOME: ModuleNavItem = { to: '/', label: 'Сводка', short: 'Сводка', icon: 'home', accent: 'var(--c-gold)' };
 export const ACCOUNT: ModuleNavItem = { to: '/account', label: 'Личный кабинет', short: 'Кабинет', icon: 'user', accent: 'var(--c-habit)' };
+export const ADMIN: ModuleNavItem = { to: '/admin', label: 'Админка', short: 'Админка', icon: 'shield', accent: 'var(--c-gold)' };
 export const SETTINGS: ModuleNavItem = { to: '/settings', label: 'Настройки', short: 'Опции', icon: 'gear', accent: 'var(--c-text-dim)' };
 export const MORE: ModuleNavItem = { to: '/more', label: 'Ещё', short: 'Ещё', icon: 'menu', accent: 'var(--c-text-dim)' };
 /** Сколько разделов помещается в нижнее меню между «Сводкой» и «Ещё». */
 export const MOBILE_SLOTS = 3;
+
+/** Показать ли админку. Настоящая проверка прав на сервере, здесь только пункт меню. */
+export const useIsAdmin = (): boolean => useAuth((s) => Boolean(s.session?.user.admin));
 
 /** Включённые разделы этой сборки. */
 export function useModules(): readonly ModuleManifest[] {

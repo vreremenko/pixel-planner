@@ -16,8 +16,19 @@ export const useAuth = create<AuthState>(() => ({ session: undefined }));
 /** Прочитать сохранённый вход и следить за его изменениями (вход, выход, отзыв сессии сервером). */
 export function startAuth(): () => void {
   const off = onSessionChange((session) => useAuth.setState({ session }));
-  void loadSession().then((session) => useAuth.setState({ session }));
+  void loadSession().then((session) => {
+    useAuth.setState({ session });
+    if (session) void refreshRole(session);
+  });
   return off;
+}
+
+/** Роль могли поменять на сервере: сверяем при запуске, а без связи работает сохранённая. */
+async function refreshRole(session: Session): Promise<void> {
+  const fresh = await api.currentUser(session.token).catch(() => null);
+  if (!fresh || Boolean(fresh.user.admin) === Boolean(session.user.admin)) return;
+  const current = await loadSession();
+  if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }
 
 async function enter(session: Session): Promise<void> {

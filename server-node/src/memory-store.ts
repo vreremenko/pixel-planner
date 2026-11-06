@@ -1,4 +1,4 @@
-import type { Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, Device, DueRow, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -7,6 +7,7 @@ export class MemoryStore implements Store {
   private devices = new Map<string, { endpoint: string; p256dh: string; auth: string; userId: string }>();
   private users = new Map<string, User & { createdAt: number }>();
   private sessions = new Map<string, { userId: string; lastUsedAt: number }>();
+  private activity = new Set<string>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
   syncPull(space: string, after: number, limit: number): Promise<SyncRow[]> {
@@ -117,6 +118,7 @@ export class MemoryStore implements Store {
     await this.syncDelete(id);
     for (const [did, d] of this.devices) if (d.userId === id) await this.deviceDelete(did);
     for (const [t, s] of this.sessions) if (s.userId === id) this.sessions.delete(t);
+    for (const a of this.activity) if (a.endsWith(`|${id}`)) this.activity.delete(a);
     this.users.delete(id);
   }
 
@@ -140,5 +142,42 @@ export class MemoryStore implements Store {
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void> {
     for (const [t, s] of this.sessions) if (s.userId === userId && t !== keepTokenHash) this.sessions.delete(t);
     return Promise.resolve();
+  }
+
+  activityTouch(userId: string, day: string): Promise<void> {
+    this.activity.add(`${day}|${userId}`);
+    return Promise.resolve();
+  }
+
+  activitySince(day: string): Promise<ActivityRow[]> {
+    const rows = [...this.activity].map((a) => {
+      const [d = '', userId = ''] = a.split('|');
+      return { day: d, userId };
+    });
+    return Promise.resolve(rows.filter((r) => r.day >= day));
+  }
+
+  adminUsers(): Promise<AdminUserRow[]> {
+    const sessions = [...this.sessions.values()];
+    const devices = [...this.devices.values()];
+    return Promise.resolve(
+      [...this.users.values()].map((u) => {
+        const mine = sessions.filter((s) => s.userId === u.id);
+        return { id: u.id, email: u.email, createdAt: u.createdAt, lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length };
+      }),
+    );
+  }
+
+  adminRecords(recentSince: number): Promise<AdminRecordRow[]> {
+    const out = new Map<string, AdminRecordRow>();
+    for (const r of this.rows.values()) {
+      if (r.d.includes('"deletedAt":')) continue;
+      const k = `${r.space}|${r.t}`;
+      const row = out.get(k) ?? { userId: r.space, table: r.t, records: 0, recent: 0 };
+      row.records++;
+      if (r.u >= recentSince) row.recent++;
+      out.set(k, row);
+    }
+    return Promise.resolve([...out.values()]);
   }
 }
