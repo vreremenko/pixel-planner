@@ -14,6 +14,7 @@ import { db } from '../data/db';
 import { toast } from '../ui';
 import { showSystemNotification } from './notify';
 import { ensurePushRegistered, isPushActive, syncSchedule } from './push';
+import { hasPulled } from '../sync/manager';
 import { loadSession } from '../auth/session';
 
 const TICK_MS = 60_000;
@@ -57,10 +58,13 @@ async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promi
   });
 }
 
-/** Расписание уходит на сервер, пока мы вошли в аккаунт и напоминания включены: его получат и другие устройства аккаунта. */
+/**
+ * Расписание аккаунта отправляет любое устройство, где мы вошли и данные уже свежие: его получат телефон, бот и другие устройства.
+ * Раньше оно зависело от выключателя уведомлений на этом устройстве, и компьютер с выключенными уведомлениями
+ * отправлял пустое расписание, стирая напоминания телефона.
+ */
 async function shouldSendSchedule(): Promise<boolean> {
-  const session = await loadSession();
-  return session !== null && (useSettings.getState().settings.notificationsEnabled || session.user.telegramReminders === true);
+  return hasPulled() && (await loadSession()) !== null;
 }
 
 /** Немедленно отправить расписание push-серверу (при сворачивании приложения). */
@@ -70,7 +74,7 @@ async function flushPush(): Promise<void> {
 
 async function pushSchedule(now: number): Promise<void> {
   try {
-    const planned = await plan(new Date(now), new Date(now + PUSH_HORIZON_MS));
+    const planned = await plan(new Date(now), new Date(now + PUSH_HORIZON_MS), true);
     await syncSchedule(planned.map(({ key, fireAt, kind, ref, date, title, body }) => ({ key, fireAt, kind, ref, date, title, body })));
   } catch {
     // Нет сети — отправим при следующем тике

@@ -29,9 +29,14 @@ interface SyncStore {
   running: boolean;
   /** Последний запрос к серверу не дошёл: нет сети или сервер не отвечает. */
   unreachable: boolean;
+  /** С момента запуска хотя бы раз забрали свежие данные с сервера. */
+  pulled: boolean;
 }
 
-const useSync = create<SyncStore>(() => ({ state: undefined, running: false, unreachable: false }));
+const useSync = create<SyncStore>(() => ({ state: undefined, running: false, unreachable: false, pulled: false }));
+
+/** Расписание напоминаний можно отправлять только с актуальными данными, иначе старое устройство затрёт новые напоминания. */
+export const hasPulled = (): boolean => useSync.getState().pulled;
 
 export const useUnreachable = (): boolean => useSync((s) => s.unreachable);
 
@@ -134,6 +139,7 @@ async function syncNow(): Promise<void> {
     // Пока шёл проход, могли выйти из аккаунта
     const cur = await metaRepo.get<SyncState | null>(META_KEY);
     if (cur?.userId === state.userId) await saveState(next);
+    if (!next.lastError && cur?.userId === state.userId) useSync.setState({ pulled: true });
     if (next.lastError && cur?.userId === state.userId) schedule(RETRY_MS);
   } finally {
     applying = false;

@@ -8,8 +8,8 @@ import { openDues } from './domain/plan';
 
 const HOUR = '10:00';
 
-async function plan(from: Date, to: Date): Promise<PlannedReminder[]> {
-  if (!(await settingsRepo.get()).notificationsEnabled) return [];
+async function plan(from: Date, to: Date, account = false): Promise<PlannedReminder[]> {
+  if (!account && !(await settingsRepo.get()).notificationsEnabled) return [];
   const start = dateOf(from);
   const days = diffDays(dateOf(to), start) + 1;
   const dues = openDues(await paymentRepo.all(), await txRepo.all(), start, days);

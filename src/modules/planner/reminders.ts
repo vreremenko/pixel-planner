@@ -15,8 +15,10 @@ async function summaryBody(date: string): Promise<string> {
   return summaryText(tasks.filter((t) => !t.done).length + occ.length, h.length);
 }
 
-async function plan(from: Date, to: Date): Promise<PlannedReminder[]> {
-  const settings = await settingsRepo.get();
+async function plan(from: Date, to: Date, account = false): Promise<PlannedReminder[]> {
+  const stored = await settingsRepo.get();
+  // Выключатель уведомлений — настройка этого устройства, расписание аккаунта от него не зависит
+  const settings = account ? { ...stored, notificationsEnabled: true } : stored;
   const fromDate = addDays(dateOf(from), -1);
   const toDate = dateOf(to);
   // Напоминание «за день» срабатывает накануне: задачи берём с запасом на день вперёд

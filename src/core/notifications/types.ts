@@ -25,7 +25,8 @@ export interface ReminderProvider {
   /** Виды напоминаний модуля. */
   kinds: readonly string[];
   /** Напоминания со сроком в [from, to) с готовым текстом; модуль сам учитывает настройки (тихие часы и т.п.). */
-  plan(from: Date, to: Date): Promise<PlannedReminder[]>;
+  /** account — расписание для сервера: строится для всего аккаунта, независимо от выключателя на этом устройстве. */
+  plan(from: Date, to: Date, account?: boolean): Promise<PlannedReminder[]>;
   /** «Выполнено» из уведомления; false — так нельзя (нужно открыть приложение). */
   complete?(r: ReminderRef): Promise<boolean>;
   /** Куда вести пользователя, если complete вернул false. */

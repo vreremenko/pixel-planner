@@ -8,9 +8,9 @@ const PROVIDERS: readonly ReminderProvider[] = [plannerReminders, gymReminders, 
 
 const byKind = (kind: string) => PROVIDERS.find((p) => p.kinds.includes(kind));
 
-/** Все напоминания всех модулей в окне [from, to), по времени. */
-export async function planAll(from: Date, to: Date): Promise<PlannedReminder[]> {
-  const lists = await Promise.all(PROVIDERS.map((p) => p.plan(from, to)));
+/** Все напоминания всех модулей в окне [from, to), по времени. account — для сервера, см. ReminderProvider.plan. */
+export async function planAll(from: Date, to: Date, account = false): Promise<PlannedReminder[]> {
+  const lists = await Promise.all(PROVIDERS.map((p) => p.plan(from, to, account)));
   return lists.flat().sort((a, b) => a.fireAt - b.fireAt);
 }
 

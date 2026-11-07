@@ -16,8 +16,8 @@ function planned(id: string, title: string, date: string, last: number, setsDone
   };
 }
 
-async function plan(from: Date, to: Date): Promise<PlannedReminder[]> {
-  if (!(await settingsRepo.get()).notificationsEnabled) return [];
+async function plan(from: Date, to: Date, account = false): Promise<PlannedReminder[]> {
+  if (!account && !(await settingsRepo.get()).notificationsEnabled) return [];
   const out: PlannedReminder[] = [];
   for (const w of await workoutRepo.all()) {
     // Идущая тренировка закроется через полчаса после последнего действия; уже закрытая сама — сообщение ещё нужно показать
