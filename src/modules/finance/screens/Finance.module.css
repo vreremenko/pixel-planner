@@ -61,11 +61,13 @@
 .bad {
   color: var(--c-warn);
 }
-.goal {
+.rowBtn.goal {
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: var(--gap-1);
+  width: 100%;
   text-align: left;
 }
 .goalHead {

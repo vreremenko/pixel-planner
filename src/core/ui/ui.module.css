@@ -292,6 +292,16 @@ input[type='time'].input {
   gap: var(--gap-2);
   margin-top: var(--gap-4);
 }
+/* Кнопка-значок (удалить) всегда слева, отдельно от «Отмена» и «Сохранить» */
+.dialogFooter > .iconOnly {
+  margin-right: auto;
+}
+@media (max-width: 767px) {
+  /* На телефоне кнопки делят ширину поровну, а не жмутся к правому краю */
+  .dialogFooter > .btn:not(.iconOnly) {
+    flex: 1 1 110px;
+  }
+}
 
 /* Тосты */
 .toasts {
