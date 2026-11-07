@@ -3,7 +3,7 @@
  * Все записи имеют updatedAt и мягкое удаление (deletedAt) — на этом держится синхронизация.
  */
 import { db } from './db';
-import type { ReminderLog, Settings, SyncMeta } from '../domain/types';
+import type { AccountSettings, AppPrefs, ReminderLog, Settings, SyncMeta } from '../domain/types';
 import { SYNC_TABLES } from '../../shared/syncTables';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { currentTimeZone } from '../domain/dates';
@@ -64,6 +64,19 @@ export const settingsRepo = {
   async patch(p: Partial<Omit<Settings, 'id'>>) {
     const cur = await this.get();
     await db.settings.put({ ...cur, ...p, id: 'settings', updatedAt: Date.now() });
+  },
+};
+
+const PREFS_ID = 'prefs';
+
+export const appPrefsRepo = {
+  async get(): Promise<AppPrefs | undefined> {
+    const p = await db.table<AppPrefs, string>('app_prefs').get(PREFS_ID);
+    return alive(p) ? p : undefined;
+  },
+  async put(p: Partial<AccountSettings>, updatedAt = Date.now()) {
+    const cur = await this.get();
+    await db.table<AppPrefs, string>('app_prefs').put({ ...cur, ...p, id: PREFS_ID, createdAt: cur?.createdAt ?? updatedAt, updatedAt });
   },
 };
 

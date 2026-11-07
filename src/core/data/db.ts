@@ -12,13 +12,15 @@ const CORE_TABLES = {
   reminderLogs: 'id, fireAt, updatedAt',
   settings: 'id',
   meta: 'key',
+  /** Настройки аккаунта (нижнее меню, разделы, сводка, тихие часы): синхронизируются между устройствами. */
+  app_prefs: 'id, updatedAt',
 };
 
 /**
  * Версия схемы IndexedDB. Поднимать при любом изменении таблиц или индексов (свой модуль добавил
  * таблицу и т.п.) — иначе браузер не создаст новые таблицы. Тест-снимок схемы напомнит.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export function schema(): Record<string, string> {
   return { ...CORE_TABLES, ...MODULE_TABLES };

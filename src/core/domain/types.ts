@@ -46,6 +46,19 @@ export interface Settings {
   mobileNav: string[];
 }
 
+/**
+ * Что из настроек общее для аккаунта и синхронизируется. Остальное — своё на каждом устройстве:
+ * уведомления, звук, CRT, режим «Для мамы», часовой пояс.
+ */
+export const ACCOUNT_SETTINGS = ['mobileNav', 'modulesOff', 'quietHours', 'morningSummary'] as const;
+export type AccountSettings = Pick<Settings, (typeof ACCOUNT_SETTINGS)[number]>;
+
+/** Строка таблицы app_prefs: одна на аккаунт. */
+export interface AppPrefs extends SyncMeta, Partial<AccountSettings> {}
+
+export const pickAccountSettings = (s: Partial<AccountSettings>): Partial<AccountSettings> =>
+  Object.fromEntries(ACCOUNT_SETTINGS.filter((k) => s[k] !== undefined).map((k) => [k, s[k]]));
+
 export const DEFAULT_SETTINGS: Settings = {
   id: 'settings',
   updatedAt: 0,

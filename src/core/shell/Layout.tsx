@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState, type CSSProperties } from 'react';
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import s from './Layout.module.css';
 import { PixelIcon } from '../ui';
@@ -48,6 +48,11 @@ export function Layout() {
   const allItems = useMemo(() => [HOME, ...modules.flatMap((m) => m.nav), ACCOUNT, ADMIN, SETTINGS, MORE], [modules]);
   const current = useCurrentItem(allItems);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const { pathname } = useLocation();
+  // Новый экран открывается с начала, а не с места, где листали прошлый
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return (
     <div className={s.shell}>
       <a href="#main" className={`${s.link} ${s.skip}`}>

@@ -3,6 +3,7 @@
  * записи только этих таблиц. Новая синхронизируемая таблица модуля добавляется сюда.
  */
 export const SYNC_TABLES = [
+  'app_prefs',
   'tasks',
   'series',
   'overrides',
