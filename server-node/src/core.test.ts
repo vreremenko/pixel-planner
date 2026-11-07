@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handle, sendDue, type Deps } from './core.ts';
 import { smtpHost } from './mail.ts';
+import { createHmac } from 'node:crypto';
 import type { Button } from './telegram.ts';
 import { MemoryStore } from './memory-store.ts';
 import { json, mk, register, req } from './test-helpers.ts';
@@ -549,7 +550,7 @@ describe('Telegram', () => {
     const { code, url } = (await post(d, 'auth/telegram/link', {}, token)) as { code: string; url: string };
     expect(url).toBe(`https://t.me/bot?start=link_${code}`);
     await text(d, `/start link_${code}`);
-    expect(sent.at(-1)?.button?.data).toBe(`ok:${code}`);
+    expect(sent.at(-1)?.button).toMatchObject({ data: `ok:${code}` });
     expect((await post(d, 'auth/telegram/check', { code })).status).toBe('pending');
     await press(d, `ok:${code}`);
     const done = await post(d, 'auth/telegram/check', { code });
@@ -635,5 +636,55 @@ describe('Telegram', () => {
 
   it('без настроек бота вход честно недоступен', async () => {
     expect((await post(mk(), 'auth/telegram/start')).error).toBe('telegram_unavailable');
+  });
+});
+
+describe('Mini App', () => {
+  const BOT = '123:secret-token';
+  const signed = (fields: Record<string, string>) => {
+    const check = Object.entries(fields).map(([k, v]) => `${k}=${v}`).sort().join('\n');
+    const secret = createHmac('sha256', 'WebAppData').update(BOT).digest();
+    const hash = createHmac('sha256', secret).update(check).digest('hex');
+    return new URLSearchParams({ ...fields, hash }).toString();
+  };
+  const initData = (id: number, authSec = 1000) => signed({ auth_date: String(authSec), query_id: 'q', user: JSON.stringify({ id, first_name: 'Вова' }) });
+  const setup = () => mk({ now: () => 1_000_000, env: { TELEGRAM_BOT_TOKEN: BOT } });
+  const login = async (d: Deps, data: string) => handle(req('POST', 'auth/telegram/webapp', { body: { initData: data } }), d);
+
+  it('первый вход создаёт аккаунт без почты с напоминаниями через бота, второй входит в него же', async () => {
+    const d = setup();
+    const first = json(await login(d, initData(42)));
+    const user = first.user as { id: string; telegramOnly: boolean; telegram: boolean; telegramReminders: boolean };
+    expect(user).toMatchObject({ telegramOnly: true, telegram: true, telegramReminders: true });
+    const second = json(await login(d, initData(42)));
+    expect((second.user as { id: string }).id).toBe(user.id);
+  });
+
+  it('подделанная и старая подпись не проходят', async () => {
+    const d = setup();
+    expect((await login(d, initData(42).replace('42', '43'))).status).toBe(401);
+    expect((await login(d, initData(42, -100_000))).status).toBe(401);
+    expect((await login(mk({ env: {} }), initData(42))).status).toBe(503);
+  });
+
+  it('аккаунт из Telegram: нельзя отвязать Telegram, можно добавить почту, удаляется подтверждением', async () => {
+    const d = setup();
+    const token = json(await login(d, initData(42))).token as string;
+    const post = async (path: string, body: unknown, method = 'POST') => handle(req(method, path, { token, body }), d);
+    expect(json(await post('auth/telegram', {}, 'DELETE')).error).toBe('telegram_only');
+    expect(json(await post('auth/account', {}, 'DELETE')).error).toBe('bad_credentials');
+    await register(d, 'busy@b.ru');
+    expect(json(await post('auth/email', { email: 'busy@b.ru', password: PASSWORD })).error).toBe('email_taken');
+    const added = json(await post('auth/email', { email: 'Me@b.ru', password: PASSWORD }));
+    expect(added.user).toMatchObject({ email: 'me@b.ru', emailVerified: false });
+    expect(added.user).not.toHaveProperty('telegramOnly');
+    expect((await handle(req('POST', 'auth/login', { body: { email: 'me@b.ru', password: PASSWORD } }), d)).status).toBe(200);
+    expect(json(await post('auth/email', { email: 'x@b.ru', password: PASSWORD })).error).toBe('has_email');
+  });
+
+  it('аккаунт без пароля удаляется явным подтверждением', async () => {
+    const d = setup();
+    const token = json(await login(d, initData(7))).token as string;
+    expect((await handle(req('DELETE', 'auth/account', { token, body: { confirm: true } }), d)).status).toBe(200);
   });
 });

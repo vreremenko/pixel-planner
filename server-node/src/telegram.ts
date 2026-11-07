@@ -6,10 +6,8 @@ export interface TelegramEnv {
   TELEGRAM_RELAY_KEY?: string;
 }
 
-export interface Button {
-  text: string;
-  data: string;
-}
+/** Кнопка под сообщением: ответ боту (data) или открытие приложения (webApp). */
+export type Button = { text: string; data: string } | { text: string; webApp: string };
 
 export interface TelegramApi {
   send(chatId: number, text: string, button?: Button): Promise<void>;
@@ -33,7 +31,7 @@ export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
   };
   return {
     send: (chatId, text, button) =>
-      call('sendMessage', { chat_id: chatId, text, ...(button ? { reply_markup: { inline_keyboard: [[{ text: button.text, callback_data: button.data }]] } } : {}) }),
+      call('sendMessage', { chat_id: chatId, text, ...(button ? { reply_markup: { inline_keyboard: [['data' in button ? { text: button.text, callback_data: button.data } : { text: button.text, web_app: { url: button.webApp } }]] } } : {}) }),
     answer: (callbackId) => call('answerCallbackQuery', { callback_query_id: callbackId }),
   };
 }

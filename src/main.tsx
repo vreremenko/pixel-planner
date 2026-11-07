@@ -1,3 +1,5 @@
+// Первым: данные запуска из Telegram нужно забрать из адреса до старта навигации
+import './core/telegram/webapp';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './core/styles/fonts';

@@ -17,6 +17,7 @@ const env: Env = {
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   ADMIN_EMAILS: process.env.ADMIN_EMAILS,
   TELEGRAM_BOT_NAME: process.env.TELEGRAM_BOT_NAME,
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   TELEGRAM_RELAY_KEY: process.env.TELEGRAM_RELAY_KEY,
 };
 const sendMail = createMailer(process.env);

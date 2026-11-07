@@ -8,6 +8,7 @@ import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
 import { Goida } from '../easter/Goida';
 import { OfflineBar } from './OfflineBar';
+import { TelegramBridge } from '../telegram/TelegramBridge';
 import { ACCOUNT, ADMIN, HOME, MORE, SETTINGS, useIsAdmin, useMobileNav, useModules } from './nav';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
@@ -90,6 +91,7 @@ export function Layout() {
         <OfflineBar className={s.offlineMobile} />
       </header>
       <Goida />
+      <TelegramBridge />
       <main id="main" className={s.main}>
         <OfflineBar className={s.offlineDesktop} />
         <MissedReminders />

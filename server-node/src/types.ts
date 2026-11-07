@@ -141,6 +141,8 @@ export interface Store {
   userByEmail(email: string): Promise<User | null>;
   userById(id: string): Promise<User | null>;
   userSetPassword(id: string, passHash: string): Promise<void>;
+  /** Почта и пароль для аккаунта, созданного из Telegram; false — почта занята. */
+  userSetEmail(id: string, email: string, passHash: string): Promise<boolean>;
   userSetVerified(id: string, now: number): Promise<void>;
   userByTelegram(telegramId: string): Promise<User | null>;
   /** null отвязывает. */

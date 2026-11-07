@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { metaRepo } from '../data/repo';
 import { disablePush, resendSchedule } from '../notifications/push';
 import { attachAccount, detachAccount, forgetOwner } from '../sync/manager';
+import { telegramInitData } from '../telegram/webapp';
 import * as api from './api';
 import { clearSession, loadSession, onSessionChange, saveSession, type Session } from './session';
 
@@ -19,14 +20,26 @@ export function startAuth(): () => void {
   void loadSession().then((session) => {
     useAuth.setState({ session });
     if (session) void refreshRole(session);
+    else void enterFromTelegram();
   });
   return off;
+}
+
+/** Открыто в Telegram без входа: входим по его подписанным данным, незнакомому Telegram сервер создаст аккаунт. */
+async function enterFromTelegram(): Promise<void> {
+  const initData = telegramInitData();
+  if (!initData) return;
+  try {
+    await enter(await api.telegramWebapp(initData));
+  } catch {
+    // Остаёмся без входа: кабинет предложит войти обычным способом
+  }
 }
 
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
-  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram) && Boolean(fresh.user.telegramReminders) === Boolean(session.user.telegramReminders))) return;
+  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram) && Boolean(fresh.user.telegramReminders) === Boolean(session.user.telegramReminders) && Boolean(fresh.user.telegramOnly) === Boolean(session.user.telegramOnly))) return;
   const current = await loadSession();
   if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }
@@ -66,6 +79,13 @@ export async function checkTelegram(code: string): Promise<boolean> {
   if (token) await enter({ token, user });
   else await saveSession({ ...(await currentSession()), user });
   return true;
+}
+
+/** Аккаунт из Telegram получает почту и пароль: войти можно будет и без Telegram. */
+export async function addEmail(email: string, password: string): Promise<void> {
+  const session = await currentSession();
+  const { user } = await api.addEmail(session.token, email, password);
+  await saveSession({ ...session, user: { ...session.user, ...user, telegramOnly: false } });
 }
 
 export async function unlinkTelegram(): Promise<void> {
@@ -117,7 +137,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 }
 
 /** Удалить аккаунт и данные на сервере. Данные на устройстве остаются. */
-export async function removeAccount(password: string): Promise<void> {
+export async function removeAccount(password: string | null): Promise<void> {
   await api.deleteAccount((await currentSession()).token, password);
   // Подписки устройств сервер удалил вместе с аккаунтом
   const push = await metaRepo.get<{ deviceId: string; enabled: boolean }>('push');

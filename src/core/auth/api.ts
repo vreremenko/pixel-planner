@@ -15,6 +15,9 @@ const MESSAGES: Record<string, string> = {
   code_cooldown: 'Код уже отправлен. Подождите минуту',
   telegram_not_linked: 'Этот Telegram не привязан. Войдите по почте и привяжите его в личном кабинете',
   telegram_unavailable: 'Вход через Telegram сейчас недоступен. Попробуйте позже',
+  telegram_only: 'В этот аккаунт можно войти только через Telegram. Сначала добавьте почту и пароль',
+  has_email: 'У аккаунта уже есть почта',
+  bad_init_data: 'Telegram не подтвердил вход. Закройте приложение и откройте снова',
   bad_text: 'Напишите сообщение, до 2000 символов',
   feedback_unavailable: 'Сообщение сейчас не отправить. Попробуйте позже',
   mail_unavailable: 'Письма пока не отправляются. Попробуйте позже',
@@ -96,6 +99,10 @@ export const telegramLink = (token: string) => call('auth/telegram/link', { meth
 
 export const telegramCheck = (code: string) => call('auth/telegram/check', { method: 'POST', body: { code, device: deviceLabel() } }) as Promise<TelegramCheck>;
 
+export const telegramWebapp = (initData: string) => call('auth/telegram/webapp', { method: 'POST', body: { initData, device: 'Telegram' } }) as Promise<Session>;
+
+export const addEmail = (token: string, email: string, password: string) => call('auth/email', { method: 'POST', token, body: { email, password } }) as Promise<Pick<Session, 'user'>>;
+
 export const telegramUnlink = (token: string) => call('auth/telegram', { method: 'DELETE', token });
 
 export const telegramReminders = (token: string, on: boolean) => call('auth/telegram/reminders', { method: 'POST', token, body: { on } });
@@ -109,4 +116,4 @@ export const changePassword = (token: string, oldPassword: string, newPassword: 
 
 export const adminStats = <T>(token: string) => call('admin/stats', { method: 'GET', token }) as Promise<T>;
 
-export const deleteAccount = (token: string, password: string) => call('auth/account', { method: 'DELETE', token, body: { password } });
+export const deleteAccount = (token: string, password: string | null) => call('auth/account', { method: 'DELETE', token, body: password === null ? { confirm: true } : { password } });

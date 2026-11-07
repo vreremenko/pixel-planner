@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.27.0',
+    date: '2026-11-07',
+    title: 'Приложение внутри Telegram',
+    items: [
+      'PIXEL PLANNER открывается прямо в Telegram: нажмите кнопку в боте @pixel_planner_bot. Вход происходит сам, а новым людям аккаунт создаётся без почты и пароля.',
+      'Напоминания в таком аккаунте сразу приходят через бота. Почту и пароль можно добавить в личном кабинете, чтобы входить и с компьютера.',
+    ],
+  },
+  {
     version: '0.26.0',
     date: '2026-11-07',
     title: 'Напоминания в Telegram',

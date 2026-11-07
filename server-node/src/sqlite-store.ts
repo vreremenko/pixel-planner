@@ -207,6 +207,16 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  userSetEmail(id: string, email: string, passHash: string): Promise<boolean> {
+    try {
+      this.db.prepare('UPDATE users SET email = ?, pass_hash = ?, email_verified_at = NULL WHERE id = ?').run(email, passHash, id);
+      return Promise.resolve(true);
+    } catch (e) {
+      if (e instanceof Error && /UNIQUE/i.test(e.message)) return Promise.resolve(false);
+      throw e;
+    }
+  }
+
   userSetVerified(id: string, now: number): Promise<void> {
     this.db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?').run(now, id);
     return Promise.resolve();

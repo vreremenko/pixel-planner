@@ -74,7 +74,7 @@ function Report({ stats }: { stats: Stats }) {
           {list.map((u) => (
             <li key={u.email} className={s.row}>
               <span className={s.grow}>
-                {u.email}
+                {u.email.endsWith('@telegram.invalid') ? `Telegram ${u.email.slice(2, -17)}` : u.email}
                 {u.admin ? ' · админ' : ''}
                 {u.verified ? '' : ' · почта не подтверждена'}
                 {u.telegram ? ' · Telegram' : ''}

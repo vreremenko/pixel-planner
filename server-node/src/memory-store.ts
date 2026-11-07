@@ -116,6 +116,13 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  userSetEmail(id: string, email: string, passHash: string): Promise<boolean> {
+    if ([...this.users.values()].some((x) => x.email === email && x.id !== id)) return Promise.resolve(false);
+    const u = this.users.get(id);
+    if (u) Object.assign(u, { email, passHash, emailVerified: false });
+    return Promise.resolve(true);
+  }
+
   userSetVerified(id: string): Promise<void> {
     const u = this.users.get(id);
     if (u) u.emailVerified = true;

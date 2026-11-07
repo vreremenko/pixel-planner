@@ -9,6 +9,7 @@ import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEm
 import { buildStats, dayOf } from './admin.ts';
 import type { SendMail } from './mail.ts';
 import { parseUpdate, type BotEvent, type TelegramApi } from './telegram.ts';
+import { checkInitData, isTelegramOnly, telegramEmail } from './webapp.ts';
 import type { CodeKind, DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
 
@@ -22,6 +23,10 @@ export interface Env {
   ADMIN_EMAILS?: string;
   /** Адрес бота без @. */
   TELEGRAM_BOT_NAME?: string;
+  /** Нужен, чтобы проверять подпись данных Mini App. */
+  TELEGRAM_BOT_TOKEN?: string;
+  /** Адрес приложения для кнопки в боте. */
+  APP_URL?: string;
   /** Этим ключом посредник подтверждает, что обновление пришло через него. */
   TELEGRAM_RELAY_KEY?: string;
 }
@@ -66,6 +71,7 @@ const CODE_MAX_ATTEMPTS = 5;
 const TG_CODE_TTL_MS = 10 * 60_000;
 /** Напоминания в Telegram хранятся как ещё одно устройство пользователя с таким адресом вместо push-подписки. */
 const TG_ENDPOINT = 'tg:';
+const DEFAULT_APP_URL = 'https://vreremenko.github.io/pixel-planner/';
 const FEEDBACK_WINDOW_MS = 3_600_000;
 const FEEDBACK_MAX = 5;
 const FEEDBACK_MAX_LENGTH = 2000;
@@ -243,7 +249,7 @@ const bad = (status: number, error: string) => new HttpError(status, error);
 const sha = (text: string) => createHash('sha256').update(text).digest();
 const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha(a), sha(b));
 
-const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
+const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
@@ -346,7 +352,7 @@ async function issueTelegramCode(d: Deps, kind: 'login' | 'link', userId: string
 async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'text' }>, now: number): Promise<void> {
   const match = /^\/start (login|link)_([A-Za-z0-9_-]{43})$/.exec(e.text.trim());
   if (!match) {
-    await tg.send(e.chatId, 'Привет! Это бот PIXEL PLANNER. Войти или привязать Telegram можно в приложении, в личном кабинете.');
+    await tg.send(e.chatId, 'Привет! Это бот PIXEL PLANNER: задачи, привычки, тренировки, питание и финансы. Откройте приложение прямо здесь.', { text: 'Открыть приложение', webApp: d.env.APP_URL ?? DEFAULT_APP_URL });
     return;
   }
   const [, kind, code = ''] = match;
@@ -461,6 +467,29 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return issueTelegramCode(d, 'login', null, now);
   }
 
+  // POST /api/auth/telegram/webapp {initData, device}: вход из Mini App; незнакомому Telegram сразу создаём аккаунт
+  if (action === 'telegram' && parts[2] === 'webapp' && req.method === 'POST') {
+    const token = d.env.TELEGRAM_BOT_TOKEN;
+    if (!token) throw bad(503, 'telegram_unavailable');
+    const b = readJson(req.body) as { initData?: unknown; device?: unknown };
+    const tg = typeof b.initData === 'string' ? checkInitData(b.initData, token, now) : null;
+    if (!tg) throw bad(401, 'bad_init_data');
+    let user = await d.store.userByTelegram(tg.id);
+    if (!user) {
+      if (limiter.count(`reg:${ip}`, REGISTER_WINDOW_MS, now) >= REGISTER_MAX_PER_IP) throw bad(429, 'too_many_attempts');
+      limiter.add(`reg:${ip}`, now);
+      const id = randomUUID();
+      if (!(await d.store.userCreate({ id, email: telegramEmail(tg.id), passHash: '', now }))) throw bad(409, 'email_taken');
+      await d.store.userSetTelegram(id, tg.id);
+      // В Telegram нет push-уведомлений приложения, поэтому напоминания сразу идут через бота
+      await setTelegramReminders(d, { id, telegramId: tg.id }, true, now);
+      user = await d.store.userById(id);
+      if (!user) throw bad(500, 'internal');
+    }
+    const session = await openSession(d, user.id, typeof b.device === 'string' ? b.device : 'Telegram');
+    return json({ token: session, user: { ...publicUser(user, d.env), telegramReminders: (await telegramDevices(d, user.id)).length > 0 } });
+  }
+
   // POST /api/auth/telegram/check {code, device}: приложение спрашивает, подтвердили ли вход
   if (action === 'telegram' && parts[2] === 'check' && req.method === 'POST') {
     const b = readJson(req.body) as { code?: unknown; device?: unknown };
@@ -548,8 +577,26 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return json({ ok: true });
   }
 
+  // POST /api/auth/email {email, password}: аккаунт из Telegram получает почту и пароль
+  if (action === 'email' && req.method === 'POST') {
+    const b = readJson(req.body) as { email?: unknown; password?: unknown };
+    const user = await d.store.userById(userId);
+    if (!user) throw bad(401, 'unauthorized');
+    if (!isTelegramOnly(user.email)) throw bad(400, 'has_email');
+    const email = typeof b.email === 'string' ? normalizeEmail(b.email) : '';
+    if (!isValidEmail(email) || isTelegramOnly(email)) throw bad(400, 'invalid_email');
+    if (typeof b.password !== 'string' || !isValidPassword(b.password)) throw bad(400, 'weak_password');
+    if (!(await d.store.userSetEmail(userId, email, await hashPassword(b.password)))) throw bad(409, 'email_taken');
+    if (d.sendMail) await issueCode(d, { id: userId, email }, 'verify', now);
+    const fresh = await d.store.userById(userId);
+    return json({ user: publicUser(fresh ?? user, d.env) });
+  }
+
   // DELETE /api/auth/telegram: отвязать
   if (action === 'telegram' && parts.length === 2 && req.method === 'DELETE') {
+    const owner = await d.store.userById(userId);
+    // Без Telegram в такой аккаунт будет не войти
+    if (owner && isTelegramOnly(owner.email)) throw bad(400, 'telegram_only');
     await setTelegramReminders(d, { id: userId }, false, now);
     await d.store.userSetTelegram(userId, null);
     return json({ ok: true });
@@ -575,10 +622,12 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
 
   // DELETE /api/auth/account {password}: стирает аккаунт и все данные
   if (action === 'account' && req.method === 'DELETE') {
-    const b = readJson(req.body) as { password?: unknown };
+    const b = readJson(req.body) as { password?: unknown; confirm?: unknown };
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
-    if (typeof b.password !== 'string' || !(await verifyPassword(b.password.slice(0, PASSWORD_MAX), user.passHash))) throw bad(401, 'bad_credentials');
+    // У аккаунта из Telegram пароля нет: достаточно явного подтверждения
+    const allowed = isTelegramOnly(user.email) && !user.passHash ? b.confirm === true : typeof b.password === 'string' && (await verifyPassword(b.password.slice(0, PASSWORD_MAX), user.passHash));
+    if (!allowed) throw bad(401, 'bad_credentials');
     await d.store.userDelete(userId);
     return json({ ok: true });
   }
