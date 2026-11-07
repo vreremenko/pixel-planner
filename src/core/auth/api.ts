@@ -15,6 +15,8 @@ const MESSAGES: Record<string, string> = {
   code_cooldown: 'Код уже отправлен. Подождите минуту',
   telegram_not_linked: 'Этот Telegram не привязан. Войдите по почте и привяжите его в личном кабинете',
   telegram_unavailable: 'Вход через Telegram сейчас недоступен. Попробуйте позже',
+  telegram_other: 'Этот аккаунт привязан к другому Telegram. Откройте его из того Telegram или войдите по почте в браузере',
+  telegram_taken: 'Этот Telegram уже привязан к другому аккаунту',
   telegram_only: 'В этот аккаунт можно войти только через Telegram. Сначала добавьте почту и пароль',
   has_email: 'У аккаунта уже есть почта',
   bad_init_data: 'Telegram не подтвердил вход. Закройте приложение и откройте снова',
@@ -99,7 +101,10 @@ export const telegramLink = (token: string) => call('auth/telegram/link', { meth
 
 export const telegramCheck = (code: string) => call('auth/telegram/check', { method: 'POST', body: { code, device: deviceLabel() } }) as Promise<TelegramCheck>;
 
-export const telegramWebapp = (initData: string) => call('auth/telegram/webapp', { method: 'POST', body: { initData, device: 'Telegram' } }) as Promise<Session>;
+export const telegramWebapp = (initData: string, create: boolean, token?: string) =>
+  call('auth/telegram/webapp', { method: 'POST', body: { initData, device: 'Telegram', create }, ...(token ? { token } : {}) }) as Promise<{ status: 'same' | 'session' | 'unlinked'; token?: string; user?: Session['user'] }>;
+
+export const telegramWebappLink = (token: string, initData: string) => call('auth/telegram/webapp-link', { method: 'POST', token, body: { initData } }) as Promise<Pick<Session, 'user'>>;
 
 export const addEmail = (token: string, email: string, password: string) => call('auth/email', { method: 'POST', token, body: { email, password } }) as Promise<Pick<Session, 'user'>>;
 

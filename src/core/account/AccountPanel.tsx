@@ -1,6 +1,7 @@
 import { useCallback, useState, type SyntheticEvent } from 'react';
 import { Button, ConfirmDialog, Modal, Panel, TextInput, rowClass, toast } from '../ui';
-import { addEmail, changePassword, logout, removeAccount, unlinkTelegram, useAuth } from '../auth/store';
+import { addEmail, changePassword, logout, removeAccount, startTelegramAccount, unlinkTelegram, useAuth } from '../auth/store';
+import { inTelegram } from '../telegram/webapp';
 import { AuthModal } from './AuthModal';
 import { TelegramDialog } from './TelegramDialog';
 import { VerifyEmailDialog } from './VerifyEmailDialog';
@@ -107,6 +108,8 @@ export function AccountPanel() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
   const tgOnly = session?.user.telegramOnly === true;
+  // Внутри Telegram аккаунт всегда того Telegram: выходить и отвязывать там нечего
+  const tg = inTelegram();
 
   const doLogout = async (erase: boolean) => {
     setDialog(null);
@@ -141,9 +144,11 @@ export function AccountPanel() {
             </>
           )}
           <div className={rowClass}>
-            <Button icon="left" onClick={() => setDialog('logout')}>
-              Выйти
-            </Button>
+            {!tg && (
+              <Button icon="left" onClick={() => setDialog('logout')}>
+                Выйти
+              </Button>
+            )}
             {tgOnly ? (
               <Button icon="lock" onClick={() => setDialog('email')}>
                 Добавить почту и пароль
@@ -157,7 +162,7 @@ export function AccountPanel() {
               Удалить аккаунт
             </Button>
           </div>
-          {!tgOnly && (
+          {!tgOnly && !tg && (
             <>
               <p style={{ marginBottom: 8 }}>{session.user.telegram ? 'Telegram привязан, через него можно входить.' : 'Привяжите Telegram, чтобы входить через него.'}</p>
               <div className={rowClass}>
@@ -176,10 +181,21 @@ export function AccountPanel() {
             Без аккаунта всё хранится только на этом устройстве. Войдите, и данные будут сохраняться на сервере: их можно открыть на телефоне и на компьютере, а напоминания будут приходить даже при закрытом приложении.
           </p>
           <div className={rowClass}>
-            <Button variant="habit" icon="check" onClick={() => setDialog('login')}>
-              Войти
-            </Button>
-            <Button onClick={() => setDialog('register')}>Создать аккаунт</Button>
+            {tg ? (
+              <>
+                <Button variant="habit" icon="check" onClick={() => void startTelegramAccount().catch(fail)}>
+                  Начать с Telegram
+                </Button>
+                <Button onClick={() => setDialog('login')}>Есть аккаунт с почтой</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="habit" icon="check" onClick={() => setDialog('login')}>
+                  Войти
+                </Button>
+                <Button onClick={() => setDialog('register')}>Создать аккаунт</Button>
+              </>
+            )}
           </div>
         </>
       )}

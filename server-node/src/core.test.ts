@@ -649,7 +649,7 @@ describe('Mini App', () => {
   };
   const initData = (id: number, authSec = 1000) => signed({ auth_date: String(authSec), query_id: 'q', user: JSON.stringify({ id, first_name: 'Вова' }) });
   const setup = () => mk({ now: () => 1_000_000, env: { TELEGRAM_BOT_TOKEN: BOT } });
-  const login = async (d: Deps, data: string) => handle(req('POST', 'auth/telegram/webapp', { body: { initData: data } }), d);
+  const login = async (d: Deps, data: string, token?: string) => handle(req('POST', 'auth/telegram/webapp', { body: { initData: data, create: true }, ...(token ? { token } : {}) }), d);
 
   it('первый вход создаёт аккаунт без почты с напоминаниями через бота, второй входит в него же', async () => {
     const d = setup();
@@ -658,6 +658,24 @@ describe('Mini App', () => {
     expect(user).toMatchObject({ telegramOnly: true, telegram: true, telegramReminders: true });
     const second = json(await login(d, initData(42)));
     expect((second.user as { id: string }).id).toBe(user.id);
+  });
+
+  it('незнакомый Telegram без согласия не создаёт аккаунт, а уже вошедшему не нужна новая сессия', async () => {
+    const d = setup();
+    expect(json(await handle(req('POST', 'auth/telegram/webapp', { body: { initData: initData(9) } }), d))).toEqual({ status: 'unlinked' });
+    const token = json(await login(d, initData(9))).token as string;
+    expect(json(await login(d, initData(9), token))).toEqual({ status: 'same' });
+  });
+
+  it('вход по почте внутри Mini App привязывает этот Telegram, но не чужой', async () => {
+    const d = setup();
+    const token = await register(d, 'a@b.ru');
+    const link = async (t: string, data: string) => json(await handle(req('POST', 'auth/telegram/webapp-link', { token: t, body: { initData: data } }), d));
+    expect((await link(token, initData(5))).user).toMatchObject({ telegram: true });
+    expect(json(await handle(req('POST', 'auth/telegram/webapp', { body: { initData: initData(5) } }), d)).status).toBe('session');
+    expect((await link(token, initData(6))).error).toBe('telegram_other');
+    const other = await register(d, 'c@d.ru');
+    expect((await link(other, initData(5))).error).toBe('telegram_taken');
   });
 
   it('подделанная и старая подпись не проходят', async () => {

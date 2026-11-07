@@ -1,6 +1,6 @@
 import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, TextInput, toast } from '../ui';
-import { login, loginFromTelegram, register } from '../auth/store';
+import { login, register } from '../auth/store';
 import { inTelegram } from '../telegram/webapp';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { TelegramDialog } from './TelegramDialog';
@@ -17,6 +17,8 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
   const [resetting, setResetting] = useState(false);
   const [telegram, setTelegram] = useState(false);
   const isRegister = mode === 'register';
+  // Внутри Telegram аккаунт создаётся по Telegram, а по почте только входят в существующий
+  const tg = inTelegram();
 
   const submit = async (e: SyntheticEvent) => {
     e.preventDefault();
@@ -33,28 +35,11 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
     }
   };
 
-  // Внутри Telegram бот не нужен: данные пользователя уже есть
-  const telegramLogin = () => {
-    if (!inTelegram()) {
-      setTelegram(true);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    loginFromTelegram()
-      .then(() => {
-        toast('Вы вошли через Telegram', 'check', 'var(--c-habit)');
-        onClose();
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Не удалось войти'))
-      .finally(() => setBusy(false));
-  };
-
   if (telegram) return <TelegramDialog mode="login" onClose={() => setTelegram(false)} onDone={onClose} />;
   if (resetting) return <ResetPasswordDialog email={email} onClose={() => setResetting(false)} onDone={onClose} />;
 
   return (
-    <Modal keepOnOutsideClick open onClose={onClose} title={isRegister ? 'Создать аккаунт' : 'Вход в аккаунт'} accent="var(--c-habit)">
+    <Modal keepOnOutsideClick open onClose={onClose} title={isRegister ? 'Создать аккаунт' : tg ? 'Вход по почте' : 'Вход в аккаунт'} accent="var(--c-habit)">
       <form onSubmit={(e) => void submit(e)}>
         <TextInput label="Почта" type="email" autoComplete="email" inputMode="email" autoCapitalize="off" autoCorrect="off" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} data-autofocus={email === '' ? true : undefined} />
         <TextInput
@@ -75,22 +60,24 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
           <Button type="submit" variant="habit" icon="check" disabled={busy}>
             {busy ? 'Подождите…' : isRegister ? 'Создать аккаунт' : 'Войти'}
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setMode(isRegister ? 'login' : 'register');
-              setError(null);
-            }}
-          >
-            {isRegister ? 'Уже есть аккаунт' : 'Создать аккаунт'}
-          </Button>
+          {!tg && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setMode(isRegister ? 'login' : 'register');
+                setError(null);
+              }}
+            >
+              {isRegister ? 'Уже есть аккаунт' : 'Создать аккаунт'}
+            </Button>
+          )}
           {!isRegister && (
             <Button variant="ghost" onClick={() => setResetting(true)}>
               Забыли пароль?
             </Button>
           )}
-          {!isRegister && (
-            <Button variant="ghost" disabled={busy} onClick={telegramLogin}>
+          {!isRegister && !tg && (
+            <Button variant="ghost" onClick={() => setTelegram(true)}>
               Войти через Telegram
             </Button>
           )}

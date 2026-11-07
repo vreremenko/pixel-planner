@@ -339,6 +339,25 @@ async function handleFeedback(req: HttpReq, d: Deps, now: number): Promise<HttpR
   return json({ ok: true });
 }
 
+/** Пользователь Telegram из подписанных данных Mini App или отказ. */
+function webAppUser(d: Deps, initData: unknown, now: number): { id: string } {
+  const token = d.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw bad(503, 'telegram_unavailable');
+  const tg = typeof initData === 'string' ? checkInitData(initData, token, now) : 'нет данных';
+  if (typeof tg === 'string') {
+    console.warn('вход из Mini App отклонён:', tg);
+    throw bad(401, 'bad_init_data');
+  }
+  return tg;
+}
+
+/** Кто вошёл по заголовку Authorization, без ошибки, если никто. */
+async function currentUserId(req: HttpReq, d: Deps, now: number): Promise<string | null> {
+  const token = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1];
+  if (!token || !TOKEN_RE.test(token)) return null;
+  return d.store.sessionUser(tokenHash(token), now, SESSION_MAX_IDLE_MS);
+}
+
 /** Выдать код и ссылку на бота. */
 async function issueTelegramCode(d: Deps, kind: 'login' | 'link', userId: string | null, now: number): Promise<HttpRes> {
   const name = d.env.TELEGRAM_BOT_NAME;
@@ -467,18 +486,18 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return issueTelegramCode(d, 'login', null, now);
   }
 
-  // POST /api/auth/telegram/webapp {initData, device}: вход из Mini App; незнакомому Telegram сразу создаём аккаунт
+  // POST /api/auth/telegram/webapp {initData, device, create}: вход из Mini App.
+  // Незнакомый Telegram: без create отвечаем unlinked (приложение предложит начать или войти по почте), с create создаём аккаунт.
+  // Если приложение уже вошло в аккаунт этого Telegram, отвечаем same и новую сессию не заводим.
   if (action === 'telegram' && parts[2] === 'webapp' && req.method === 'POST') {
-    const token = d.env.TELEGRAM_BOT_TOKEN;
-    if (!token) throw bad(503, 'telegram_unavailable');
-    const b = readJson(req.body) as { initData?: unknown; device?: unknown };
-    const tg = typeof b.initData === 'string' ? checkInitData(b.initData, token, now) : 'нет данных';
-    if (typeof tg === 'string') {
-      console.warn('вход из Mini App отклонён:', tg);
-      throw bad(401, 'bad_init_data');
-    }
+    const b = readJson(req.body) as { initData?: unknown; device?: unknown; create?: unknown };
+    const tg = webAppUser(d, b.initData, now);
     let user = await d.store.userByTelegram(tg.id);
-    if (!user) {
+    if (user) {
+      const current = await currentUserId(req, d, now);
+      if (current === user.id) return json({ status: 'same' });
+    } else {
+      if (b.create !== true) return json({ status: 'unlinked' });
       if (limiter.count(`reg:${ip}`, REGISTER_WINDOW_MS, now) >= REGISTER_MAX_PER_IP) throw bad(429, 'too_many_attempts');
       limiter.add(`reg:${ip}`, now);
       const id = randomUUID();
@@ -490,7 +509,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
       if (!user) throw bad(500, 'internal');
     }
     const session = await openSession(d, user.id, typeof b.device === 'string' ? b.device : 'Telegram');
-    return json({ token: session, user: { ...publicUser(user, d.env), telegramReminders: (await telegramDevices(d, user.id)).length > 0 } });
+    return json({ status: 'session', token: session, user: { ...publicUser(user, d.env), telegramReminders: (await telegramDevices(d, user.id)).length > 0 } });
   }
 
   // POST /api/auth/telegram/check {code, device}: приложение спрашивает, подтвердили ли вход
@@ -565,6 +584,20 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     await d.store.userSetVerified(userId, now);
     await d.store.codeDelete(userId, 'verify');
     return json({ ok: true });
+  }
+
+  // POST /api/auth/telegram/webapp-link {initData}: вошли по почте внутри Mini App — привязываем этот Telegram
+  if (action === 'telegram' && parts[2] === 'webapp-link' && req.method === 'POST') {
+    const b = readJson(req.body) as { initData?: unknown };
+    const tg = webAppUser(d, b.initData, now);
+    const user = await d.store.userById(userId);
+    if (!user) throw bad(401, 'unauthorized');
+    if (user.telegramId && user.telegramId !== tg.id) throw bad(409, 'telegram_other');
+    const owner = await d.store.userByTelegram(tg.id);
+    if (owner && owner.id !== userId) throw bad(409, 'telegram_taken');
+    if (!user.telegramId) await d.store.userSetTelegram(userId, tg.id);
+    const fresh = await d.store.userById(userId);
+    return json({ user: publicUser(fresh ?? user, d.env) });
   }
 
   // POST /api/auth/telegram/link: ссылка на бота для привязки

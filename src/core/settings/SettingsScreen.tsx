@@ -46,7 +46,7 @@ function TelegramRemindersRow() {
   };
   return (
     <ToggleRow
-      label="Дублировать в Telegram"
+      label={inTelegram() ? 'Напоминания в Telegram' : 'Дублировать в Telegram'}
       hint={
         user.telegram
           ? busy

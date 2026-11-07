@@ -11,54 +11,70 @@ import { clearSession, loadSession, onSessionChange, saveSession, type Session }
 interface AuthState {
   /** null — не вошли; undefined — ещё не прочитали. */
   session: Session | null | undefined;
+  /** Внутри Telegram открыли впервые: этот Telegram ни к какому аккаунту не привязан. */
+  telegramWelcome: boolean;
 }
 
-export const useAuth = create<AuthState>(() => ({ session: undefined }));
+export const useAuth = create<AuthState>(() => ({ session: undefined, telegramWelcome: false }));
 
 /** Прочитать сохранённый вход и следить за его изменениями (вход, выход, отзыв сессии сервером). */
 export function startAuth(): () => void {
   const off = onSessionChange((session) => useAuth.setState({ session }));
   void loadSession().then((session) => {
     useAuth.setState({ session });
-    if (session) void refreshRole(session);
-    else void enterFromTelegram();
+    if (inTelegram()) void syncTelegram(session);
+    else if (session) void refreshRole(session);
   });
   return off;
 }
 
-/** После явного выхода внутри Telegram сами больше не входим, пока человек не нажмёт «Войти». */
-const AUTO_OFF_KEY = 'pixel-planner:tg-auto-off';
-const autoOff = (): boolean => {
-  try {
-    return localStorage.getItem(AUTO_OFF_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-const setAutoOff = (on: boolean) => {
-  try {
-    if (on) localStorage.setItem(AUTO_OFF_KEY, '1');
-    else localStorage.removeItem(AUTO_OFF_KEY);
-  } catch {
-    // без хранилища просто войдём автоматически
-  }
-};
+const tgError = (e: unknown) => toast(`Telegram: ${e instanceof Error ? e.message : 'ошибка'}`, 'alert', 'var(--c-warn)');
 
-/** Вход по подписанным данным Telegram; незнакомому Telegram сервер создаст аккаунт. */
-export async function loginFromTelegram(): Promise<void> {
+/**
+ * Внутри Telegram приложение всегда в аккаунте этого Telegram: так нельзя сидеть в чужом аккаунте.
+ * Вошли в другой — переключаемся (данные того аккаунта стираются только с этого устройства, на сервере они целы).
+ * Telegram ни к чему не привязан — предлагаем начать или войти по почте.
+ */
+async function syncTelegram(session: Session | null): Promise<void> {
   const initData = telegramInitData();
-  if (!initData) throw new api.AuthError('telegram_unavailable', 'Это работает только внутри Telegram');
-  await enter(await api.telegramWebapp(initData));
+  if (!initData) return;
+  try {
+    const res = await api.telegramWebapp(initData, false, session?.token);
+    if (res.status === 'same' && session) {
+      await refreshRole(session);
+      return;
+    }
+    if (res.status === 'session' && res.token && res.user) {
+      if (session) await logout(true);
+      await enter({ token: res.token, user: res.user });
+      return;
+    }
+    if (session) await linkThisTelegram().catch(async (e: unknown) => {
+      await logout(true);
+      tgError(e);
+    });
+    if (!(await loadSession())) useAuth.setState({ telegramWelcome: true });
+  } catch (e) {
+    tgError(e);
+  }
 }
 
-/** Открыто в Telegram без входа: входим сами и честно говорим, если не вышло. */
-async function enterFromTelegram(): Promise<void> {
-  if (!telegramInitData() || autoOff()) return;
-  try {
-    await loginFromTelegram();
-  } catch (e) {
-    toast(`Не удалось войти через Telegram: ${e instanceof Error ? e.message : 'ошибка'}`, 'alert', 'var(--c-warn)');
-  }
+/** Новый аккаунт для этого Telegram, без почты и пароля. */
+export async function startTelegramAccount(): Promise<void> {
+  const initData = telegramInitData();
+  if (!initData) throw new api.AuthError('telegram_unavailable', 'Это работает только внутри Telegram');
+  const res = await api.telegramWebapp(initData, true);
+  if (!res.token || !res.user) throw new api.AuthError('error', 'Не удалось создать аккаунт');
+  await enter({ token: res.token, user: res.user });
+}
+
+/** Привязать этот Telegram к аккаунту, в который вошли по почте внутри Telegram. */
+async function linkThisTelegram(): Promise<void> {
+  const initData = telegramInitData();
+  if (!initData) return;
+  const session = await currentSession();
+  const { user } = await api.telegramWebappLink(session.token, initData);
+  await saveSession({ ...session, user: { ...session.user, ...user } });
 }
 
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
@@ -70,7 +86,7 @@ async function refreshRole(session: Session): Promise<void> {
 }
 
 async function enter(session: Session): Promise<void> {
-  setAutoOff(false);
+  useAuth.setState({ telegramWelcome: false });
   await saveSession(session);
   await attachAccount(session);
   void refreshRole(session);
@@ -82,6 +98,14 @@ export async function register(email: string, password: string): Promise<void> {
 
 export async function login(email: string, password: string): Promise<void> {
   await enter(await api.loginAccount(email, password));
+  if (!inTelegram()) return;
+  // Вход по почте внутри Telegram привязывает этот Telegram; аккаунт другого Telegram здесь открыть нельзя
+  try {
+    await linkThisTelegram();
+  } catch (e) {
+    await logout(true);
+    throw e;
+  }
 }
 
 export const requestReset = async (email: string): Promise<void> => {
@@ -156,7 +180,6 @@ export async function logout(eraseLocal: boolean): Promise<void> {
   if (session) await api.logoutAccount(session.token).catch(() => undefined);
   await detachAccount(eraseLocal);
   await clearSession();
-  if (inTelegram()) setAutoOff(true);
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
