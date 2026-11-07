@@ -9,6 +9,8 @@ declare global {
   interface Window {
     TelegramWebviewProxy?: { postEvent(type: string, data: string): void };
     Telegram?: { WebView?: { receiveEvent(type: string, data: unknown): void } };
+    TelegramGameProxy?: { receiveEvent(type: string, data: unknown): void };
+    TelegramGameProxy_receiveEvent?: (type: string, data: unknown) => void;
   }
 }
 
@@ -42,12 +44,16 @@ function post(type: string, data: unknown = {}): void {
 
 const handlers = new Map<string, () => void>();
 if (typeof window !== 'undefined' && inTelegram()) {
-  window.Telegram = { ...window.Telegram, WebView: { receiveEvent: (type) => handlers.get(type)?.() } };
-  // Telegram Web присылает события сообщениями окна
+  // Разные приложения Telegram зовут разные функции: iOS и Android — Telegram.WebView, компьютерные — TelegramGameProxy
+  const receive = (type: string) => handlers.get(type)?.();
+  window.Telegram = { ...window.Telegram, WebView: { receiveEvent: receive } };
+  window.TelegramGameProxy = { receiveEvent: receive };
+  window.TelegramGameProxy_receiveEvent = receive;
+  // Telegram Web присылает события сообщениями окна, строкой или объектом
   window.addEventListener('message', (e: MessageEvent) => {
     try {
-      const { eventType } = JSON.parse(String(e.data)) as { eventType?: string };
-      if (eventType) handlers.get(eventType)?.();
+      const msg = (typeof e.data === 'string' ? JSON.parse(e.data) : e.data) as { eventType?: unknown } | null;
+      if (typeof msg?.eventType === 'string') receive(msg.eventType);
     } catch {
       // чужие сообщения
     }
