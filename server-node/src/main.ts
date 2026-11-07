@@ -25,6 +25,8 @@ const port = Number(process.env.PORT ?? 8787);
 const dbPath = process.env.DB_PATH ?? './data/pixel-planner.sqlite';
 mkdirSync(dirname(dbPath), { recursive: true });
 const store = new SqliteStore(dbPath);
+/** Одни и те же зависимости для запросов и для рассылки напоминаний: раньше рассылка не знала про бота. */
+const deps = { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}) };
 
 const MAX_BODY = 1_000_000;
 /** Как часто проверять наступившие напоминания: отправка идёт почти в момент срока. */
@@ -59,7 +61,7 @@ const server = createServer((req, res) => {
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k.toLowerCase()] = v;
       const out = await handle(
         { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
-        { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}) },
+        deps,
       );
       res.writeHead(out.status, out.headers).end(out.status === 204 ? undefined : out.body);
     } catch (e) {
@@ -75,7 +77,7 @@ let ticking = false;
 setInterval(() => {
   if (ticking) return;
   ticking = true;
-  sendDue({ store, env })
+  sendDue(deps)
     .then((n) => {
       if (n > 0) console.log('push отправлено:', n);
     })

@@ -687,7 +687,10 @@ export async function sendDue(d: Deps): Promise<number> {
   const tg = d.telegram;
   const send: typeof push = async (env, to, data) => {
     if (!to.endpoint.startsWith(TG_ENDPOINT)) return push(env, to, data);
-    if (!tg) return { status: 503, detail: 'telegram off' };
+    if (!tg) {
+      console.warn('напоминание в Telegram не отправлено: бот не настроен');
+      return { status: 503, detail: 'telegram off' };
+    }
     const { title, body } = data as { title: string; body: string };
     await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `⏰ ${title}${body ? `\n${body}` : ''}`);
     return { status: 200, detail: '' };
