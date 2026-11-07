@@ -124,6 +124,25 @@ describe('SqliteStore: почта', () => {
   });
 });
 
+describe('SqliteStore: Telegram', () => {
+  it('привязка, отвязка, коды и удаление аккаунта', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.userCreate({ id: 'u', email: 'a@b.ru', passHash: 'h', now: 1 });
+    await s.userCreate({ id: 'v', email: 'c@d.ru', passHash: 'h', now: 1 });
+    await s.userSetTelegram('u', '42');
+    expect((await s.userByTelegram('42'))?.id).toBe('u');
+    expect((await s.adminUsers()).find((x) => x.id === 'u')?.telegram).toBe(true);
+    expect(() => s.userSetTelegram('v', '42')).toThrow();
+    await s.userSetTelegram('u', null);
+    expect(await s.userByTelegram('42')).toBeNull();
+    const code = { codeHash: 'x', kind: 'link' as const, userId: 'u', status: 'pending' as const, expiresAt: 9 };
+    await s.tgCodeSet(code);
+    expect(await s.tgCodeGet('x')).toEqual(code);
+    await s.userDelete('u');
+    expect(await s.tgCodeGet('x')).toBeNull();
+  });
+});
+
 describe('SqliteStore: админка', () => {
   it('считает активность, сессии и записи без удалённых', async () => {
     const s = new SqliteStore(':memory:');
@@ -134,7 +153,7 @@ describe('SqliteStore: админка', () => {
     await s.activityTouch('u', '2026-11-01');
     await s.syncPush('u', [rec('a', 100), rec('b', 5), { t: 'tasks', id: 'c', u: 100, d: '{"deletedAt":1}' }]);
     expect(await s.activitySince('2026-11-02')).toEqual([{ userId: 'u', day: '2026-11-06' }]);
-    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, emailVerified: false, lastSeen: 500, sessions: 1, pushDevices: 0, appVersion: null }]);
+    expect(await s.adminUsers()).toEqual([{ id: 'u', email: 'a@b.ru', createdAt: 1, emailVerified: false, telegram: false, lastSeen: 500, sessions: 1, pushDevices: 0, appVersion: null }]);
     expect(await s.adminRecords(50)).toEqual([{ userId: 'u', table: 'tasks', records: 2, recent: 1 }]);
     await s.sessionSetVersion('t', '0.22.0');
     expect((await s.adminUsers())[0]?.appVersion).toBe('0.22.0');

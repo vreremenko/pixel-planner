@@ -26,7 +26,7 @@ export function startAuth(): () => void {
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
-  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified)) return;
+  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram))) return;
   const current = await loadSession();
   if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }
@@ -53,6 +53,25 @@ export const requestReset = async (email: string): Promise<void> => {
 export async function resetPassword(email: string, code: string, newPassword: string): Promise<void> {
   await api.confirmPasswordReset(email, code, newPassword);
   await login(email, newPassword);
+}
+
+export type TelegramLink = Awaited<ReturnType<typeof api.telegramLogin>>;
+
+export const startTelegram = async (mode: 'login' | 'link'): Promise<TelegramLink> => (mode === 'login' ? api.telegramLogin() : api.telegramLink((await currentSession()).token));
+
+/** true — подтверждено в боте: вход выполнен или Telegram привязан. */
+export async function checkTelegram(code: string): Promise<boolean> {
+  const { status, token, user } = await api.telegramCheck(code);
+  if (status === 'pending' || !user) return false;
+  if (token) await enter({ token, user });
+  else await saveSession({ ...(await currentSession()), user });
+  return true;
+}
+
+export async function unlinkTelegram(): Promise<void> {
+  const session = await currentSession();
+  await api.telegramUnlink(session.token);
+  await saveSession({ ...session, user: { ...session.user, telegram: false } });
 }
 
 async function currentSession(): Promise<Session> {

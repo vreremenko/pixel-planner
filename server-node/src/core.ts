@@ -3,11 +3,12 @@
  * но без привязки к платформе: запрос и хранилище приходят снаружи, поэтому её можно проверять тестами
  * (хранилище в памяти — memory-store.ts, боевое — sqlite-store.ts на SQLite).
  */
-import { randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
 import type { SendMail } from './mail.ts';
+import { parseUpdate, type BotEvent, type TelegramApi } from './telegram.ts';
 import type { CodeKind, DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
 
@@ -19,6 +20,10 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   /** Через запятую: почты админов. Хранится в настройках сервера, а не в коде: репозиторий открытый. */
   ADMIN_EMAILS?: string;
+  /** Адрес бота без @. */
+  TELEGRAM_BOT_NAME?: string;
+  /** Этим ключом посредник подтверждает, что обновление пришло через него. */
+  TELEGRAM_RELAY_KEY?: string;
 }
 
 export interface Deps {
@@ -32,6 +37,8 @@ export interface Deps {
   offCache?: Map<string, OffCached>;
   /** Отправка писем; без неё коды не выдаются. */
   sendMail?: SendMail;
+  /** Бот; без него вход через Telegram выключен. */
+  telegram?: TelegramApi;
   /** Отправка push; в тестах подменяется. */
   send?: (env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown) => Promise<{ status: number; detail: string }>;
 }
@@ -56,6 +63,8 @@ const REGISTER_MAX_PER_IP = 10;
 const CODE_TTL_MS = 15 * 60_000;
 const CODE_RESEND_MS = 60_000;
 const CODE_MAX_ATTEMPTS = 5;
+const TG_CODE_TTL_MS = 10 * 60_000;
+const TG_START_MAX_PER_IP = 30;
 const RESET_WINDOW_MS = 3_600_000;
 const RESET_MAX_PER_IP = 20;
 /** Вид напоминания задаёт модуль клиента ('task', 'habit'…) — проверяем только форму. */
@@ -226,7 +235,10 @@ async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: s
 
 const bad = (status: number, error: string) => new HttpError(status, error);
 
-const publicUser = (u: { id: string; email: string; emailVerified?: boolean }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
+const sha = (text: string) => createHash('sha256').update(text).digest();
+const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha(a), sha(b));
+
+const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
@@ -272,6 +284,82 @@ async function checkCode(d: Deps, userId: string, kind: CodeKind, code: unknown,
   return false;
 }
 
+/** Выдать код и ссылку на бота. */
+async function issueTelegramCode(d: Deps, kind: 'login' | 'link', userId: string | null, now: number): Promise<HttpRes> {
+  const name = d.env.TELEGRAM_BOT_NAME;
+  if (!d.telegram || !name) throw bad(503, 'telegram_unavailable');
+  const code = newToken();
+  await d.store.tgCodeSet({ codeHash: tokenHash(code), kind, userId, status: 'pending', expiresAt: now + TG_CODE_TTL_MS });
+  return json({ code, url: `https://t.me/${name}?start=${kind}_${code}` });
+}
+
+/** Сообщение боту. Подтверждение всегда отдельной кнопкой: иначе чужая ссылка входила бы в аккаунт одним нажатием Start. */
+async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'text' }>, now: number): Promise<void> {
+  const match = /^\/start (login|link)_([A-Za-z0-9_-]{43})$/.exec(e.text.trim());
+  if (!match) {
+    await tg.send(e.chatId, 'Привет! Это бот PIXEL PLANNER. Войти или привязать Telegram можно в приложении, в личном кабинете.');
+    return;
+  }
+  const [, kind, code = ''] = match;
+  const hash = tokenHash(code);
+  const row = await d.store.tgCodeGet(hash);
+  if (!row || row.kind !== kind || row.status !== 'pending' || now > row.expiresAt) {
+    await tg.send(e.chatId, 'Ссылка устарела. Вернитесь в приложение и попробуйте ещё раз.');
+    return;
+  }
+  const owner = await d.store.userByTelegram(e.telegramId);
+  if (row.kind === 'login') {
+    if (!owner) {
+      await d.store.tgCodeSet({ ...row, status: 'unlinked' });
+      await tg.send(e.chatId, 'Этот Telegram пока не привязан к аккаунту. Войдите по почте и привяжите его в личном кабинете.');
+      return;
+    }
+    await tg.send(e.chatId, `Войти в PIXEL PLANNER как ${owner.email}? Нажимайте, только если сами запросили вход.`, { text: 'Войти', data: `ok:${code}` });
+    return;
+  }
+  if (owner) {
+    await tg.send(e.chatId, `Этот Telegram уже привязан к ${owner.email}.`);
+    return;
+  }
+  const user = row.userId ? await d.store.userById(row.userId) : null;
+  if (user) await tg.send(e.chatId, `Привязать этот Telegram к аккаунту ${user.email}?`, { text: 'Привязать', data: `ok:${code}` });
+}
+
+async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
+  await tg.answer(e.callbackId);
+  const hash = tokenHash(e.data.replace(/^ok:/, ''));
+  const row = await d.store.tgCodeGet(hash);
+  if (!row || row.status !== 'pending' || now > row.expiresAt) {
+    await tg.send(e.chatId, 'Ссылка устарела. Вернитесь в приложение и попробуйте ещё раз.');
+    return;
+  }
+  const owner = await d.store.userByTelegram(e.telegramId);
+  if (row.kind === 'login') {
+    if (!owner) return;
+    await d.store.tgCodeSet({ ...row, status: 'confirmed', userId: owner.id });
+    await tg.send(e.chatId, 'Готово, вернитесь в приложение.');
+    return;
+  }
+  if (owner || !row.userId) return;
+  await d.store.userSetTelegram(row.userId, e.telegramId);
+  await d.store.tgCodeSet({ ...row, status: 'confirmed' });
+  await tg.send(e.chatId, 'Telegram привязан. Теперь можно входить через него.');
+}
+
+/** Обновление от посредника. Отвечаем 200 и при ошибке, иначе Telegram будет повторять его снова и снова. */
+async function handleTelegramUpdate(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const key = d.env.TELEGRAM_RELAY_KEY;
+  if (!key || !safeEqual(req.headers['x-relay-key'] ?? '', key)) throw bad(403, 'forbidden');
+  const event = parseUpdate(readJson(req.body));
+  if (event && d.telegram) {
+    const tg = d.telegram;
+    await (event.kind === 'text' ? handleBotText(d, tg, event, now) : handleBotButton(d, tg, event, now)).catch((e: unknown) => {
+      console.warn('бот не ответил', e);
+    });
+  }
+  return json({ ok: true });
+}
+
 async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpRes> {
   const action = parts[1];
   const now = (d.now ?? Date.now)();
@@ -315,6 +403,31 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     limiter.reset(keyEmail);
     const token = await openSession(d, user.id, typeof b.device === 'string' ? b.device : '');
     return json({ token, user: publicUser(user, d.env) });
+  }
+
+  // POST /api/auth/telegram/start: ссылка на бота для входа
+  if (action === 'telegram' && parts[2] === 'start' && req.method === 'POST') {
+    if (limiter.count(`tg:${ip}`, RESET_WINDOW_MS, now) >= TG_START_MAX_PER_IP) throw bad(429, 'too_many_attempts');
+    limiter.add(`tg:${ip}`, now);
+    return issueTelegramCode(d, 'login', null, now);
+  }
+
+  // POST /api/auth/telegram/check {code, device}: приложение спрашивает, подтвердили ли вход
+  if (action === 'telegram' && parts[2] === 'check' && req.method === 'POST') {
+    const b = readJson(req.body) as { code?: unknown; device?: unknown };
+    if (typeof b.code !== 'string' || !TOKEN_RE.test(b.code)) throw bad(400, 'bad_code');
+    const hash = tokenHash(b.code);
+    const row = await d.store.tgCodeGet(hash);
+    if (!row || now > row.expiresAt) throw bad(400, 'bad_code');
+    if (row.status === 'pending') return json({ status: 'pending' });
+    await d.store.tgCodeDelete(hash);
+    if (row.status === 'unlinked') throw bad(404, 'telegram_not_linked');
+    const user = row.userId ? await d.store.userById(row.userId) : null;
+    if (!user) throw bad(400, 'bad_code');
+    // Привязка уже сделана вошедшим пользователем, новая сессия ему не нужна
+    if (row.kind === 'link') return json({ status: 'linked', user: publicUser(user, d.env) });
+    const token = await openSession(d, user.id, typeof b.device === 'string' ? b.device : '');
+    return json({ status: 'confirmed', token, user: publicUser(user, d.env) });
   }
 
   // POST /api/auth/reset/request {email}: ответ одинаковый, есть такая почта или нет
@@ -373,6 +486,15 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return json({ ok: true });
   }
 
+  // POST /api/auth/telegram/link: ссылка на бота для привязки
+  if (action === 'telegram' && parts[2] === 'link' && req.method === 'POST') return issueTelegramCode(d, 'link', userId, now);
+
+  // DELETE /api/auth/telegram: отвязать
+  if (action === 'telegram' && parts.length === 2 && req.method === 'DELETE') {
+    await d.store.userSetTelegram(userId, null);
+    return json({ ok: true });
+  }
+
   // POST /api/auth/logout
   if (action === 'logout' && req.method === 'POST') {
     await d.store.sessionDelete(tokenHash(token));
@@ -421,6 +543,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   }
   if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
+  if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта

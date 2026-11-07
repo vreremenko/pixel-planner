@@ -14,6 +14,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.25.0',
+    date: '2026-11-07',
+    title: 'Вход через Telegram',
+    items: ['Привяжите Telegram в личном кабинете, и входить можно будет через бота, без пароля.'],
+  },
+  {
     version: '0.24.0',
     date: '2026-11-07',
     title: 'Цели в финансах',

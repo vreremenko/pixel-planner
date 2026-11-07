@@ -1,4 +1,4 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -9,6 +9,7 @@ export class MemoryStore implements Store {
   private sessions = new Map<string, { userId: string; lastUsedAt: number; version?: string }>();
   private activity = new Set<string>();
   private codes = new Map<string, EmailCode>();
+  private tgCodes = new Map<string, TelegramCode>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
   syncPull(space: string, after: number, limit: number): Promise<SyncRow[]> {
@@ -121,12 +122,37 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  userByTelegram(telegramId: string): Promise<User | null> {
+    return Promise.resolve([...this.users.values()].find((x) => x.telegramId === telegramId) ?? null);
+  }
+
+  userSetTelegram(id: string, telegramId: string | null): Promise<void> {
+    const u = this.users.get(id);
+    if (u) u.telegramId = telegramId;
+    return Promise.resolve();
+  }
+
+  tgCodeSet(c: TelegramCode): Promise<void> {
+    this.tgCodes.set(c.codeHash, { ...c });
+    return Promise.resolve();
+  }
+
+  tgCodeGet(codeHash: string): Promise<TelegramCode | null> {
+    return Promise.resolve(this.tgCodes.get(codeHash) ?? null);
+  }
+
+  tgCodeDelete(codeHash: string): Promise<void> {
+    this.tgCodes.delete(codeHash);
+    return Promise.resolve();
+  }
+
   async userDelete(id: string): Promise<void> {
     await this.syncDelete(id);
     for (const [did, d] of this.devices) if (d.userId === id) await this.deviceDelete(did);
     for (const [t, s] of this.sessions) if (s.userId === id) this.sessions.delete(t);
     for (const a of this.activity) if (a.endsWith(`|${id}`)) this.activity.delete(a);
     for (const [k, c] of this.codes) if (c.userId === id) this.codes.delete(k);
+    for (const [k, c] of this.tgCodes) if (c.userId === id) this.tgCodes.delete(k);
     this.users.delete(id);
   }
 
@@ -203,7 +229,7 @@ export class MemoryStore implements Store {
       [...this.users.values()].map((u) => {
         const mine = sessions.filter((s) => s.userId === u.id);
         const appVersion = mine.filter((s) => s.version !== undefined).sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.version ?? null;
-        return { id: u.id, email: u.email, createdAt: u.createdAt, emailVerified: Boolean(u.emailVerified), lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
+        return { id: u.id, email: u.email, createdAt: u.createdAt, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
       }),
     );
   }

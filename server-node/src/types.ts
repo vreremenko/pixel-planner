@@ -54,6 +54,17 @@ export interface User {
   email: string;
   passHash: string;
   emailVerified?: boolean;
+  telegramId?: string | null;
+}
+
+/** Одноразовый код бота: человек открывает ссылку с ним в Telegram и подтверждает кнопкой. */
+export interface TelegramCode {
+  codeHash: string;
+  kind: 'login' | 'link';
+  /** Для привязки — кого привязываем; для входа — кто подтвердил. */
+  userId: string | null;
+  status: 'pending' | 'confirmed' | 'unlinked';
+  expiresAt: number;
 }
 
 export type CodeKind = 'verify' | 'reset';
@@ -87,6 +98,7 @@ export interface AdminUserRow {
   /** Когда последний раз пользовались сессией; null — активных сессий нет. */
   lastSeen: number | null;
   emailVerified: boolean;
+  telegram: boolean;
   sessions: number;
   pushDevices: number;
   /** Версия приложения на самом свежем устройстве; null — приложение ещё не сообщало её. */
@@ -130,6 +142,9 @@ export interface Store {
   userById(id: string): Promise<User | null>;
   userSetPassword(id: string, passHash: string): Promise<void>;
   userSetVerified(id: string, now: number): Promise<void>;
+  userByTelegram(telegramId: string): Promise<User | null>;
+  /** null отвязывает. */
+  userSetTelegram(id: string, telegramId: string | null): Promise<void>;
   /** Удалить пользователя со всеми его данными: синхронизацией, устройствами, напоминаниями, сессиями. */
   userDelete(id: string): Promise<void>;
 
@@ -142,6 +157,10 @@ export interface Store {
   sessionsDeleteOthers(userId: string, keepTokenHash: string): Promise<void>;
   /** Закрыть все сессии пользователя (сброс пароля). */
   sessionsDeleteAll(userId: string): Promise<void>;
+
+  tgCodeSet(c: TelegramCode): Promise<void>;
+  tgCodeGet(codeHash: string): Promise<TelegramCode | null>;
+  tgCodeDelete(codeHash: string): Promise<void>;
 
   /** Заменить код этого вида: действует только последний. */
   codeSet(c: EmailCode): Promise<void>;

@@ -42,6 +42,10 @@ set -a; source "$ENV_FILE"; set +a
   echo "ADMIN_EMAILS=${ADMIN_EMAILS:-}"
   echo "SMTP_USER=${SMTP_USER:-}"
   echo "SMTP_PASS=${SMTP_PASS:-}"
+  echo "TELEGRAM_BOT_NAME=${TELEGRAM_BOT_NAME:-pixel_planner_bot}"
+  echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}"
+  echo "TELEGRAM_RELAY_URL=${TELEGRAM_RELAY_URL:-}"
+  echo "TELEGRAM_RELAY_KEY=${TELEGRAM_RELAY_KEY:-}"
 } | "${SSH[@]}" 'umask 077; cat > /etc/pixel-planner.env; chown root:pp /etc/pixel-planner.env; chmod 640 /etc/pixel-planner.env'
 
 echo "== служба systemd"

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handle, sendDue, type Deps } from './core.ts';
 import { smtpHost } from './mail.ts';
+import type { Button } from './telegram.ts';
 import { MemoryStore } from './memory-store.ts';
 import { json, mk, register, req } from './test-helpers.ts';
 
@@ -504,5 +505,106 @@ describe('сервер почты', () => {
     expect(smtpHost('app@yandex.ru')).toBe('smtp.yandex.ru');
     expect(smtpHost('app@ya.ru')).toBe('smtp.yandex.ru');
     expect(smtpHost('app@mail.ru')).toBe('smtp.mail.ru');
+  });
+});
+
+describe('Telegram', () => {
+  const KEY = 'ключ посредника';
+  const TG = 42;
+  const setup = () => {
+    const sent: { text: string; button?: Button }[] = [];
+    const d = mk({
+      env: { TELEGRAM_BOT_NAME: 'bot', TELEGRAM_RELAY_KEY: KEY },
+      telegram: {
+        send: (_id, text, button) => {
+          sent.push({ text, ...(button ? { button } : {}) });
+          return Promise.resolve();
+        },
+        answer: () => Promise.resolve(),
+      },
+    });
+    return { d, sent };
+  };
+  const update = (d: Deps, body: unknown, key = KEY) => handle({ ...req('POST', 'telegram/update', { body }), headers: { 'x-relay-key': key } }, d);
+  const text = (d: Deps, value: string, from = TG) => update(d, { message: { text: value, chat: { id: from, type: 'private' }, from: { id: from } } });
+  const press = (d: Deps, data: string, from = TG) => update(d, { callback_query: { id: 'c', data, from: { id: from }, message: { chat: { id: from } } } });
+  const post = async (d: Deps, path: string, body: unknown = {}, token?: string) => json(await handle(req('POST', path, { body, ...(token ? { token } : {}) }), d));
+  const link = async (d: Deps, token: string, from = TG) => {
+    const { code } = (await post(d, 'auth/telegram/link', {}, token)) as { code: string };
+    await text(d, `/start link_${code}`, from);
+    await press(d, `ok:${code}`, from);
+    return code;
+  };
+
+  it('обновление принимается только с ключом посредника', async () => {
+    const { d, sent } = setup();
+    expect((await update(d, {}, 'чужой')).status).toBe(403);
+    expect((await text(d, 'привет')).status).toBe(200);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('привязка: бот спрашивает подтверждение и только потом привязывает', async () => {
+    const { d, sent } = setup();
+    const token = await register(d, 'a@b.ru');
+    const { code, url } = (await post(d, 'auth/telegram/link', {}, token)) as { code: string; url: string };
+    expect(url).toBe(`https://t.me/bot?start=link_${code}`);
+    await text(d, `/start link_${code}`);
+    expect(sent.at(-1)?.button?.data).toBe(`ok:${code}`);
+    expect((await post(d, 'auth/telegram/check', { code })).status).toBe('pending');
+    await press(d, `ok:${code}`);
+    const done = await post(d, 'auth/telegram/check', { code });
+    expect(done.status).toBe('linked');
+    expect(done).not.toHaveProperty('token');
+    expect((done.user as { telegram: boolean }).telegram).toBe(true);
+  });
+
+  it('вход: сессию получает приложение, но только после кнопки в боте', async () => {
+    const { d } = setup();
+    await link(d, await register(d, 'a@b.ru'));
+    const { code } = (await post(d, 'auth/telegram/start')) as { code: string };
+    await text(d, `/start login_${code}`);
+    expect(await post(d, 'auth/telegram/check', { code })).toEqual({ status: 'pending' });
+    await press(d, `ok:${code}`);
+    const done = await post(d, 'auth/telegram/check', { code });
+    expect(done.status).toBe('confirmed');
+    expect((await handle(req('GET', 'auth/me', { token: done.token as string }), d)).status).toBe(200);
+    expect((await post(d, 'auth/telegram/check', { code })).error).toBe('bad_code');
+  });
+
+  it('вход с непривязанным Telegram честно отказывает', async () => {
+    const { d } = setup();
+    const { code } = (await post(d, 'auth/telegram/start')) as { code: string };
+    await text(d, `/start login_${code}`);
+    expect((await post(d, 'auth/telegram/check', { code })).error).toBe('telegram_not_linked');
+  });
+
+  it('чужой Telegram не подтвердит вход, а занятый нельзя привязать ко второму аккаунту', async () => {
+    const { d, sent } = setup();
+    await link(d, await register(d, 'a@b.ru'));
+    const { code } = (await post(d, 'auth/telegram/start')) as { code: string };
+    await press(d, `ok:${code}`, 777);
+    expect(await post(d, 'auth/telegram/check', { code })).toEqual({ status: 'pending' });
+    await link(d, await register(d, 'c@d.ru'));
+    expect(sent.some((m) => m.text.includes('уже привязан'))).toBe(true);
+  });
+
+  it('просроченная ссылка не работает, отвязка закрывает вход', async () => {
+    let now = 1_000_000;
+    const { d } = setup();
+    const ticking = { ...d, now: () => now };
+    const token = await register(ticking, 'a@b.ru');
+    await link(ticking, token);
+    const { code } = (await post(ticking, 'auth/telegram/start')) as { code: string };
+    now += 11 * 60_000;
+    await press(ticking, `ok:${code}`);
+    expect((await post(ticking, 'auth/telegram/check', { code })).error).toBe('bad_code');
+    await handle(req('DELETE', 'auth/telegram', { token }), ticking);
+    const next = (await post(ticking, 'auth/telegram/start')) as { code: string };
+    await text(ticking, `/start login_${next.code}`);
+    expect((await post(ticking, 'auth/telegram/check', { code: next.code })).error).toBe('telegram_not_linked');
+  });
+
+  it('без настроек бота вход честно недоступен', async () => {
+    expect((await post(mk(), 'auth/telegram/start')).error).toBe('telegram_unavailable');
   });
 });

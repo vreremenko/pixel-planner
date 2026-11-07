@@ -75,6 +75,7 @@ export function buildStats({ now, admins, users, activity, records }: StatsInput
         email: u.email,
         admin: admins.includes(u.email),
         verified: u.emailVerified,
+        telegram: u.telegram,
         createdAt: u.createdAt,
         lastSeen: u.lastSeen,
         sessions: u.sessions,

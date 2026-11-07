@@ -1,12 +1,13 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useCallback, useState, type SyntheticEvent } from 'react';
 import { Button, Modal, Panel, TextInput, rowClass, toast } from '../ui';
-import { changePassword, logout, removeAccount, useAuth } from '../auth/store';
+import { changePassword, logout, removeAccount, unlinkTelegram, useAuth } from '../auth/store';
 import { AuthModal } from './AuthModal';
+import { TelegramDialog } from './TelegramDialog';
 import { VerifyEmailDialog } from './VerifyEmailDialog';
 
 const fail = (e: unknown) => toast(e instanceof Error ? e.message : 'Что-то пошло не так', 'alert', 'var(--c-warn)');
 
-type Dialog = 'login' | 'register' | 'logout' | 'password' | 'delete' | 'verify' | null;
+type Dialog = 'login' | 'register' | 'logout' | 'password' | 'delete' | 'verify' | 'telegram' | null;
 
 /** Диалог с одним полем пароля (подтверждение удаления) или двумя (смена пароля). */
 function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClose: () => void }) {
@@ -63,6 +64,7 @@ function PasswordDialog({ kind, onClose }: { kind: 'password' | 'delete'; onClos
 export function AccountPanel() {
   const session = useAuth((s) => s.session);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const closeDialog = useCallback(() => setDialog(null), []);
 
   const doLogout = async (erase: boolean) => {
     setDialog(null);
@@ -102,6 +104,14 @@ export function AccountPanel() {
               Удалить аккаунт
             </Button>
           </div>
+          <p style={{ marginBottom: 8 }}>{session.user.telegram ? 'Telegram привязан, через него можно входить.' : 'Привяжите Telegram, чтобы входить через него.'}</p>
+          <div className={rowClass}>
+            {session.user.telegram ? (
+              <Button onClick={() => void unlinkTelegram().catch(fail)}>Отвязать Telegram</Button>
+            ) : (
+              <Button onClick={() => setDialog('telegram')}>Привязать Telegram</Button>
+            )}
+          </div>
         </>
       ) : (
         <>
@@ -119,6 +129,7 @@ export function AccountPanel() {
       <p style={{ marginBottom: 0, color: 'var(--c-text-dim)', fontSize: 17 }}>На сервере данные хранятся без шифрования. Пароль мы не видим и сохранить не можем.</p>
 
       {(dialog === 'login' || dialog === 'register') && <AuthModal mode={dialog} onClose={() => setDialog(null)} />}
+      {dialog === 'telegram' && <TelegramDialog mode="link" onClose={closeDialog} onDone={closeDialog} />}
       {dialog === 'verify' && session && <VerifyEmailDialog email={session.user.email} onClose={() => setDialog(null)} />}
       {(dialog === 'password' || dialog === 'delete') && <PasswordDialog kind={dialog} onClose={() => setDialog(null)} />}
       <Modal

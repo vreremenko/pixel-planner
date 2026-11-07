@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import { handle, sendDue, type Env } from './core.ts';
 import { createMailer } from './mail.ts';
 import { SqliteStore } from './sqlite-store.ts';
+import { createTelegram } from './telegram.ts';
 
 const env: Env = {
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
@@ -15,8 +16,11 @@ const env: Env = {
   VAPID_SUBJECT: process.env.VAPID_SUBJECT,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+  TELEGRAM_BOT_NAME: process.env.TELEGRAM_BOT_NAME,
+  TELEGRAM_RELAY_KEY: process.env.TELEGRAM_RELAY_KEY,
 };
 const sendMail = createMailer(process.env);
+const telegram = createTelegram(process.env);
 const port = Number(process.env.PORT ?? 8787);
 const dbPath = process.env.DB_PATH ?? './data/pixel-planner.sqlite';
 mkdirSync(dirname(dbPath), { recursive: true });
@@ -55,7 +59,7 @@ const server = createServer((req, res) => {
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k.toLowerCase()] = v;
       const out = await handle(
         { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
-        { store, env, ...(sendMail ? { sendMail } : {}) },
+        { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}) },
       );
       res.writeHead(out.status, out.headers).end(out.status === 204 ? undefined : out.body);
     } catch (e) {

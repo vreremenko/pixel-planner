@@ -2,6 +2,7 @@ import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, TextInput, toast } from '../ui';
 import { login, register } from '../auth/store';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { TelegramDialog } from './TelegramDialog';
 
 type Mode = 'login' | 'register';
 
@@ -13,6 +14,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [telegram, setTelegram] = useState(false);
   const isRegister = mode === 'register';
 
   const submit = async (e: SyntheticEvent) => {
@@ -30,6 +32,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
     }
   };
 
+  if (telegram) return <TelegramDialog mode="login" onClose={() => setTelegram(false)} onDone={onClose} />;
   if (resetting) return <ResetPasswordDialog email={email} onClose={() => setResetting(false)} onDone={onClose} />;
 
   return (
@@ -66,6 +69,11 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
           {!isRegister && (
             <Button variant="ghost" onClick={() => setResetting(true)}>
               Забыли пароль?
+            </Button>
+          )}
+          {!isRegister && (
+            <Button variant="ghost" onClick={() => setTelegram(true)}>
+              Войти через Telegram
             </Button>
           )}
         </div>

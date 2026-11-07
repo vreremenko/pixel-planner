@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -44,6 +44,9 @@ export class SqliteStore implements Store {
         expires_at INTEGER NOT NULL, sent_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (user_id, kind)
       );
+      CREATE TABLE IF NOT EXISTS tg_codes (
+        code_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user_id TEXT, status TEXT NOT NULL, expires_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS activity (day TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
     `);
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
@@ -53,6 +56,8 @@ export class SqliteStore implements Store {
     if (!sessionCols.some((c) => c.name === 'app_version')) this.db.exec('ALTER TABLE sessions ADD COLUMN app_version TEXT');
     const userCols = this.db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
     if (!userCols.some((c) => c.name === 'email_verified_at')) this.db.exec('ALTER TABLE users ADD COLUMN email_verified_at INTEGER');
+    if (!userCols.some((c) => c.name === 'telegram_id')) this.db.exec('ALTER TABLE users ADD COLUMN telegram_id TEXT');
+    this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_telegram ON users (telegram_id) WHERE telegram_id IS NOT NULL');
     this.db.exec('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id IS NULL)');
     this.db.exec('DELETE FROM devices WHERE user_id IS NULL');
   }
@@ -184,9 +189,9 @@ export class SqliteStore implements Store {
     }
   }
 
-  private user(where: 'id' | 'email', value: string): User | null {
-    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash, email_verified_at AS verifiedAt FROM users WHERE ${where} = ?`).get(value) as (User & { verifiedAt: number | null }) | undefined;
-    return r ? { id: r.id, email: r.email, passHash: r.passHash, emailVerified: r.verifiedAt !== null } : null;
+  private user(where: 'id' | 'email' | 'telegram_id', value: string): User | null {
+    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash, email_verified_at AS verifiedAt, telegram_id AS telegramId FROM users WHERE ${where} = ?`).get(value) as (User & { verifiedAt: number | null }) | undefined;
+    return r ? { id: r.id, email: r.email, passHash: r.passHash, emailVerified: r.verifiedAt !== null, telegramId: r.telegramId ?? null } : null;
   }
 
   userByEmail(email: string): Promise<User | null> {
@@ -207,6 +212,32 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  userByTelegram(telegramId: string): Promise<User | null> {
+    return Promise.resolve(this.user('telegram_id', telegramId));
+  }
+
+  userSetTelegram(id: string, telegramId: string | null): Promise<void> {
+    this.db.prepare('UPDATE users SET telegram_id = ? WHERE id = ?').run(telegramId, id);
+    return Promise.resolve();
+  }
+
+  tgCodeSet(c: TelegramCode): Promise<void> {
+    // Заодно убираем просроченные: кодов мало, отдельная уборка не нужна
+    this.db.prepare('DELETE FROM tg_codes WHERE expires_at < ?').run(c.expiresAt - 86_400_000);
+    this.db.prepare('INSERT OR REPLACE INTO tg_codes (code_hash, kind, user_id, status, expires_at) VALUES (?, ?, ?, ?, ?)').run(c.codeHash, c.kind, c.userId, c.status, c.expiresAt);
+    return Promise.resolve();
+  }
+
+  tgCodeGet(codeHash: string): Promise<TelegramCode | null> {
+    const r = this.db.prepare('SELECT code_hash AS codeHash, kind, user_id AS userId, status, expires_at AS expiresAt FROM tg_codes WHERE code_hash = ?').get(codeHash) as TelegramCode | undefined;
+    return Promise.resolve(r ?? null);
+  }
+
+  tgCodeDelete(codeHash: string): Promise<void> {
+    this.db.prepare('DELETE FROM tg_codes WHERE code_hash = ?').run(codeHash);
+    return Promise.resolve();
+  }
+
   userDelete(id: string): Promise<void> {
     this.tx(() => {
       this.db.prepare('DELETE FROM sync_records WHERE space = ?').run(id);
@@ -216,6 +247,7 @@ export class SqliteStore implements Store {
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM email_codes WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM tg_codes WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
     });
     return Promise.resolve();
@@ -290,15 +322,15 @@ export class SqliteStore implements Store {
   adminUsers(): Promise<AdminUserRow[]> {
     const rows = this.db
       .prepare(
-        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt, u.email_verified_at IS NOT NULL AS emailVerified,
+        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt, u.email_verified_at IS NOT NULL AS emailVerified, u.telegram_id IS NOT NULL AS telegram,
                 (SELECT MAX(last_used_at) FROM sessions s WHERE s.user_id = u.id) AS lastSeen,
                 (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id) AS sessions,
                 (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS pushDevices,
                 (SELECT app_version FROM sessions s WHERE s.user_id = u.id AND app_version IS NOT NULL ORDER BY last_used_at DESC LIMIT 1) AS appVersion
          FROM users u`,
       )
-      .all() as unknown as (Omit<AdminUserRow, 'emailVerified'> & { emailVerified: number })[];
-    return Promise.resolve(rows.map((r) => ({ ...r, emailVerified: r.emailVerified === 1 })));
+      .all() as unknown as (Omit<AdminUserRow, 'emailVerified' | 'telegram'> & { emailVerified: number; telegram: number })[];
+    return Promise.resolve(rows.map((r) => ({ ...r, emailVerified: r.emailVerified === 1, telegram: r.telegram === 1 })));
   }
 
   adminRecords(recentSince: number): Promise<AdminRecordRow[]> {

@@ -13,6 +13,8 @@ const MESSAGES: Record<string, string> = {
   forbidden: 'Нет доступа',
   bad_code: 'Неверный или устаревший код',
   code_cooldown: 'Код уже отправлен. Подождите минуту',
+  telegram_not_linked: 'Этот Telegram не привязан. Войдите по почте и привяжите его в личном кабинете',
+  telegram_unavailable: 'Вход через Telegram сейчас недоступен. Попробуйте позже',
   mail_unavailable: 'Письма пока не отправляются. Попробуйте позже',
 };
 
@@ -79,6 +81,20 @@ export const verifyEmail = (token: string, code: string) => call('auth/verify', 
 export const requestPasswordReset = (email: string) => call('auth/reset/request', { method: 'POST', body: { email } });
 
 export const confirmPasswordReset = (email: string, code: string, newPassword: string) => call('auth/reset', { method: 'POST', body: { email, code, newPassword } });
+
+export interface TelegramCheck {
+  status: 'pending' | 'confirmed' | 'linked';
+  token?: string;
+  user?: Session['user'];
+}
+
+export const telegramLogin = () => call('auth/telegram/start', { method: 'POST', body: {} }) as Promise<{ code: string; url: string }>;
+
+export const telegramLink = (token: string) => call('auth/telegram/link', { method: 'POST', token, body: {} }) as Promise<{ code: string; url: string }>;
+
+export const telegramCheck = (code: string) => call('auth/telegram/check', { method: 'POST', body: { code, device: deviceLabel() } }) as Promise<TelegramCheck>;
+
+export const telegramUnlink = (token: string) => call('auth/telegram', { method: 'DELETE', token });
 
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 
