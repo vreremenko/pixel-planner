@@ -48,7 +48,7 @@ export function openDues(payments: readonly Payment[], txs: readonly Tx[], today
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-const workDaysBetween = (from: LocalDate, to: LocalDate, work: readonly Weekday[]): number => {
+export const workDaysBetween = (from: LocalDate, to: LocalDate, work: readonly Weekday[]): number => {
   let n = 0;
   for (let d = from; d < to; d = addDays(d, 1)) if (work.includes(weekday(d))) n++;
   return n;

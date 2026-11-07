@@ -57,6 +57,19 @@ export interface Payment extends SyncMeta {
   skipped: LocalDate[];
 }
 
+/** Накопить сумму к дате. Деньги лежат на счёте вне плана, прогресс — его баланс. */
+export interface Goal extends SyncMeta {
+  name: string;
+  amount: Kopecks;
+  date: LocalDate;
+  accountId: string;
+  /** Откуда считается равномерный график: новая сумма, дата или конец паузы начинают его заново. */
+  startDate: LocalDate;
+  startSaved: Kopecks;
+  /** На паузе цель не считается и не занимает место в плане. */
+  paused?: boolean;
+}
+
 export interface FinPrefs extends SyncMeta {
   workDays?: Weekday[];
   /** Какой процент дохода советовать откладывать; 0 — не советовать. */

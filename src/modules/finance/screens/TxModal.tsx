@@ -55,6 +55,9 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
   const offer = saveOffer(view.money, income, saved, view.dues, view.living, view.work, today);
   const withoutSave = saveOffer(view.money, income, 0, view.dues, view.living, view.work, today);
   const saving = offerShown && (saveChoice ?? offer.covered);
+  // Перевод из плана в копилку: те же деньги нужны и на платежи
+  const leavesPlan = kind === 'transfer' && !tx && !!accounts.find((a) => a.id === accountId)?.inPlan && accounts.find((a) => a.id === toAccountId)?.inPlan === false && income > 0;
+  const afterTransfer = saveOffer(view.money, 0, income, view.dues, view.living, view.work, today);
   const children = tx ? linkedSaves(txs, tx.id) : [];
 
   const save = async () => {
@@ -118,6 +121,7 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
         )}
       </div>
       {kind === 'transfer' && <TextInput label="Дата" type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+      {leavesPlan && !afterTransfer.covered && <p className={s.warn}>После перевода на платежи понадобится {rubUp(afterTransfer.rate)} в день.</p>}
       {offerShown && (
         <>
           <ToggleRow

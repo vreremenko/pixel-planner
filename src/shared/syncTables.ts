@@ -20,5 +20,6 @@ export const SYNC_TABLES = [
   'fin_categories',
   'fin_tx',
   'fin_payments',
+  'fin_goals',
   'fin_prefs',
 ] as const;

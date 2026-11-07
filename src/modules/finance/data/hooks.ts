@@ -3,12 +3,13 @@ import { useMemo } from 'react';
 import type { LocalDate } from '../../../core/domain/types';
 import { balances, dayPlan, livingTypical, openDues } from '../domain/plan';
 import { ALL_DAYS, type Account, type FinPrefs, type Payment, type Tx } from '../domain/types';
-import { accountRepo, categoryRepo, paymentRepo, prefsRepo, txRepo } from './repo';
+import { accountRepo, categoryRepo, goalRepo, paymentRepo, prefsRepo, txRepo } from './repo';
 
 export const useAccounts = () => useLiveQuery(() => accountRepo.all(), []);
 export const useCategories = () => useLiveQuery(() => categoryRepo.all(), []);
 export const useTxs = () => useLiveQuery(() => txRepo.all(), []);
 export const usePayments = () => useLiveQuery(() => paymentRepo.all(), []);
+export const useGoals = () => useLiveQuery(() => goalRepo.all(), []);
 export const usePrefs = () => useLiveQuery(() => prefsRepo.get(), []);
 
 function buildPlan(today: LocalDate, accounts: Account[], txs: Tx[], payments: Payment[], prefs: FinPrefs) {

@@ -61,6 +61,32 @@
 .bad {
   color: var(--c-warn);
 }
+.goal {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--gap-1);
+  text-align: left;
+}
+.goalHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.goalHead .grow {
+  flex: 1 1 0;
+}
+.goalHead .dim {
+  flex: none;
+}
+.goalStatus::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  background: currentColor;
+}
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

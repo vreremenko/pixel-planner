@@ -2,7 +2,7 @@
 import { db } from '../../../core/data/db';
 import { alive, removeRow, saveRow, type New } from '../../../core/data/repo';
 import type { SyncMeta } from '../../../core/domain/types';
-import { DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Payment, type Tx } from '../domain/types';
+import { DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../domain/types';
 
 const tables = {
   get accounts() {
@@ -16,6 +16,9 @@ const tables = {
   },
   get payments() {
     return db.table<Payment, string>('fin_payments');
+  },
+  get goals() {
+    return db.table<Goal, string>('fin_goals');
   },
   get prefs() {
     return db.table<FinPrefs, string>('fin_prefs');
@@ -48,6 +51,12 @@ export const paymentRepo = {
   all: async () => (await tables.payments.toArray()).filter(alive),
   save: (x: New<Payment>) => saveRow(tables.payments, x),
   remove: (id: string) => removeRow(tables.payments, id),
+};
+
+export const goalRepo = {
+  all: async () => (await tables.goals.toArray()).filter(alive).sort((a, b) => a.date.localeCompare(b.date)),
+  save: (x: New<Goal>) => saveRow(tables.goals, x),
+  remove: (id: string) => removeRow(tables.goals, id),
 };
 
 export const prefsRepo = {

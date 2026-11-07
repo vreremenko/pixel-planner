@@ -56,4 +56,5 @@ export const collapseKey = {
   habit: (id: string) => `habit:${id}`,
   taskNotes: (id: string) => `task:${id}:notes`,
   taskList: (id: string) => `task:${id}:list`,
+  finGoals: 'fin:goals',
 };

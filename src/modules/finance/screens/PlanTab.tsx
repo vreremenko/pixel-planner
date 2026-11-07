@@ -9,6 +9,7 @@ import type { Due } from '../domain/plan';
 import { savedInMonth } from '../domain/save';
 import type { Account, Payment, Tx } from '../domain/types';
 import { AccountsModal } from './AccountsModal';
+import { GoalsPanel } from './GoalsPanel';
 import { PayModal } from './PayModal';
 import { PaymentEditor } from './PaymentEditor';
 import { PlanHeadline } from './PlanHeadline';
@@ -45,6 +46,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
         )}
         {dues.length > 0 && <p className={s.hint}>{living > 0 ? `Обычно вы тратите около ${rubUp(living)} в день, это уже в плане.` : 'Обычные траты пока не в плане: нужна неделя записей.'}</p>}
       </Panel>
+      <GoalsPanel today={today} accounts={accounts} balance={balance} work={view.work} txs={txs} />
       <Panel title="Платежи" icon="calendar" accent="var(--c-fin)" actions={<Button small icon="plus" label="Добавить платёж" onClick={() => setEditing('new')} />}>
         {dues.length === 0 && later.length === 0 && <p className={s.hint}>Квартира, подписки, кредит: всё, что нужно оплатить к дате.</p>}
         <ul className={s.list}>

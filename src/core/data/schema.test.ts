@@ -16,6 +16,7 @@ describe('схема IndexedDB', () => {
         "schema": {
           "fin_accounts": "id, updatedAt",
           "fin_categories": "id, updatedAt",
+          "fin_goals": "id, updatedAt",
           "fin_payments": "id, updatedAt",
           "fin_prefs": "id, updatedAt",
           "fin_tx": "id, date, updatedAt",
@@ -36,7 +37,7 @@ describe('схема IndexedDB', () => {
           "settings": "id",
           "tasks": "id, date, updatedAt",
         },
-        "version": 6,
+        "version": 7,
       }
     `);
   });
