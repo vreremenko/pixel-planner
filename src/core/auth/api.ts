@@ -15,6 +15,8 @@ const MESSAGES: Record<string, string> = {
   code_cooldown: 'Код уже отправлен. Подождите минуту',
   telegram_not_linked: 'Этот Telegram не привязан. Войдите по почте и привяжите его в личном кабинете',
   telegram_unavailable: 'Вход через Telegram сейчас недоступен. Попробуйте позже',
+  bad_text: 'Напишите сообщение, до 2000 символов',
+  feedback_unavailable: 'Сообщение сейчас не отправить. Попробуйте позже',
   mail_unavailable: 'Письма пока не отправляются. Попробуйте позже',
 };
 
@@ -95,6 +97,10 @@ export const telegramLink = (token: string) => call('auth/telegram/link', { meth
 export const telegramCheck = (code: string) => call('auth/telegram/check', { method: 'POST', body: { code, device: deviceLabel() } }) as Promise<TelegramCheck>;
 
 export const telegramUnlink = (token: string) => call('auth/telegram', { method: 'DELETE', token });
+
+export const telegramReminders = (token: string, on: boolean) => call('auth/telegram/reminders', { method: 'POST', token, body: { on } });
+
+export const sendFeedback = (token: string, text: string) => call('feedback', { method: 'POST', token, body: { text, version: APP_VERSION } });
 
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 

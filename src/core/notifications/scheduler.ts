@@ -59,7 +59,8 @@ async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promi
 
 /** Расписание уходит на сервер, пока мы вошли в аккаунт и напоминания включены: его получат и другие устройства аккаунта. */
 async function shouldSendSchedule(): Promise<boolean> {
-  return useSettings.getState().settings.notificationsEnabled && (await loadSession()) !== null;
+  const session = await loadSession();
+  return session !== null && (useSettings.getState().settings.notificationsEnabled || session.user.telegramReminders === true);
 }
 
 /** Немедленно отправить расписание push-серверу (при сворачивании приложения). */

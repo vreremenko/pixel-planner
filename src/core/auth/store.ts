@@ -1,7 +1,7 @@
 /* Состояние входа в приложении и действия с аккаунтом. */
 import { create } from 'zustand';
 import { metaRepo } from '../data/repo';
-import { disablePush } from '../notifications/push';
+import { disablePush, resendSchedule } from '../notifications/push';
 import { attachAccount, detachAccount, forgetOwner } from '../sync/manager';
 import * as api from './api';
 import { clearSession, loadSession, onSessionChange, saveSession, type Session } from './session';
@@ -26,7 +26,7 @@ export function startAuth(): () => void {
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
-  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram))) return;
+  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram) && Boolean(fresh.user.telegramReminders) === Boolean(session.user.telegramReminders))) return;
   const current = await loadSession();
   if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }
@@ -71,7 +71,19 @@ export async function checkTelegram(code: string): Promise<boolean> {
 export async function unlinkTelegram(): Promise<void> {
   const session = await currentSession();
   await api.telegramUnlink(session.token);
-  await saveSession({ ...session, user: { ...session.user, telegram: false } });
+  await saveSession({ ...session, user: { ...session.user, telegram: false, telegramReminders: false } });
+}
+
+/** Дублировать напоминания в Telegram. Расписание отправляем заново, чтобы бот получил его сразу. */
+export async function setTelegramReminders(on: boolean): Promise<void> {
+  const session = await currentSession();
+  await api.telegramReminders(session.token, on);
+  await saveSession({ ...session, user: { ...session.user, telegramReminders: on } });
+  resendSchedule();
+}
+
+export async function sendFeedback(text: string): Promise<void> {
+  await api.sendFeedback((await currentSession()).token, text);
 }
 
 async function currentSession(): Promise<Session> {

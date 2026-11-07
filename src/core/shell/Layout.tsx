@@ -4,6 +4,7 @@ import s from './Layout.module.css';
 import { PixelIcon } from '../ui';
 import type { ModuleNavItem } from '../module';
 import { MissedReminders } from '../notifications/MissedReminders';
+import { PushRepairBar } from '../notifications/PushRepairBar';
 import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
 import { Goida } from '../easter/Goida';
@@ -92,6 +93,7 @@ export function Layout() {
       <Goida />
       <main id="main" className={s.main}>
         <OfflineBar className={s.offlineDesktop} />
+        <PushRepairBar />
         <MissedReminders />
         <TopbarSlot.Provider value={slot}>
           <Suspense fallback={<p style={{ color: 'var(--c-text-dim)' }}>Загрузка…</p>}>

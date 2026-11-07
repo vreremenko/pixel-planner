@@ -604,6 +604,35 @@ describe('Telegram', () => {
     expect((await post(ticking, 'auth/telegram/check', { code: next.code })).error).toBe('telegram_not_linked');
   });
 
+  it('напоминания в Telegram: включаются только с привязкой и уходят в чат', async () => {
+    const { d, sent } = setup();
+    const token = await register(d, 'a@b.ru');
+    expect((await post(d, 'auth/telegram/reminders', { on: true }, token)).error).toBe('telegram_not_linked');
+    await link(d, token);
+    await post(d, 'auth/telegram/reminders', { on: true }, token);
+    await post(d, 'auth/telegram/reminders', { on: true }, token);
+    expect(((await handle(req('GET', 'auth/me', { token }), d)).body)).toContain('"telegramReminders":true');
+    const item = { key: 'k', fireAt: 999_000, kind: 'task', ref: 'r', date: '2026-01-01', title: 'Позвонить', body: 'в 19:00' };
+    await handle(req('PUT', 'schedule', { token, body: { items: [item] } }), d);
+    expect(await sendDue(d)).toBe(1);
+    expect(sent.at(-1)?.text).toBe('⏰ Позвонить\nв 19:00');
+    await handle(req('DELETE', 'auth/telegram', { token }), d);
+    expect(((await handle(req('GET', 'auth/me', { token }), d)).body)).toContain('"telegramReminders":false');
+  });
+
+  it('отзыв уходит админу в Telegram и ограничен по частоте', async () => {
+    const { d, sent } = setup();
+    const admin = { ...d, env: { ...d.env, ADMIN_EMAILS: 'boss@site.ru' } };
+    await link(admin, await register(admin, 'boss@site.ru'));
+    const token = await register(admin, 'a@b.ru');
+    expect((await post(admin, 'feedback', { text: '  ' }, token)).error).toBe('bad_text');
+    expect(await post(admin, 'feedback', { text: 'Добавьте тёмную тему', version: '0.26.0' }, token)).toEqual({ ok: true });
+    expect(sent.at(-1)?.text).toBe('Отзыв из PIXEL PLANNER\nОт: a@b.ru\nВерсия: 0.26.0\n\nДобавьте тёмную тему');
+    for (let i = 0; i < 4; i++) await post(admin, 'feedback', { text: 'ещё' }, token);
+    expect((await post(admin, 'feedback', { text: 'шестой' }, token)).error).toBe('too_many_attempts');
+    expect((await post(mk(), 'feedback', { text: 'x' })).error).toBe('unauthorized');
+  });
+
   it('без настроек бота вход честно недоступен', async () => {
     expect((await post(mk(), 'auth/telegram/start')).error).toBe('telegram_unavailable');
   });

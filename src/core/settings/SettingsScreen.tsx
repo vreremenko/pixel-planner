@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Button, Panel, TextInput, toast } from '../ui';
+import { Button, Panel, TextInput, inputClass, toast } from '../ui';
 import { useSettings } from '../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
 import { tick } from '../notifications/scheduler';
@@ -11,7 +11,7 @@ import { ChangelogModal } from '../whatsnew/ChangelogModal';
 import { ModulesPanel } from './ModulesPanel';
 import { ToggleRow } from './ToggleRow';
 import { useModules } from '../shell/nav';
-import { useAuth } from '../auth/store';
+import { sendFeedback, setTelegramReminders, useAuth } from '../auth/store';
 import { fs } from '../ui/fs';
 
 const PERM_TEXT: Record<string, string> = {
@@ -20,6 +20,69 @@ const PERM_TEXT: Record<string, string> = {
   default: 'ещё не запрошены',
   unsupported: 'не поддерживаются этим браузером',
 };
+
+function TelegramRemindersRow() {
+  const user = useAuth((a) => a.session?.user);
+  const [busy, setBusy] = useState(false);
+  if (!user) return null;
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      await setTelegramReminders(on);
+      void tick();
+      if (on) toast('Напоминания будут приходить и в Telegram', 'bell', 'var(--c-habit)');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Не получилось', 'alert', 'var(--c-warn)');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <ToggleRow
+      label="Дублировать в Telegram"
+      hint={user.telegram ? (busy ? 'Подключаем…' : 'Бот пришлёт то же напоминание. Надёжно, даже если уведомления телефона не сработают') : 'Сначала привяжите Telegram в личном кабинете'}
+      checked={user.telegramReminders === true}
+      onChange={(v) => {
+        if (!busy && (user.telegram || !v)) void toggle(v);
+      }}
+      color="var(--c-gold)"
+    />
+  );
+}
+
+function FeedbackPanel() {
+  const signedIn = useAuth((a) => a.session) != null;
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    setBusy(true);
+    try {
+      await sendFeedback(text);
+      setText('');
+      toast('Спасибо! Сообщение отправлено', 'check', 'var(--c-habit)');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Не получилось отправить', 'alert', 'var(--c-warn)');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel title="Написать разработчику" icon="edit" accent="var(--c-gold)">
+      {signedIn ? (
+        <>
+          <textarea className={inputClass} rows={4} maxLength={2000} aria-label="Сообщение разработчику" placeholder="Что сломалось, чего не хватает, что понравилось" value={text} onChange={(e) => setText(e.target.value)} />
+          <div style={{ marginTop: 12 }}>
+            <Button variant="gold" disabled={busy || !text.trim()} onClick={() => void send()}>
+              {busy ? 'Отправляем…' : 'Отправить'}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p style={{ margin: 0 }}>Войдите в аккаунт, чтобы написать: так будет понятно, кому ответить.</p>
+      )}
+    </Panel>
+  );
+}
 
 function NotificationsPanel() {
   const { settings, update } = useSettings();
@@ -158,6 +221,7 @@ function NotificationsPanel() {
         onChange={(v) => void enable(v)}
         color="var(--c-gold)"
       />
+      <TelegramRemindersRow />
       <ToggleRow
         label="Утренняя сводка"
         hint="Сколько задач и привычек на сегодня"
@@ -205,6 +269,7 @@ export function SettingsScreen() {
           </Suspense>
         ))}
         <NotificationsPanel />
+        <FeedbackPanel />
         <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
           <ToggleRow
             label="8-битные звуки"

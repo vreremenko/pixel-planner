@@ -64,6 +64,11 @@ const CODE_TTL_MS = 15 * 60_000;
 const CODE_RESEND_MS = 60_000;
 const CODE_MAX_ATTEMPTS = 5;
 const TG_CODE_TTL_MS = 10 * 60_000;
+/** Напоминания в Telegram хранятся как ещё одно устройство пользователя с таким адресом вместо push-подписки. */
+const TG_ENDPOINT = 'tg:';
+const FEEDBACK_WINDOW_MS = 3_600_000;
+const FEEDBACK_MAX = 5;
+const FEEDBACK_MAX_LENGTH = 2000;
 const TG_START_MAX_PER_IP = 30;
 const RESET_WINDOW_MS = 3_600_000;
 const RESET_MAX_PER_IP = 20;
@@ -284,6 +289,50 @@ async function checkCode(d: Deps, userId: string, kind: CodeKind, code: unknown,
   return false;
 }
 
+async function telegramDevices(d: Deps, userId: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const id of await d.store.devicesOfUser(userId)) if ((await d.store.deviceGet(id))?.endpoint.startsWith(TG_ENDPOINT)) out.push(id);
+  return out;
+}
+
+async function setTelegramReminders(d: Deps, user: { id: string; telegramId?: string | null }, on: boolean, now: number): Promise<void> {
+  const existing = await telegramDevices(d, user.id);
+  if (!on || !user.telegramId) {
+    for (const id of existing) await d.store.deviceDelete(id);
+    return;
+  }
+  if (existing.length === 0) await d.store.deviceUpsert({ id: randomUUID(), userId: user.id, endpoint: `${TG_ENDPOINT}${user.telegramId}`, p256dh: '-', auth: '-', now });
+}
+
+/** Отзыв уходит админам: в Telegram, если он привязан, иначе на почту. */
+async function handleFeedback(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const { userId } = await requireUser(req, d);
+  const b = readJson(req.body) as { text?: unknown; version?: unknown };
+  const text = typeof b.text === 'string' ? b.text.trim() : '';
+  if (!text || text.length > FEEDBACK_MAX_LENGTH) throw bad(400, 'bad_text');
+  const limiter = d.limiter ?? defaultLimiter;
+  if (limiter.count(`feedback:${userId}`, FEEDBACK_WINDOW_MS, now) >= FEEDBACK_MAX) throw bad(429, 'too_many_attempts');
+  const user = await d.store.userById(userId);
+  if (!user) throw bad(401, 'unauthorized');
+  const version = typeof b.version === 'string' && VERSION_RE.test(b.version) ? b.version : '?';
+  const message = `Отзыв из PIXEL PLANNER\nОт: ${user.email}\nВерсия: ${version}\n\n${text}`;
+  let delivered = false;
+  for (const email of adminEmails(d.env)) {
+    const admin = await d.store.userByEmail(email);
+    try {
+      if (admin?.telegramId && d.telegram) await d.telegram.send(Number(admin.telegramId), message);
+      else if (d.sendMail) await d.sendMail(email, 'Отзыв из PIXEL PLANNER', message);
+      else continue;
+      delivered = true;
+    } catch (e) {
+      console.warn('отзыв не доставлен', e);
+    }
+  }
+  if (!delivered) throw bad(503, 'feedback_unavailable');
+  limiter.add(`feedback:${userId}`, now);
+  return json({ ok: true });
+}
+
 /** Выдать код и ссылку на бота. */
 async function issueTelegramCode(d: Deps, kind: 'login' | 'link', userId: string | null, now: number): Promise<HttpRes> {
   const name = d.env.TELEGRAM_BOT_NAME;
@@ -466,7 +515,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     if (!user) throw bad(401, 'unauthorized');
     const version = req.query.v ?? '';
     if (VERSION_RE.test(version)) await d.store.sessionSetVersion(tokenHash(token), version);
-    return json({ user: publicUser(user, d.env) });
+    return json({ user: { ...publicUser(user, d.env), telegramReminders: (await telegramDevices(d, userId)).length > 0 } });
   }
 
   // POST /api/auth/verify/send: отправить код ещё раз
@@ -489,8 +538,19 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   // POST /api/auth/telegram/link: ссылка на бота для привязки
   if (action === 'telegram' && parts[2] === 'link' && req.method === 'POST') return issueTelegramCode(d, 'link', userId, now);
 
+  // POST /api/auth/telegram/reminders {on}: дублировать напоминания в Telegram
+  if (action === 'telegram' && parts[2] === 'reminders' && req.method === 'POST') {
+    const b = readJson(req.body) as { on?: unknown };
+    const user = await d.store.userById(userId);
+    if (!user) throw bad(401, 'unauthorized');
+    if (b.on === true && !user.telegramId) throw bad(400, 'telegram_not_linked');
+    await setTelegramReminders(d, user, b.on === true, now);
+    return json({ ok: true });
+  }
+
   // DELETE /api/auth/telegram: отвязать
   if (action === 'telegram' && parts.length === 2 && req.method === 'DELETE') {
+    await setTelegramReminders(d, { id: userId }, false, now);
     await d.store.userSetTelegram(userId, null);
     return json({ ok: true });
   }
@@ -543,6 +603,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   }
   if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
+  if (req.method === 'POST' && parts[0] === 'feedback' && parts.length === 1) return handleFeedback(req, d, now);
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
@@ -622,7 +683,15 @@ export async function handle(req: HttpReq, d: Deps): Promise<HttpRes> {
 /** Рассылка наступивших напоминаний (запускается таймером каждые несколько секунд). */
 export async function sendDue(d: Deps): Promise<number> {
   const now = (d.now ?? Date.now)();
-  const send = d.send ?? sendOne;
+  const push = d.send ?? sendOne;
+  const tg = d.telegram;
+  const send: typeof push = async (env, to, data) => {
+    if (!to.endpoint.startsWith(TG_ENDPOINT)) return push(env, to, data);
+    if (!tg) return { status: 503, detail: 'telegram off' };
+    const { title, body } = data as { title: string; body: string };
+    await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `⏰ ${title}${body ? `\n${body}` : ''}`);
+    return { status: 200, detail: '' };
+  };
   const due: DueRow[] = await d.store.dueReminders(now, 200);
   const gone = new Set<string>();
   const retry = new Set<string>();
