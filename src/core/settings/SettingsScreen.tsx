@@ -3,7 +3,13 @@ import { Button, Panel, TextInput, inputClass, toast } from '../ui';
 import { useSettings } from '../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
 import { tick } from '../notifications/scheduler';
-import { disablePush, enablePush, getPushState, getServerKey, pushUnavailableReason } from '../notifications/push';
+import {
+  disablePush,
+  enablePush,
+  getPushState,
+  getServerKey,
+  pushUnavailableReason,
+} from '../notifications/push';
 import { play } from '../sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../changelog';
@@ -13,6 +19,7 @@ import { ToggleRow } from './ToggleRow';
 import { useModules } from '../shell/nav';
 import { sendFeedback, setTelegramReminders, useAuth } from '../auth/store';
 import { fs } from '../ui/fs';
+import { inTelegram } from '../telegram/webapp';
 
 const PERM_TEXT: Record<string, string> = {
   granted: 'разрешены',
@@ -40,7 +47,13 @@ function TelegramRemindersRow() {
   return (
     <ToggleRow
       label="Дублировать в Telegram"
-      hint={user.telegram ? (busy ? 'Подключаем…' : 'Бот пришлёт то же напоминание. Надёжно, даже если уведомления телефона не сработают') : 'Сначала привяжите Telegram в личном кабинете'}
+      hint={
+        user.telegram
+          ? busy
+            ? 'Подключаем…'
+            : 'Бот пришлёт то же напоминание. Надёжно, даже если уведомления телефона не сработают'
+          : 'Сначала привяжите Telegram в личном кабинете'
+      }
       checked={user.telegramReminders === true}
       onChange={(v) => {
         if (!busy && (user.telegram || !v)) void toggle(v);
@@ -70,7 +83,15 @@ function FeedbackPanel() {
     <Panel title="Написать разработчику" icon="edit" accent="var(--c-gold)">
       {signedIn ? (
         <>
-          <textarea className={inputClass} rows={4} maxLength={2000} aria-label="Сообщение разработчику" placeholder="Что сломалось, чего не хватает, что понравилось" value={text} onChange={(e) => setText(e.target.value)} />
+          <textarea
+            className={inputClass}
+            rows={4}
+            maxLength={2000}
+            aria-label="Сообщение разработчику"
+            placeholder="Что сломалось, чего не хватает, что понравилось"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
           <div style={{ marginTop: 12 }}>
             <Button variant="gold" disabled={busy || !text.trim()} onClick={() => void send()}>
               {busy ? 'Отправляем…' : 'Отправить'}
@@ -78,7 +99,9 @@ function FeedbackPanel() {
           </div>
         </>
       ) : (
-        <p style={{ margin: 0 }}>Войдите в аккаунт, чтобы написать: так будет понятно, кому ответить.</p>
+        <p style={{ margin: 0 }}>
+          Войдите в аккаунт, чтобы написать: так будет понятно, кому ответить.
+        </p>
       )}
     </Panel>
   );
@@ -124,7 +147,16 @@ function NotificationsPanel() {
   // Напоминания включены, а push на этом устройстве ещё нет (вошли в аккаунт позже, обновили приложение): подключаем сами
   const autoTried = useRef(false);
   useEffect(() => {
-    if (autoTried.current || !settings.notificationsEnabled || perm !== 'granted' || pushOn || busy || server === null || pushReason) return;
+    if (
+      autoTried.current ||
+      !settings.notificationsEnabled ||
+      perm !== 'granted' ||
+      pushOn ||
+      busy ||
+      server === null ||
+      pushReason
+    )
+      return;
     autoTried.current = true;
     void startPush();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,7 +177,14 @@ function NotificationsPanel() {
     toast(blockedHint, 'alert', 'var(--c-warn)');
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
       rowRef.current?.animate(
-        [{ transform: 'translateX(0)' }, { transform: 'translateX(-10px)' }, { transform: 'translateX(10px)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(0)' }],
+        [
+          { transform: 'translateX(0)' },
+          { transform: 'translateX(-10px)' },
+          { transform: 'translateX(10px)' },
+          { transform: 'translateX(-8px)' },
+          { transform: 'translateX(8px)' },
+          { transform: 'translateX(0)' },
+        ],
         { duration: 400, easing: 'ease-in-out' },
       );
     }
@@ -153,7 +192,8 @@ function NotificationsPanel() {
 
   const turnOn = async () => {
     await update({ notificationsEnabled: true });
-    if (!pushReason && !pushOn && (await startPush())) toast('Напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
+    if (!pushReason && !pushOn && (await startPush()))
+      toast('Напоминания придут и при закрытом приложении', 'bell', 'var(--c-habit)');
     void tick();
   };
 
@@ -187,51 +227,82 @@ function NotificationsPanel() {
 
   return (
     <Panel title="Уведомления" icon="bell" accent="var(--c-gold)">
-      <p style={{ marginTop: 0 }}>
-        Статус в браузере: <b style={{ color: perm === 'granted' ? 'var(--c-habit)' : 'var(--c-warn)' }}>{PERM_TEXT[perm]}</b>
-      </p>
-      {perm !== 'granted' && perm !== 'unsupported' && (
-        <div style={{ marginBottom: 16, padding: 12, border: '4px dashed var(--c-border)' }}>
+      {inTelegram() ? (
+        <p style={{ marginTop: 0 }}>
+          Внутри Telegram уведомления браузера недоступны, поэтому напоминания присылает бот
+          @pixel_planner_bot.
+        </p>
+      ) : (
+        <>
           <p style={{ marginTop: 0 }}>
-            Разрешение нужно, чтобы присылать напоминания о задачах и привычках в момент их начала и утреннюю сводку.
-            Мы спросим браузер только после нажатия кнопки.
+            Статус в браузере:{' '}
+            <b style={{ color: perm === 'granted' ? 'var(--c-habit)' : 'var(--c-warn)' }}>
+              {PERM_TEXT[perm]}
+            </b>
           </p>
-          <Button variant="gold" icon="bell" disabled={perm === 'denied'} onClick={() => void allow()}>
-            Разрешить уведомления
-          </Button>
-          {perm === 'denied' && <p style={{ color: 'var(--c-warn)' }}>Разрешение отклонено — включите его в настройках сайта в браузере.</p>}
-        </div>
+          {perm !== 'granted' && perm !== 'unsupported' && (
+            <div style={{ marginBottom: 16, padding: 12, border: '4px dashed var(--c-border)' }}>
+              <p style={{ marginTop: 0 }}>
+                Разрешение нужно, чтобы присылать напоминания о задачах и привычках в момент их
+                начала и утреннюю сводку. Мы спросим браузер только после нажатия кнопки.
+              </p>
+              <Button
+                variant="gold"
+                icon="bell"
+                disabled={perm === 'denied'}
+                onClick={() => void allow()}
+              >
+                Разрешить уведомления
+              </Button>
+              {perm === 'denied' && (
+                <p style={{ color: 'var(--c-warn)' }}>
+                  Разрешение отклонено — включите его в настройках сайта в браузере.
+                </p>
+              )}
+            </div>
+          )}
+          <ToggleRow
+            label="Напоминания включены"
+            rowRef={rowRef}
+            hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
+            hint={
+              blocked && perm !== 'granted'
+                ? blockedHint
+                : busy
+                  ? 'Подключаем…'
+                  : pushError
+                    ? `Не удалось включить push при закрытом приложении: ${pushError}`
+                    : pushOn
+                      ? 'Приходят и при закрытом приложении'
+                      : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
+            }
+            checked={settings.notificationsEnabled && perm === 'granted'}
+            onChange={(v) => void enable(v)}
+            color="var(--c-gold)"
+          />
+        </>
       )}
-      <ToggleRow
-        label="Напоминания включены"
-        rowRef={rowRef}
-        hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
-        hint={
-          blocked && perm !== 'granted'
-            ? blockedHint
-            : busy
-              ? 'Подключаем…'
-              : pushError
-                ? `Не удалось включить push при закрытом приложении: ${pushError}`
-                : pushOn
-                  ? 'Приходят и при закрытом приложении'
-                  : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
-        }
-        checked={settings.notificationsEnabled && perm === 'granted'}
-        onChange={(v) => void enable(v)}
-        color="var(--c-gold)"
-      />
       <TelegramRemindersRow />
       <ToggleRow
         label="Утренняя сводка"
         hint="Сколько задач и привычек на сегодня"
         checked={settings.morningSummary.enabled}
-        onChange={(v) => void update({ morningSummary: { ...settings.morningSummary, enabled: v } })}
+        onChange={(v) =>
+          void update({ morningSummary: { ...settings.morningSummary, enabled: v } })
+        }
         color="var(--c-gold)"
       />
       {settings.morningSummary.enabled && (
         <div style={{ maxWidth: 200 }}>
-          <TextInput label="Время сводки" type="time" value={settings.morningSummary.time} onChange={(e) => e.target.value && void update({ morningSummary: { ...settings.morningSummary, time: e.target.value } })} />
+          <TextInput
+            label="Время сводки"
+            type="time"
+            value={settings.morningSummary.time}
+            onChange={(e) =>
+              e.target.value &&
+              void update({ morningSummary: { ...settings.morningSummary, time: e.target.value } })
+            }
+          />
         </div>
       )}
       <ToggleRow
@@ -242,9 +313,32 @@ function NotificationsPanel() {
         color="var(--c-gold)"
       />
       {settings.quietHours.enabled && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, maxWidth: 360 }}>
-          <TextInput label="С" type="time" value={settings.quietHours.from} onChange={(e) => e.target.value && void update({ quietHours: { ...settings.quietHours, from: e.target.value } })} />
-          <TextInput label="До" type="time" value={settings.quietHours.to} onChange={(e) => e.target.value && void update({ quietHours: { ...settings.quietHours, to: e.target.value } })} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: 12,
+            maxWidth: 360,
+          }}
+        >
+          <TextInput
+            label="С"
+            type="time"
+            value={settings.quietHours.from}
+            onChange={(e) =>
+              e.target.value &&
+              void update({ quietHours: { ...settings.quietHours, from: e.target.value } })
+            }
+          />
+          <TextInput
+            label="До"
+            type="time"
+            value={settings.quietHours.to}
+            onChange={(e) =>
+              e.target.value &&
+              void update({ quietHours: { ...settings.quietHours, to: e.target.value } })
+            }
+          />
         </div>
       )}
     </Panel>
@@ -281,32 +375,44 @@ export function SettingsScreen() {
             }}
           />
           {!settings.momMode && (
-            <ToggleRow label="Эффект CRT-монитора" hint="Сканлайны и лёгкое свечение" checked={settings.crtEffect} onChange={(v) => void update({ crtEffect: v })} />
+            <ToggleRow
+              label="Эффект CRT-монитора"
+              hint="Сканлайны и лёгкое свечение"
+              checked={settings.crtEffect}
+              onChange={(v) => void update({ crtEffect: v })}
+            />
           )}
         </Panel>
-        <Panel title="Установка" icon="download" accent="var(--c-backlog)">
-          {install.updateReady && (
-            <p style={{ marginTop: 0 }}>
-              <Button variant="gold" icon="upload" onClick={install.applyUpdate}>
-                Обновить приложение
+        {!inTelegram() && (
+          <Panel title="Установка" icon="download" accent="var(--c-backlog)">
+            {install.updateReady && (
+              <p style={{ marginTop: 0 }}>
+                <Button variant="gold" icon="upload" onClick={install.applyUpdate}>
+                  Обновить приложение
+                </Button>
+              </p>
+            )}
+            {install.installed ? (
+              <p style={{ margin: 0 }}>Приложение установлено и работает офлайн.</p>
+            ) : install.canInstall ? (
+              <Button icon="download" onClick={() => void install.prompt()}>
+                Установить приложение
               </Button>
-            </p>
-          )}
-          {install.installed ? (
-            <p style={{ margin: 0 }}>Приложение установлено и работает офлайн.</p>
-          ) : install.canInstall ? (
-            <Button icon="download" onClick={() => void install.prompt()}>
-              Установить приложение
-            </Button>
-          ) : (
-            <p style={{ margin: 0, color: 'var(--c-text-dim)' }}>
-              Установите через меню браузера: «Установить приложение» (Chrome/Edge) или «Поделиться → На экран „Домой“» (Safari). После установки приложение работает офлайн.
-            </p>
-          )}
-        </Panel>
+            ) : (
+              <p style={{ margin: 0, color: 'var(--c-text-dim)' }}>
+                Установите через меню браузера: «Установить приложение» (Chrome/Edge) или
+                «Поделиться → На экран „Домой“» (Safari). После установки приложение работает
+                офлайн.
+              </p>
+            )}
+          </Panel>
+        )}
         <Panel title="О приложении" icon="star" accent="var(--c-gold)">
           <p style={{ marginTop: 0 }}>
-            PIXEL PLANNER, версия <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-gold)' }}>{APP_VERSION}</b>
+            PIXEL PLANNER, версия{' '}
+            <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-gold)' }}>
+              {APP_VERSION}
+            </b>
           </p>
           <Button icon="book" onClick={() => setShowLog(true)}>
             Что нового
@@ -314,12 +420,25 @@ export function SettingsScreen() {
         </Panel>
         <Panel title="Управление" icon="menu" accent="var(--c-text-dim)">
           <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-            <li><b>N</b> — новая задача (на экране привычек — новая привычка)</li>
-            <li><b>← / →</b> — предыдущий / следующий день (месяц в привычках)</li>
-            <li><b>T</b> — вернуться к сегодня</li>
-            <li><b>/</b> — поиск в бэклоге</li>
-            <li><b>Esc</b> — закрыть окно</li>
-            <li>Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до ручки, Пробел, стрелки, Пробел.</li>
+            <li>
+              <b>N</b> — новая задача (на экране привычек — новая привычка)
+            </li>
+            <li>
+              <b>← / →</b> — предыдущий / следующий день (месяц в привычках)
+            </li>
+            <li>
+              <b>T</b> — вернуться к сегодня
+            </li>
+            <li>
+              <b>/</b> — поиск в бэклоге
+            </li>
+            <li>
+              <b>Esc</b> — закрыть окно
+            </li>
+            <li>
+              Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до ручки,
+              Пробел, стрелки, Пробел.
+            </li>
           </ul>
         </Panel>
         <Panel title="Для мамы" icon="heart" accent="var(--c-warn)">
@@ -331,7 +450,15 @@ export function SettingsScreen() {
           />
         </Panel>
       </div>
-      {showLog && <ChangelogModal entries={CHANGELOG.slice(0, 10)} title="История обновлений" closeLabel="Закрыть" collapseOlder onClose={() => setShowLog(false)} />}
+      {showLog && (
+        <ChangelogModal
+          entries={CHANGELOG.slice(0, 10)}
+          title="История обновлений"
+          closeLabel="Закрыть"
+          collapseOlder
+          onClose={() => setShowLog(false)}
+        />
+      )}
     </>
   );
 }

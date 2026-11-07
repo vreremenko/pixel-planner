@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { metaRepo } from '../data/repo';
 import { disablePush, resendSchedule } from '../notifications/push';
 import { attachAccount, detachAccount, forgetOwner } from '../sync/manager';
-import { telegramInitData } from '../telegram/webapp';
+import { inTelegram, telegramInitData } from '../telegram/webapp';
+import { toast } from '../ui/toastStore';
 import * as api from './api';
 import { clearSession, loadSession, onSessionChange, saveSession, type Session } from './session';
 
@@ -25,14 +26,38 @@ export function startAuth(): () => void {
   return off;
 }
 
-/** Открыто в Telegram без входа: входим по его подписанным данным, незнакомому Telegram сервер создаст аккаунт. */
-async function enterFromTelegram(): Promise<void> {
-  const initData = telegramInitData();
-  if (!initData) return;
+/** После явного выхода внутри Telegram сами больше не входим, пока человек не нажмёт «Войти». */
+const AUTO_OFF_KEY = 'pixel-planner:tg-auto-off';
+const autoOff = (): boolean => {
   try {
-    await enter(await api.telegramWebapp(initData));
+    return localStorage.getItem(AUTO_OFF_KEY) === '1';
   } catch {
-    // Остаёмся без входа: кабинет предложит войти обычным способом
+    return false;
+  }
+};
+const setAutoOff = (on: boolean) => {
+  try {
+    if (on) localStorage.setItem(AUTO_OFF_KEY, '1');
+    else localStorage.removeItem(AUTO_OFF_KEY);
+  } catch {
+    // без хранилища просто войдём автоматически
+  }
+};
+
+/** Вход по подписанным данным Telegram; незнакомому Telegram сервер создаст аккаунт. */
+export async function loginFromTelegram(): Promise<void> {
+  const initData = telegramInitData();
+  if (!initData) throw new api.AuthError('telegram_unavailable', 'Это работает только внутри Telegram');
+  await enter(await api.telegramWebapp(initData));
+}
+
+/** Открыто в Telegram без входа: входим сами и честно говорим, если не вышло. */
+async function enterFromTelegram(): Promise<void> {
+  if (!telegramInitData() || autoOff()) return;
+  try {
+    await loginFromTelegram();
+  } catch (e) {
+    toast(`Не удалось войти через Telegram: ${e instanceof Error ? e.message : 'ошибка'}`, 'alert', 'var(--c-warn)');
   }
 }
 
@@ -45,6 +70,7 @@ async function refreshRole(session: Session): Promise<void> {
 }
 
 async function enter(session: Session): Promise<void> {
+  setAutoOff(false);
   await saveSession(session);
   await attachAccount(session);
   void refreshRole(session);
@@ -130,6 +156,7 @@ export async function logout(eraseLocal: boolean): Promise<void> {
   if (session) await api.logoutAccount(session.token).catch(() => undefined);
   await detachAccount(eraseLocal);
   await clearSession();
+  if (inTelegram()) setAutoOff(true);
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {

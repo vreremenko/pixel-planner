@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { createHashRouter, RouterProvider, type RouteObject } from 'react-router';
 import { Layout } from './Layout';
+import { RouteError } from './RouteError';
 import { SettingsScreen } from '../settings/SettingsScreen';
 import { AccountScreen } from '../account/AccountScreen';
 import { Dashboard } from './Dashboard';
@@ -23,7 +24,11 @@ const router = createHashRouter([
   {
     path: '/',
     element: <Layout />,
+    errorElement: <RouteError />,
     children: [
+      {
+        errorElement: <RouteError />,
+        children: [
       { index: true, element: <Dashboard /> },
       ...moduleRoutes,
       { path: 'more', element: <MoreScreen /> },
@@ -32,6 +37,8 @@ const router = createHashRouter([
       { path: 'admin', element: <AdminScreen /> },
       // Неизвестный адрес — сводка
       { path: '*', element: <Dashboard /> },
+        ],
+      },
     ],
   },
 ]);

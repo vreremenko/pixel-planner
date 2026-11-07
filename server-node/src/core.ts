@@ -472,8 +472,11 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const token = d.env.TELEGRAM_BOT_TOKEN;
     if (!token) throw bad(503, 'telegram_unavailable');
     const b = readJson(req.body) as { initData?: unknown; device?: unknown };
-    const tg = typeof b.initData === 'string' ? checkInitData(b.initData, token, now) : null;
-    if (!tg) throw bad(401, 'bad_init_data');
+    const tg = typeof b.initData === 'string' ? checkInitData(b.initData, token, now) : 'нет данных';
+    if (typeof tg === 'string') {
+      console.warn('вход из Mini App отклонён:', tg);
+      throw bad(401, 'bad_init_data');
+    }
     let user = await d.store.userByTelegram(tg.id);
     if (!user) {
       if (limiter.count(`reg:${ip}`, REGISTER_WINDOW_MS, now) >= REGISTER_MAX_PER_IP) throw bad(429, 'too_many_attempts');

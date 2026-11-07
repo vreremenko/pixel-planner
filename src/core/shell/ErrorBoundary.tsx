@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { resetAppCache } from './resetCache';
 import { fs } from '../ui/fs';
+import { isChunkError, reloadOnce } from './chunkReload';
 
 interface State {
   error: Error | null;
@@ -16,6 +17,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(error, info.componentStack);
+    if (isChunkError(error)) reloadOnce();
   }
 
   render() {

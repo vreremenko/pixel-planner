@@ -1,6 +1,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import { Button, Modal, TextInput, toast } from '../ui';
-import { login, register } from '../auth/store';
+import { login, loginFromTelegram, register } from '../auth/store';
+import { inTelegram } from '../telegram/webapp';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { TelegramDialog } from './TelegramDialog';
 
@@ -30,6 +31,23 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
     } finally {
       setBusy(false);
     }
+  };
+
+  // Внутри Telegram бот не нужен: данные пользователя уже есть
+  const telegramLogin = () => {
+    if (!inTelegram()) {
+      setTelegram(true);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    loginFromTelegram()
+      .then(() => {
+        toast('Вы вошли через Telegram', 'check', 'var(--c-habit)');
+        onClose();
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Не удалось войти'))
+      .finally(() => setBusy(false));
   };
 
   if (telegram) return <TelegramDialog mode="login" onClose={() => setTelegram(false)} onDone={onClose} />;
@@ -72,7 +90,7 @@ export function AuthModal({ mode: initial, onClose }: { mode: Mode; onClose: () 
             </Button>
           )}
           {!isRegister && (
-            <Button variant="ghost" onClick={() => setTelegram(true)}>
+            <Button variant="ghost" disabled={busy} onClick={telegramLogin}>
               Войти через Telegram
             </Button>
           )}

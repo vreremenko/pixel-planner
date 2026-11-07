@@ -9,23 +9,24 @@ export interface WebAppUser {
   username?: string;
 }
 
-export function checkInitData(initData: string, botToken: string, now: number): WebAppUser | null {
+/** Пользователь или причина отказа (пишется в журнал сервера). */
+export function checkInitData(initData: string, botToken: string, now: number): WebAppUser | string {
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
-  if (!hash || !/^[0-9a-f]{64}$/.test(hash)) return null;
+  if (!hash || !/^[0-9a-f]{64}$/.test(hash)) return 'нет подписи';
   params.delete('hash');
   const check = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
   const expected = createHmac('sha256', secret).update(check).digest();
-  if (!timingSafeEqual(expected, Buffer.from(hash, 'hex'))) return null;
+  if (!timingSafeEqual(expected, Buffer.from(hash, 'hex'))) return 'подпись не сошлась';
   const authDate = Number(params.get('auth_date')) * 1000;
-  if (!Number.isFinite(authDate) || now - authDate > MAX_AGE_MS) return null;
+  if (!Number.isFinite(authDate) || now - authDate > MAX_AGE_MS) return 'данные устарели';
   try {
     const user = JSON.parse(params.get('user') ?? '') as { id?: unknown; username?: unknown };
-    if (typeof user.id !== 'number') return null;
+    if (typeof user.id !== 'number') return 'нет пользователя';
     return { id: String(user.id), ...(typeof user.username === 'string' ? { username: user.username } : {}) };
   } catch {
-    return null;
+    return 'нет пользователя';
   }
 }
 
