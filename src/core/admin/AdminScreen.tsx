@@ -14,7 +14,7 @@ interface Stats {
   returned: { previous: number; back: number };
   days: { date: string; users: number }[];
   modules: { name: string; records: number; users: number; active: number }[];
-  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; version: string | null; activeDays: number; records: Record<string, number> }[];
+  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; pushDevices: number; version: string | null; activeDays: number; records: Record<string, number> }[];
 }
 
 const shortDay = (ms: number) => formatDateShort(dateOf(new Date(ms)));
@@ -80,7 +80,7 @@ function Report({ stats }: { stats: Stats }) {
                 {u.telegram ? ' · Telegram' : ''}
                 <br />
                 <span className={s.dim}>
-                  С {shortDay(u.createdAt)} · последний вход: {u.lastSeen === null ? 'нет сессий' : shortDay(u.lastSeen)} · дней за месяц: {u.activeDays} · устройств: {u.sessions} · версия: {u.version ?? 'неизвестна'}
+                  С {shortDay(u.createdAt)} · последний вход: {u.lastSeen === null ? 'нет сессий' : shortDay(u.lastSeen)} · дней за месяц: {u.activeDays} · устройств: {u.sessions} · с уведомлениями: {u.pushDevices} · версия: {u.version ?? 'неизвестна'}
                 </span>
                 {Object.keys(u.records).length > 0 && (
                   <>

@@ -79,6 +79,7 @@ export function buildStats({ now, admins, users, activity, records }: StatsInput
         createdAt: u.createdAt,
         lastSeen: u.lastSeen,
         sessions: u.sessions,
+        pushDevices: u.pushDevices,
         version: u.appVersion,
         activeDays: activity.filter((a) => a.userId === u.id && a.day >= monthStart).length,
         records: Object.fromEntries(perUser.get(u.id) ?? []),

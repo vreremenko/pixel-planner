@@ -13,7 +13,7 @@ import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { toast } from '../ui';
 import { showSystemNotification } from './notify';
-import { isPushActive, syncSchedule } from './push';
+import { ensurePushRegistered, isPushActive, syncSchedule } from './push';
 import { loadSession } from '../auth/session';
 
 const TICK_MS = 60_000;
@@ -142,7 +142,10 @@ export function startNotifications(): () => void {
   const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
   sw?.addEventListener('message', onMessage);
   schedule(TICK_MS);
-  void tick();
+  // При каждом запуске напоминаем серверу о телефоне, затем отправляем расписание
+  void ensurePushRegistered()
+    .catch(() => undefined)
+    .finally(() => void tick());
   // Перепланирование при изменении настроек
   const unsub = useSettings.subscribe((s, prev) => {
     if (s.settings !== prev.settings) void tick();

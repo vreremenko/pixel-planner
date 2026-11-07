@@ -3,7 +3,6 @@
  * только расписание напоминаний на ближайшие дни (ключ, момент, текст) — не вся база.
  * Сервер по расписанию присылает push, даже когда приложение закрыто.
  */
-import { create } from 'zustand';
 import { metaRepo } from '../data/repo';
 import type { PlannedReminder } from './types';
 import { apiUrl as api } from '../apiBase';
@@ -12,16 +11,6 @@ import { authHeaders, loadSession } from '../auth/session';
 export interface PushState {
   deviceId: string;
   enabled: boolean;
-  /** Сервер забыл устройство, а подписка в браузере умерла: снова включить можно только нажатием. */
-  broken?: boolean;
-}
-
-/** Показывать ли просьбу снова включить уведомления на этом устройстве. */
-export const usePushBroken = create<{ broken: boolean }>(() => ({ broken: false }));
-
-export async function loadPushBroken(): Promise<void> {
-  const st = await getPushState();
-  usePushBroken.setState({ broken: st?.enabled === true && st.broken === true });
 }
 
 export interface ScheduleItem {
@@ -123,28 +112,25 @@ async function register(sub: PushSubscription): Promise<void> {
   );
   if (!res.ok) throw new Error(`Регистрация на сервере: HTTP ${String(res.status)}`);
   await metaRepo.set('push', { deviceId, enabled: true } satisfies PushState);
-  usePushBroken.setState({ broken: false });
   lastSent = '';
 }
 
 /**
- * Сервер забыл устройство. Живую подписку браузера можно вернуть без нажатия; если её нет,
- * новая подписка в Safari возможна только из нажатия, поэтому просим пользователя.
- * Раньше здесь сразу подписывались заново, Safari молча отказывал, и напоминания приходили только при открытом приложении.
+ * Напомнить серверу об этом устройстве. Сервер может его забыть (Apple сообщил, что подписка устарела,
+ * или запись потерялась), а без записи расписание просто некуда положить и уведомления не приходят.
+ * Живая подписка браузера возвращается без участия человека; если её нет, пробуем подписаться заново.
+ * Человека не дёргаем: он однажды разрешил уведомления, и они должны просто работать.
  */
-async function repairPush(): Promise<void> {
-  try {
-    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
-    if (sub) {
-      await register(sub);
-      return;
-    }
-  } catch {
-    // ниже попросим включить заново
+export async function ensurePushRegistered(): Promise<void> {
+  if (!(await isPushActive()) || !pushSupported() || Notification.permission !== 'granted') return;
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const key = await getServerKey();
+    if (!key) return;
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(key) });
   }
-  const st = await getPushState();
-  if (st) await metaRepo.set('push', { ...st, broken: true } satisfies PushState);
-  usePushBroken.setState({ broken: true });
+  await register(sub);
 }
 
 /** Отправить расписание при следующем тике, даже если оно не менялось (например, включили напоминания в Telegram). */
@@ -192,5 +178,5 @@ export async function syncSchedule(items: ScheduleItem[]): Promise<void> {
   if (!res.ok) return;
   lastSent = body;
   // Сервер забыл это устройство (подписка истекла) — переподписываемся
-  if (st?.enabled && ((await res.json()) as { known?: boolean | null }).known === false) await repairPush();
+  if (st?.enabled && ((await res.json()) as { known?: boolean | null }).known === false) await ensurePushRegistered();
 }

@@ -118,6 +118,28 @@ self.addEventListener('push', (event: PushEvent) => {
   event.waitUntil(Promise.all([shown, logged]));
 });
 
+/**
+ * Браузер сам заменил подписку (старая истекла): сообщаем серверу новую, пока приложение закрыто,
+ * иначе он продолжит слать на мёртвый адрес и забудет устройство.
+ */
+self.addEventListener('pushsubscriptionchange', (event: Event) => {
+  const e = event as Event & { oldSubscription?: PushSubscription | null; newSubscription?: PushSubscription | null; waitUntil(p: Promise<unknown>): void };
+  e.waitUntil(
+    (async () => {
+      const push = await metaRepo.get<{ deviceId: string; enabled: boolean }>('push');
+      if (!push?.enabled) return;
+      const key = e.oldSubscription?.options.applicationServerKey;
+      const sub = e.newSubscription ?? (key ? await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }) : null);
+      if (!sub) return;
+      await fetch(apiUrl(`devices/${push.deviceId}`), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+    })().catch(() => undefined),
+  );
+});
+
 async function snoozeViaServer(log: ReminderLog): Promise<boolean> {
   const push = await metaRepo.get<{ deviceId: string; enabled: boolean }>('push');
   if (!push?.enabled) return false;

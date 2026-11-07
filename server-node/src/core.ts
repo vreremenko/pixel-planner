@@ -702,7 +702,11 @@ export async function sendDue(d: Deps): Promise<number> {
       const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body: r.body, fireAt: r.fireAt };
       try {
         const { status } = await send(d.env, r, data);
-        if (status === 404 || status === 410) gone.add(r.deviceId);
+        if (status === 404 || status === 410) {
+          // Почему телефон перестал получать уведомления, видно только здесь
+          console.warn('устройство забыто: подписка недействительна', r.deviceId.slice(0, 8), status);
+          gone.add(r.deviceId);
+        }
         else if (status < 300) sent++;
         else if (status === 429 || status >= 500) retry.add(`${r.deviceId}|${r.key}`);
       } catch (e) {
