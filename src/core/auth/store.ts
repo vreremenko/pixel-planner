@@ -33,7 +33,8 @@ const tgError = (e: unknown) => toast(`Telegram: ${e instanceof Error ? e.messag
 /**
  * Внутри Telegram приложение всегда в аккаунте этого Telegram: так нельзя сидеть в чужом аккаунте.
  * Вошли в другой — переключаемся (данные того аккаунта стираются только с этого устройства, на сервере они целы).
- * Telegram ни к чему не привязан — предлагаем начать или войти по почте.
+ * Telegram ни к чему не привязан — предлагаем начать или войти по почте. Сами к открытому аккаунту его не привязываем:
+ * привязка идёт только после явного входа по почте и паролю, иначе чужие данные запуска привязали бы чужой Telegram.
  */
 async function syncTelegram(session: Session | null): Promise<void> {
   const initData = telegramInitData();
@@ -44,18 +45,13 @@ async function syncTelegram(session: Session | null): Promise<void> {
       await refreshRole(session);
       return;
     }
-    if (res.status === 'session' && res.token && res.user) {
-      if (session) await logout(true);
-      await enter({ token: res.token, user: res.user });
-      return;
-    }
-    if (session) await linkThisTelegram().catch(async (e: unknown) => {
-      await logout(true);
-      tgError(e);
-    });
-    if (!(await loadSession())) useAuth.setState({ telegramWelcome: true });
+    if (session) await logout(true);
+    if (res.status === 'session' && res.token && res.user) await enter({ token: res.token, user: res.user });
+    else useAuth.setState({ telegramWelcome: true });
   } catch (e) {
-    tgError(e);
+    // Нет связи или данные запуска устарели: действующий вход от этого не страдает
+    if (session) void refreshRole(session);
+    else tgError(e);
   }
 }
 

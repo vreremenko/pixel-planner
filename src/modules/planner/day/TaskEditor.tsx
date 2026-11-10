@@ -25,7 +25,7 @@ import { remindersOf } from '../domain/reminderSpecs';
 import { useTagCounts } from '../data/hooks';
 import { PRIORITY_LABEL } from './labels';
 import { fs } from '../../../core/ui/fs';
-import { DateField } from './DateField';
+import { DateField } from './CalendarPicker';
 
 const PRIORITIES: { value: Priority; label: string }[] = (['low', 'medium', 'high'] as const).map((p) => ({
   value: p,
@@ -175,7 +175,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
         </Field>
       )}
       {!f.inBacklog && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, minmax(0, 3fr) minmax(0, 2fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--cols-2, repeat(auto-fit, minmax(min(100%, 150px), 1fr)))', gap: 12 }}>
           <DateField label="Дата" value={f.date} onChange={(d) => set('date', d)} />
           <TextInput label="Время" type="time" value={f.time} onChange={(e) => setTime(e.target.value)} />
         </div>
@@ -193,7 +193,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               type="button"
               title={`Добавить метку (использована ${String(count)} раз)`}
               onClick={() => set('tags', [...parseTagInput(f.tags), tag].join(', '))}
-              style={{ minHeight: 28, padding: '0 8px', border: '2px dashed var(--c-backlog)', background: 'transparent', color: 'var(--c-backlog)', font: 'inherit', fontSize: fs(16), cursor: 'pointer' }}
+              style={{ minHeight: 28, padding: '0 8px', border: '2px dashed var(--c-backlog)', background: 'transparent', color: 'var(--c-backlog)', font: 'inherit', fontSize: fs(16), cursor: 'pointer', maxWidth: '100%', overflowWrap: 'anywhere', textAlign: 'left' }}
             >
               + #{tag}
             </button>

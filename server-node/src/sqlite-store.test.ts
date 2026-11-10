@@ -16,6 +16,8 @@ describe('SqliteStore: синхронизация и напоминания', ()
     const rows = await s.syncPull('sp', 0, 100);
     expect(rows.map((r) => `${r.id}:${String(r.u)}`).sort()).toEqual(['a:100', 'b:200', 'c:5']);
     expect(await s.syncPull('other', 0, 100)).toEqual([]);
+    expect(await s.syncCount('sp')).toBe(3);
+    expect(await s.syncCount('other')).toBe(0);
     const cursor = rows.at(-1)?.seq ?? 0;
     expect(await s.syncPull('sp', cursor, 100)).toEqual([]);
     await s.syncPush('sp', [rec('d', 9)]);

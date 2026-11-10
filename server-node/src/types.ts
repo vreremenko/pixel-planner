@@ -121,6 +121,8 @@ export interface Store {
   /** Принять записи; запись заменяет существующую, только если её u строго больше. */
   syncPush(space: string, records: SyncIn[]): Promise<void>;
   syncDelete(space: string): Promise<void>;
+  /** Сколько записей хранит пространство (для ограничения объёма). */
+  syncCount(space: string): Promise<number>;
 
   /** Кому принадлежит устройство (null — такого устройства нет). */
   deviceOwner(id: string): Promise<string | null>;

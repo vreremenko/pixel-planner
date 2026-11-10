@@ -53,6 +53,8 @@ const MAX_ITEMS = 500;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
+/** Потолок записей на аккаунт: обычному человеку хватит на много лет, а диск сервера одним аккаунтом не забить. */
+const MAX_SYNC_TOTAL = 50_000;
 /** За один запрос отдаём не больше 300 записей и ~500 КБ; остальное клиент заберёт следующим запросом (`more`). */
 const MAX_SYNC_PULL = 300;
 const MAX_SYNC_PULL_BYTES = 500_000;
@@ -78,6 +80,23 @@ const FEEDBACK_MAX_LENGTH = 2000;
 const TG_START_MAX_PER_IP = 30;
 const RESET_WINDOW_MS = 3_600_000;
 const RESET_MAX_PER_IP = 20;
+/** На одну почту: иначе код из шести цифр можно подбирать с множества адресов, а ящик владельца заваливать письмами. */
+const RESET_MAX_REQUESTS_PER_EMAIL = 5;
+const RESET_MAX_FAILS_PER_EMAIL = 10;
+const EMAIL_MAX = 254;
+/**
+ * Куда сервер согласен слать push: только службы уведомлений браузеров. Иначе адрес подписки —
+ * способ заставить сервер ходить по чужим и внутренним адресам (SSRF).
+ */
+const PUSH_HOSTS = ['fcm.googleapis.com', '.push.apple.com', '.push.services.mozilla.com', '.notify.windows.com'];
+const isPushEndpoint = (endpoint: string): boolean => {
+  try {
+    const { protocol, hostname } = new URL(endpoint);
+    return protocol === 'https:' && PUSH_HOSTS.some((h) => (h.startsWith('.') ? hostname.endsWith(h) : hostname === h));
+  } catch {
+    return false;
+  }
+};
 /** Вид напоминания задаёт модуль клиента ('task', 'habit'…) — проверяем только форму. */
 const KIND_RE = /^[a-z][a-zA-Z0-9_-]{0,31}$/;
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
@@ -160,13 +179,15 @@ async function requireUser(req: HttpReq, d: Deps): Promise<{ userId: string; tok
 }
 
 const adminEmails = (env: Env): string[] => (env.ADMIN_EMAILS ?? '').split(',').map(normalizeEmail).filter(Boolean);
+/** Админ — почта из настроек сервера, и она подтверждена: иначе права достались бы тому, кто первым зарегистрирует этот адрес. */
+const isAdmin = (u: { email: string; emailVerified?: boolean }, env: Env): boolean => Boolean(u.emailVerified) && adminEmails(env).includes(u.email);
 
 /** Права админа определяет только сервер: скрытая вкладка в приложении ничего не защищает. */
 async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
   const { userId } = await requireUser(req, d);
   const admins = adminEmails(d.env);
   const user = await d.store.userById(userId);
-  if (!user || !admins.includes(user.email)) throw new HttpError(403, 'forbidden');
+  if (!user || !isAdmin(user, d.env)) throw new HttpError(403, 'forbidden');
   const [users, activity, records] = await Promise.all([d.store.adminUsers(), d.store.activitySince(dayOf(now - 30 * DAY_MS)), d.store.adminRecords(now - 7 * DAY_MS)]);
   return json(buildStats({ now, admins, users, activity, records }));
 }
@@ -223,6 +244,7 @@ async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
     const b = readJson(req.body, MAX_SYNC_BODY_BYTES) as { records?: unknown[] };
     if (!Array.isArray(b.records)) throw new HttpError(400, 'records required');
     const records = b.records.slice(0, MAX_SYNC_RECORDS).map(parseSyncRecord).filter((x): x is SyncIn => x !== null);
+    if (records.length > 0 && (await d.store.syncCount(space)) + records.length > MAX_SYNC_TOTAL) throw new HttpError(413, 'quota');
     if (records.length > 0) await d.store.syncPush(space, records);
     return json({ ok: true, count: records.length });
   }
@@ -249,7 +271,7 @@ const bad = (status: number, error: string) => new HttpError(status, error);
 const sha = (text: string) => createHash('sha256').update(text).digest();
 const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha(a), sha(b));
 
-const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(adminEmails(env).includes(u.email) ? { admin: true } : {}) });
+const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(isAdmin(u, env) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
@@ -274,6 +296,8 @@ const CODE_MAIL: Record<CodeKind, { subject: string; lead: string }> = {
 async function issueCode(d: Deps, user: { id: string; email: string }, kind: CodeKind, now: number): Promise<boolean> {
   const send = d.sendMail;
   if (!send) throw bad(503, 'mail_unavailable');
+  // У аккаунта из Telegram почты нет: служебный адрес никуда не ведёт
+  if (isTelegramOnly(user.email)) return true;
   const old = await d.store.codeGet(user.id, kind);
   if (old && now - old.sentAt < CODE_RESEND_MS) return false;
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
@@ -414,8 +438,10 @@ async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { 
     await tg.send(e.chatId, 'Готово, вернитесь в приложение.');
     return;
   }
-  if (owner || !row.userId) return;
-  await d.store.userSetTelegram(row.userId, e.telegramId);
+  const target = row.userId ? await d.store.userById(row.userId) : null;
+  // Уже привязанный аккаунт не перепривязываем: иначе напоминания остались бы на прежнем Telegram
+  if (owner || !target || target.telegramId) return;
+  await d.store.userSetTelegram(target.id, e.telegramId);
   await d.store.tgCodeSet({ ...row, status: 'confirmed' });
   await tg.send(e.chatId, 'Telegram привязан. Теперь можно входить через него.');
 }
@@ -446,7 +472,8 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const email = typeof b.email === 'string' ? normalizeEmail(b.email) : '';
     const password = typeof b.password === 'string' ? b.password : '';
     if (limiter.count(`reg:${ip}`, REGISTER_WINDOW_MS, now) >= REGISTER_MAX_PER_IP) throw bad(429, 'too_many_attempts');
-    if (!isValidEmail(email)) throw bad(400, 'invalid_email');
+    // Служебные адреса аккаунтов из Telegram занимать нельзя: владелец того Telegram не смог бы начать
+    if (!isValidEmail(email) || isTelegramOnly(email)) throw bad(400, 'invalid_email');
     if (!isValidPassword(password)) throw bad(400, 'weak_password');
     limiter.add(`reg:${ip}`, now);
     const id = randomUUID();
@@ -459,7 +486,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   // POST /api/auth/login {email, password}
   if (action === 'login' && req.method === 'POST') {
     const b = readJson(req.body) as { email?: unknown; password?: unknown; device?: unknown };
-    const email = typeof b.email === 'string' ? normalizeEmail(b.email) : '';
+    const email = typeof b.email === 'string' ? normalizeEmail(b.email).slice(0, EMAIL_MAX) : '';
     const password = typeof b.password === 'string' ? b.password.slice(0, PASSWORD_MAX) : '';
     const keyEmail = `login:e:${email}`;
     const keyIp = `login:i:${ip}`;
@@ -534,10 +561,13 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   if (action === 'reset' && parts[2] === 'request' && req.method === 'POST') {
     if (!d.sendMail) throw bad(503, 'mail_unavailable');
     const b = readJson(req.body) as { email?: unknown };
-    const email = typeof b.email === 'string' ? normalizeEmail(b.email) : '';
+    const email = typeof b.email === 'string' ? normalizeEmail(b.email).slice(0, EMAIL_MAX) : '';
     if (limiter.count(`reset:${ip}`, RESET_WINDOW_MS, now) >= RESET_MAX_PER_IP) throw bad(429, 'too_many_attempts');
     limiter.add(`reset:${ip}`, now);
-    const user = await d.store.userByEmail(email);
+    // Лишние запросы по одной почте молча не выполняем: ответ тот же, а писем владельцу больше не уйдёт
+    const quiet = limiter.count(`reset:req:${email}`, RESET_WINDOW_MS, now) >= RESET_MAX_REQUESTS_PER_EMAIL;
+    limiter.add(`reset:req:${email}`, now);
+    const user = quiet ? null : await d.store.userByEmail(email);
     if (user) await issueCode(d, user, 'reset', now);
     return json({ ok: true });
   }
@@ -548,8 +578,15 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     if (limiter.count(`reset:${ip}`, RESET_WINDOW_MS, now) >= RESET_MAX_PER_IP) throw bad(429, 'too_many_attempts');
     limiter.add(`reset:${ip}`, now);
     if (typeof b.newPassword !== 'string' || !isValidPassword(b.newPassword)) throw bad(400, 'weak_password');
-    const user = typeof b.email === 'string' ? await d.store.userByEmail(normalizeEmail(b.email)) : null;
-    if (!user || !(await checkCode(d, user.id, 'reset', b.code, now))) throw bad(400, 'bad_code');
+    const email = typeof b.email === 'string' ? normalizeEmail(b.email).slice(0, EMAIL_MAX) : '';
+    const failKey = `reset:fail:${email}`;
+    if (limiter.count(failKey, RESET_WINDOW_MS, now) >= RESET_MAX_FAILS_PER_EMAIL) throw bad(429, 'too_many_attempts');
+    const user = await d.store.userByEmail(email);
+    if (!user || !(await checkCode(d, user.id, 'reset', b.code, now))) {
+      limiter.add(failKey, now);
+      throw bad(400, 'bad_code');
+    }
+    limiter.reset(failKey);
     await d.store.userSetPassword(user.id, await hashPassword(b.newPassword));
     await d.store.userSetVerified(user.id, now);
     await d.store.codeDelete(user.id, 'reset');
@@ -601,7 +638,10 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   }
 
   // POST /api/auth/telegram/link: ссылка на бота для привязки
-  if (action === 'telegram' && parts[2] === 'link' && req.method === 'POST') return issueTelegramCode(d, 'link', userId, now);
+  if (action === 'telegram' && parts[2] === 'link' && req.method === 'POST') {
+    if ((await d.store.userById(userId))?.telegramId) throw bad(409, 'telegram_linked');
+    return issueTelegramCode(d, 'link', userId, now);
+  }
 
   // POST /api/auth/telegram/reminders {on}: дублировать напоминания в Telegram
   if (action === 'telegram' && parts[2] === 'reminders' && req.method === 'POST') {
@@ -714,7 +754,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
     const endpoint = str(sub?.endpoint, 1000);
     const p256dh = str(sub?.keys.p256dh, 200);
     const auth = str(sub?.keys.auth, 100);
-    if (!endpoint?.startsWith('https://') || !p256dh || !auth) throw new HttpError(400, 'bad subscription');
+    if (!endpoint || !isPushEndpoint(endpoint) || !p256dh || !auth) throw new HttpError(400, 'bad subscription');
     await d.store.deviceUpsert({ id, userId, endpoint, p256dh, auth, now });
     return json({ ok: true });
   }

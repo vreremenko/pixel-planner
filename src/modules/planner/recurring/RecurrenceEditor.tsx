@@ -3,7 +3,7 @@ import { WEEKDAYS_SHORT, weekday, parseLocalDate } from '../../../core/domain/da
 import type { LocalDate } from '../../../core/domain/types';
 import type { RecurrenceEnd, RecurrencePattern, Weekday } from '../domain/types';
 import { fs } from '../../../core/ui/fs';
-import { DateField } from '../day/DateField';
+import { DateField } from '../day/CalendarPicker';
 
 export interface RepeatValue {
   pattern: RecurrencePattern;

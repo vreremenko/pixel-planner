@@ -101,6 +101,10 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  syncCount(space: string): Promise<number> {
+    return Promise.resolve((this.db.prepare('SELECT COUNT(*) AS n FROM sync_records WHERE space = ?').get(space) as { n: number }).n);
+  }
+
   syncDelete(space: string): Promise<void> {
     this.tx(() => {
       this.db.prepare('DELETE FROM sync_records WHERE space = ?').run(space);

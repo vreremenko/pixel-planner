@@ -10,7 +10,7 @@ import type { Goal, Kopecks, Tx } from './types';
 /** Отставание меньше рубля не считаем: это округление. */
 const BEHIND_MIN: Kopecks = 100;
 
-export type GoalStatus = 'done' | 'late' | 'behind' | 'ontrack';
+type GoalStatus = 'done' | 'late' | 'behind' | 'ontrack';
 
 export interface GoalView {
   saved: Kopecks;

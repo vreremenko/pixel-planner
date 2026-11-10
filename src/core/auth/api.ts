@@ -17,6 +17,7 @@ const MESSAGES: Record<string, string> = {
   telegram_unavailable: 'Вход через Telegram сейчас недоступен. Попробуйте позже',
   telegram_other: 'Этот аккаунт привязан к другому Telegram. Откройте его из того Telegram или войдите по почте в браузере',
   telegram_taken: 'Этот Telegram уже привязан к другому аккаунту',
+  telegram_linked: 'Telegram уже привязан к этому аккаунту',
   telegram_only: 'В этот аккаунт можно войти только через Telegram. Сначала добавьте почту и пароль',
   has_email: 'У аккаунта уже есть почта',
   bad_init_data: 'Telegram не подтвердил вход. Закройте приложение и откройте снова',

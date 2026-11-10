@@ -1,6 +1,6 @@
 /* Запись и правка операции: сумма, категория плиткой; дата и счёт стоят сами. */
 import { useMemo, useState } from 'react';
-import { Button, ConfirmDialog, Field, Modal, SelectInput, TextInput, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, DateField, Field, Modal, SelectInput, TextInput, toast } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import type { LocalDate } from '../../../core/domain/types';
 import { txRepo } from '../data/repo';
@@ -117,10 +117,10 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
         {kind === 'transfer' ? (
           <SelectInput label="Куда" value={toAccountId} options={accountOptions} onChange={(e) => setToAccountId(e.target.value)} />
         ) : (
-          <TextInput label="Дата" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateField label="Дата" value={date} onChange={setDate} accent="var(--c-fin)" />
         )}
       </div>
-      {kind === 'transfer' && <TextInput label="Дата" type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+      {kind === 'transfer' && <DateField label="Дата" value={date} onChange={setDate} accent="var(--c-fin)" />}
       {leavesPlan && !afterTransfer.covered && <p className={s.warn}>После перевода на платежи понадобится {rubUp(afterTransfer.rate)} в день.</p>}
       {offerShown && (
         <>

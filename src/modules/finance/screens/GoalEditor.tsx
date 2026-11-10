@@ -1,7 +1,7 @@
 /* Цель: название, сумма, дата, копилка и пауза. Всё можно поменять, деньги на счёте при этом остаются. */
 import { useState } from 'react';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
-import { Button, ConfirmDialog, Modal, SelectInput, TextInput, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, DateField, Modal, SelectInput, TextInput, toast } from '../../../core/ui';
 import { addDays } from '../../../core/domain/dates';
 import type { LocalDate, Weekday } from '../../../core/domain/types';
 import { accountRepo, goalRepo } from '../data/repo';
@@ -63,7 +63,7 @@ export function GoalEditor({ goal, goals, accounts, balance, work, today, onClos
     }>
       <TextInput label="Название" placeholder="Компьютер" value={name} onChange={(e) => setName(e.target.value)} />
       <TextInput label="Сколько накопить, ₽" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      <TextInput label="К какой дате" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateField label="К какой дате" value={date} min={addDays(today, 1)} onChange={setDate} accent="var(--c-fin)" />
       <SelectInput label="Копилка" value={accountId} options={options} onChange={(e) => setAccountId(e.target.value)} />
       <p className={s.hint}>Деньги цели лежат на этом счёте вне плана. Переводите их туда кнопкой «Перевод».</p>
       {goal && <ToggleRow label="Поставить на паузу" hint="Цель пропадёт из плана, деньги останутся на счёте." checked={paused} onChange={setPaused} color="var(--c-fin)" />}

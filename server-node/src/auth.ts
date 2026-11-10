@@ -52,6 +52,10 @@ const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 128;
 export const isValidPassword = (password: string): boolean => password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX;
 
+const SWEEP_SIZE = 5000;
+/** Дольше самого длинного окна ограничений (час). */
+const SWEEP_AGE_MS = 2 * 3_600_000;
+
 /** Скользящее окно: не больше max событий за windowMs для каждого ключа. Хранится в памяти процесса. */
 export class RateLimiter {
   private readonly hits = new Map<string, number[]>();
@@ -66,6 +70,10 @@ export class RateLimiter {
 
   add(key: string, now: number): void {
     this.hits.set(key, [...(this.hits.get(key) ?? []), now]);
+    // Ключи с чужих адресов и почт иначе копились бы вечно: изредка выметаем давно не тронутые
+    if (this.hits.size > SWEEP_SIZE) {
+      for (const [k, times] of this.hits) if (now - (times.at(-1) ?? 0) > SWEEP_AGE_MS) this.hits.delete(k);
+    }
   }
 
   reset(key: string): void {

@@ -244,91 +244,6 @@
   }
 }
 
-/* Поле даты в окнах: кнопка, открывающая календарь */
-.dateField {
-  display: block;
-  width: 100%;
-  min-height: 44px;
-  padding: 6px 10px;
-  border: 2px solid var(--c-panel-3);
-  background: var(--c-bg);
-  color: var(--c-text);
-  font-size: var(--fs-body);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.dateField:hover {
-  border-color: var(--c-border);
-}
-.calDay:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-/* Календарь */
-.calHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--gap-3);
-}
-.calGrid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-.calDow {
-  text-align: center;
-  font-family: var(--font-title);
-  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
-  color: var(--c-text-muted);
-  padding: 4px 0;
-}
-.calDay {
-  position: relative;
-  aspect-ratio: 1;
-  min-height: 36px;
-  border: 2px solid var(--c-border);
-  background: var(--c-bg);
-  color: var(--c-text);
-  font-family: var(--font-digits);
-  font-size: max(calc(20px * var(--fs-scale)), var(--fs-min));
-  cursor: pointer;
-}
-.calDay:hover {
-  background: var(--c-panel-2);
-}
-.calDay.other {
-  color: var(--c-text-muted);
-  opacity: 0.6;
-}
-.calDay.today {
-  border-color: var(--c-gold);
-}
-.calDay.selected {
-  background: var(--c-task);
-  color: var(--c-on-accent);
-  border-color: var(--c-task);
-}
-.dot {
-  position: absolute;
-  bottom: 3px;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  background: var(--c-task);
-}
-.dot.allDone {
-  background: var(--c-habit);
-}
-.selected .dot {
-  background: var(--c-on-accent);
-}
-
 /* Чек-лист */
 /* Редактор чек-листа: без рамки вокруг, заголовок как у остальных полей, пункты — лёгкие строки */
 .clBox {
@@ -421,6 +336,8 @@
   color: var(--c-backlog);
   font: inherit;
   text-align: left;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 .tagChip:hover:not(:disabled) {

@@ -31,6 +31,10 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  syncCount(space: string): Promise<number> {
+    return Promise.resolve([...this.rows.values()].filter((r) => r.space === space).length);
+  }
+
   syncDelete(space: string): Promise<void> {
     for (const [k, r] of this.rows) if (r.space === space) this.rows.delete(k);
     return Promise.resolve();

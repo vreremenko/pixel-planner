@@ -1,6 +1,6 @@
 /* Обязательный платёж: название, сумма, категория, повтор и первый срок. */
 import { useState } from 'react';
-import { Button, ConfirmDialog, Field, Modal, Segmented, SelectInput, TextInput, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, DateField, Field, Modal, Segmented, SelectInput, TextInput, toast } from '../../../core/ui';
 import type { LocalDate } from '../../../core/domain/types';
 import { useCategories } from '../data/hooks';
 import { paymentRepo } from '../data/repo';
@@ -41,7 +41,7 @@ export function PaymentEditor({ payment, today, onClose }: { payment: Payment | 
       <Field label="Повтор">
         <Segmented value={repeat} options={REPEATS} onChange={setRepeat} label="Повтор" accent="var(--c-fin)" />
       </Field>
-      <TextInput label={repeat === 'once' ? 'Дата' : 'Ближайшая дата'} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateField label={repeat === 'once' ? 'Дата' : 'Ближайшая дата'} value={date} onChange={setDate} accent="var(--c-fin)" />
       <SelectInput label="Категория" value={categoryId} options={options} onChange={(e) => setCategoryId(e.target.value)} />
       <ConfirmDialog open={deleting} title="Удалить платёж?" onClose={() => setDeleting(false)} onConfirm={() => {
         if (payment) void paymentRepo.remove(payment.id);

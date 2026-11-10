@@ -209,9 +209,10 @@
   gap: var(--gap-1) var(--gap-2);
   margin-bottom: var(--gap-1);
 }
+/* Два поля в ряд, пока каждому хватает места; на узком экране — друг под другом, чтобы дата не обрезалась */
 .grid2 {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   gap: var(--gap-2);
 }
 .tip {

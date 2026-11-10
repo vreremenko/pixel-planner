@@ -1,0 +1,89 @@
+/* Календарь и поле даты: общие для всех разделов. Цвет выбранного дня задаёт --cal-accent. */
+/* Поле даты в окнах: кнопка, открывающая календарь */
+.dateField {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid var(--c-panel-3);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: var(--fs-body);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.dateField:hover {
+  border-color: var(--c-border);
+}
+.calDay:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Календарь */
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gap-3);
+}
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.calDow {
+  text-align: center;
+  font-family: var(--font-title);
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-text-muted);
+  padding: 4px 0;
+}
+.calDay {
+  position: relative;
+  /* Высота только от ширины колонки: с минимальной высотой квадрат раздувал ширину, и воскресенье вылезало за край окна */
+  aspect-ratio: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-digits);
+  /* На узком экране число не должно упираться в рамку клетки */
+  font-size: min(max(calc(20px * var(--fs-scale)), var(--fs-min)), 5.2vw);
+  cursor: pointer;
+}
+.calDay:hover {
+  background: var(--c-panel-2);
+}
+.calDay.other {
+  color: var(--c-text-muted);
+  opacity: 0.6;
+}
+.calDay.today {
+  border-color: var(--c-gold);
+}
+.calDay.selected {
+  background: var(--cal-accent, var(--c-task));
+  color: var(--c-on-accent);
+  border-color: var(--cal-accent, var(--c-task));
+}
+.dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  background: var(--cal-accent, var(--c-task));
+}
+.dot.allDone {
+  background: var(--c-habit);
+}
+.selected .dot {
+  background: var(--c-on-accent);
+}

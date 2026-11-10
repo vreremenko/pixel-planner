@@ -5,7 +5,7 @@ import { formatDateLong } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit } from '../domain/types';
 import { setHabitValue } from '../services/habits';
-import { DateField } from '../day/DateField';
+import { DateField } from '../day/CalendarPicker';
 
 interface Props {
   habit: Habit;

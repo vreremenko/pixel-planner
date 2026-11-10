@@ -8,6 +8,8 @@ export default {
   async fetch(request, env) {
     const { pathname, search } = new URL(request.url);
     if (pathname === '/ping') return new Response('ok');
+    // Без секретов путь /in/undefined совпал бы с «ключом»: пока они не заданы, посредник закрыт
+    if (!env.RELAY_KEY || !env.SERVER_URL) return new Response('not configured', { status: 503 });
     if (pathname === `/in/${env.RELAY_KEY}` && request.method === 'POST') {
       const res = await fetch(`${env.SERVER_URL}/api/telegram/update`, {
         method: 'POST',
@@ -17,7 +19,8 @@ export default {
       return new Response(null, { status: res.ok ? 200 : 502 });
     }
     const out = `/out/${env.RELAY_KEY}/`;
-    if (pathname.startsWith(out)) {
+    // Только вызовы Bot API (/bot<токен>/<метод>): посредник не должен быть проходом к остальному api.telegram.org
+    if (pathname.startsWith(`${out}bot`)) {
       return fetch(`https://api.telegram.org/${pathname.slice(out.length)}${search}`, { method: request.method, headers: { 'content-type': request.headers.get('content-type') ?? 'application/json' }, body: request.body });
     }
     return new Response('not found', { status: 404 });

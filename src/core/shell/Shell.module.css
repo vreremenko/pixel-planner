@@ -57,6 +57,20 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: var(--gap-3);
 }
+/* На телефоне плитки в два столбца, значок над подписью: все разделы видны без долгой прокрутки */
+@media (max-width: 767px) {
+  .tiles {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr));
+    gap: var(--gap-2);
+  }
+  .tiles .tile {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gap-2);
+    min-height: 76px;
+    overflow-wrap: anywhere;
+  }
+}
 .tile {
   display: flex;
   align-items: center;

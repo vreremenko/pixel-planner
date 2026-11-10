@@ -32,3 +32,11 @@ export async function register(d: Deps, email: string, password = PASSWORD): Pro
   expect(res.status).toBe(201);
   return json(res).token as string;
 }
+
+/** То же, но с подтверждённой почтой (права админа даются только такой). */
+export async function registerVerified(d: Deps, email: string): Promise<string> {
+  const token = await register(d, email);
+  const user = await d.store.userByEmail(email);
+  if (user) await d.store.userSetVerified(user.id, 1);
+  return token;
+}

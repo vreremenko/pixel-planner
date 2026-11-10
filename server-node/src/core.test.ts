@@ -4,7 +4,7 @@ import { smtpHost } from './mail.ts';
 import { createHmac } from 'node:crypto';
 import type { Button } from './telegram.ts';
 import { MemoryStore } from './memory-store.ts';
-import { json, mk, register, req } from './test-helpers.ts';
+import { json, mk, register, registerVerified, req } from './test-helpers.ts';
 
 const DEVICE = '11111111-1111-4111-8111-111111111111';
 const PASSWORD = 'correct horse battery';
@@ -204,7 +204,7 @@ describe('служебное', () => {
 });
 
 describe('push', () => {
-  const sub = { subscription: { endpoint: 'https://push.test/x', keys: { p256dh: 'k', auth: 'a' } } };
+  const sub = { subscription: { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: 'k', auth: 'a' } } };
   const item = (key: string, fireAt: number) => ({ key, fireAt, kind: 'task', ref: 'r', date: '2026-01-01', title: 'Позвонить', body: 'в 19:00' });
 
   it('без входа устройства не регистрируются', async () => {
@@ -231,15 +231,15 @@ describe('push', () => {
     const PHONE = '22222222-2222-4222-8222-222222222222';
     const THEIRS = '33333333-3333-4333-8333-333333333333';
     const dev = (host: string) => ({ subscription: { endpoint: `https://${host}/x`, keys: { p256dh: 'k', auth: 'a' } } });
-    await handle(req('PUT', `devices/${DEVICE}`, { token, body: dev('computer.test') }), d);
-    await handle(req('PUT', `devices/${PHONE}`, { token, body: dev('phone.test') }), d);
-    await handle(req('PUT', `devices/${THEIRS}`, { token: other, body: dev('theirs.test') }), d);
+    await handle(req('PUT', `devices/${DEVICE}`, { token, body: dev('computer.push.apple.com') }), d);
+    await handle(req('PUT', `devices/${PHONE}`, { token, body: dev('phone.push.apple.com') }), d);
+    await handle(req('PUT', `devices/${THEIRS}`, { token: other, body: dev('theirs.push.apple.com') }), d);
     // Расписание присылает компьютер, телефон приложение не открывал
     const res = await handle(req('PUT', 'schedule', { token, body: { deviceId: DEVICE, items: [item('a', 900_000)] } }), d);
     expect(res.body).toContain('"count":1');
     expect(res.body).toContain('"known":true');
     expect(await sendDue(d)).toBe(2);
-    expect(sent.sort()).toEqual(['https://computer.test/x:a', 'https://phone.test/x:a']);
+    expect(sent.sort()).toEqual(['https://computer.push.apple.com/x:a', 'https://phone.push.apple.com/x:a']);
     expect((await handle(req('PUT', 'schedule', { token: other, body: { deviceId: DEVICE, items: [] } }), d)).body).toContain('"known":false');
     expect((await handle(req('PUT', 'schedule', { body: { items: [] } }), d)).status).toBe(401);
   });
@@ -351,7 +351,7 @@ describe('админка', () => {
   it('пускает только админа: без входа 401, обычному пользователю 403', async () => {
     const d = mk({ env });
     const user = await register(d, 'a@b.ru');
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     expect((await stats(d)).status).toBe(401);
     expect((await stats(d, user)).status).toBe(403);
     expect((await stats(d, boss)).status).toBe(200);
@@ -359,13 +359,13 @@ describe('админка', () => {
 
   it('без настройки админов нет ни у кого', async () => {
     const d = mk();
-    expect((await stats(d, await register(d, 'boss@site.ru'))).status).toBe(403);
+    expect((await stats(d, await registerVerified(d, 'boss@site.ru'))).status).toBe(403);
   });
 
   it('признак админа приходит только админу', async () => {
     const d = mk({ env });
     const user = await register(d, 'a@b.ru');
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     expect(json(await handle(req('GET', 'auth/me', { token: user }), d)).user).not.toHaveProperty('admin');
     expect((json(await handle(req('GET', 'auth/me', { token: boss }), d)).user as { admin?: boolean }).admin).toBe(true);
   });
@@ -374,7 +374,7 @@ describe('админка', () => {
     let now = 1_800_000_000_000;
     const d = mk({ env, now: () => now });
     const user = await register(d, 'a@b.ru');
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     await handle(req('GET', 'auth/me', { token: user }), d);
     await handle(req('GET', 'auth/me', { token: user }), d);
     now += 8 * 86_400_000;
@@ -387,7 +387,7 @@ describe('админка', () => {
 
   it('считает записи по разделам без удалённых, настроек и содержимого', async () => {
     const d = mk({ env, now: () => 1_000_000_000 });
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     const records = [food('a', 999_999_000), food('b', 1000), food('c', 999_999_000, { deletedAt: 5 }), { t: 'food_prefs', id: 'p', u: 999_999_000, d: '{"id":"p"}' }];
     await handle(req('PUT', 'sync', { token: boss, body: { records } }), d);
     const res = await stats(d, boss);
@@ -399,7 +399,7 @@ describe('админка', () => {
 
   it('показывает версию приложения и не принимает мусор вместо неё', async () => {
     const d = mk({ env });
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     const version = async () => (json(await stats(d, boss)) as { list: { version: string | null }[] }).list[0]?.version;
     expect(await version()).toBeNull();
     await handle(req('GET', 'auth/me', { token: boss, query: { v: '<script>' } }), d);
@@ -411,7 +411,7 @@ describe('админка', () => {
   it('удаление аккаунта стирает и его активность', async () => {
     const d = mk({ env });
     const user = await register(d, 'a@b.ru');
-    const boss = await register(d, 'boss@site.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
     await handle(req('DELETE', 'auth/account', { token: user, body: { password: PASSWORD } }), d);
     const s = json(await stats(d, boss)) as { users: { total: number }; active: { day: number } };
     expect(s.users.total).toBe(1);
@@ -624,7 +624,7 @@ describe('Telegram', () => {
   it('отзыв уходит админу в Telegram и ограничен по частоте', async () => {
     const { d, sent } = setup();
     const admin = { ...d, env: { ...d.env, ADMIN_EMAILS: 'boss@site.ru' } };
-    await link(admin, await register(admin, 'boss@site.ru'));
+    await link(admin, await registerVerified(admin, 'boss@site.ru'));
     const token = await register(admin, 'a@b.ru');
     expect((await post(admin, 'feedback', { text: '  ' }, token)).error).toBe('bad_text');
     expect(await post(admin, 'feedback', { text: 'Добавьте тёмную тему', version: '0.26.0' }, token)).toEqual({ ok: true });
@@ -704,5 +704,71 @@ describe('Mini App', () => {
     const d = setup();
     const token = json(await login(d, initData(7))).token as string;
     expect((await handle(req('DELETE', 'auth/account', { token, body: { confirm: true } }), d)).status).toBe(200);
+  });
+});
+
+describe('защита', () => {
+  const env = { ALLOWED_ORIGINS: 'https://site.test', ADMIN_EMAILS: 'boss@site.ru' };
+  const post = async (d: Deps, path: string, body: unknown, token?: string) => handle(req('POST', path, { body, ...(token ? { token } : {}) }), d);
+
+  it('push принимается только на адреса служб уведомлений', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    const put = async (endpoint: string) => (await handle(req('PUT', `devices/${DEVICE}`, { token, body: { subscription: { endpoint, keys: { p256dh: 'k', auth: 'a' } } } }), d)).status;
+    expect(await put('https://127.0.0.1/admin')).toBe(400);
+    expect(await put('https://evil.test/fcm.googleapis.com')).toBe(400);
+    expect(await put('https://fcm.googleapis.com.evil.test/x')).toBe(400);
+    expect(await put('http://fcm.googleapis.com/x')).toBe(400);
+    expect(await put('tg:42')).toBe(400);
+    expect(await put('https://web.push.apple.com/x')).toBe(200);
+    expect(await put('https://updates.push.services.mozilla.com/x')).toBe(200);
+  });
+
+  it('служебный адрес Telegram нельзя занять регистрацией', async () => {
+    const d = mk();
+    expect(json(await post(d, 'auth/register', { email: 'tg42@telegram.invalid', password: PASSWORD })).error).toBe('invalid_email');
+  });
+
+  it('админ без подтверждённой почты прав не получает', async () => {
+    const mails: string[] = [];
+    const d = mk({ env, sendMail: (_to, _s, text) => (mails.push(text), Promise.resolve()) });
+    const token = await register(d, 'boss@site.ru');
+    expect((await handle(req('GET', 'admin/stats', { token }), d)).status).toBe(403);
+    expect(json(await handle(req('GET', 'auth/me', { token }), d)).user).not.toHaveProperty('admin');
+    await post(d, 'auth/verify', { code: /: (\d{6})/.exec(mails[0] ?? '')?.[1] }, token);
+    expect((await handle(req('GET', 'admin/stats', { token }), d)).status).toBe(200);
+  });
+
+  it('сброс пароля: подбор кода и поток писем по одной почте ограничены, даже с разных адресов', async () => {
+    let now = 1_000_000;
+    const mails: string[] = [];
+    const d = mk({ now: () => now, sendMail: (to) => (mails.push(to), Promise.resolve()) });
+    await register(d, 'a@b.ru');
+    for (let i = 0; i < 8; i++) {
+      now += 61_000;
+      await handle(req('POST', 'auth/reset/request', { body: { email: 'a@b.ru' }, ip: `10.0.0.${String(i)}` }), d);
+    }
+    // Одно письмо при регистрации и пять сбросов
+    expect(mails).toHaveLength(6);
+    const guess = async (i: number) => json(await handle(req('POST', 'auth/reset', { body: { email: 'a@b.ru', code: '000000', newPassword: PASSWORD }, ip: `10.0.1.${String(i)}` }), d)).error;
+    for (let i = 0; i < 10; i++) expect(await guess(i)).toBe('bad_code');
+    expect(await guess(11)).toBe('too_many_attempts');
+  });
+
+  it('перепривязать Telegram поверх уже привязанного нельзя', async () => {
+    const d = mk({ env: { TELEGRAM_BOT_NAME: 'bot', TELEGRAM_BOT_TOKEN: '1:t' }, telegram: { send: () => Promise.resolve(), answer: () => Promise.resolve() } });
+    const token = await register(d, 'a@b.ru');
+    const user = (json(await handle(req('GET', 'auth/me', { token }), d)).user as { id: string }).id;
+    await d.store.userSetTelegram(user, '42');
+    expect(json(await post(d, 'auth/telegram/link', {}, token)).error).toBe('telegram_linked');
+  });
+
+  it('у аккаунта есть потолок записей', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    const user = (json(await handle(req('GET', 'auth/me', { token }), d)).user as { id: string }).id;
+    d.store.syncCount = () => Promise.resolve(50_000);
+    expect((await handle(req('PUT', 'sync', { token, body: { records: [rec('a', 1)] } }), d)).status).toBe(413);
+    expect(user).toBeTruthy();
   });
 });

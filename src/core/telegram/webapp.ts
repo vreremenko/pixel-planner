@@ -14,10 +14,31 @@ declare global {
   }
 }
 
+/**
+ * Точно ли мы внутри Telegram. Родные приложения дают странице TelegramWebviewProxy, Telegram Web открывает её во фрейме
+ * со своего адреса. Одной ссылки с tgWebAppData мало: её можно прислать человеку в обычный браузер, и приложение
+ * переключилось бы на аккаунт из чужих данных запуска.
+ */
+function insideTelegram(): boolean {
+  if (typeof window.TelegramWebviewProxy?.postEvent === 'function') return true;
+  if (window.parent === window) return false;
+  const parent = (location as { ancestorOrigins?: DOMStringList }).ancestorOrigins?.[0] ?? document.referrer;
+  try {
+    return /(^|\.)telegram\.org$/.test(new URL(parent).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function capture(): string | null {
   try {
     const hash = new URLSearchParams(location.hash.slice(1));
     const data = hash.get('tgWebAppData');
+    if (!insideTelegram()) {
+      sessionStorage.removeItem(KEY);
+      if (data) history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+      return null;
+    }
     if (data) {
       sessionStorage.setItem(KEY, data);
       history.replaceState(null, '', `${location.pathname}${location.search}#/`);
