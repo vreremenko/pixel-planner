@@ -27,9 +27,14 @@ echo "== пользователь, папки, сервер"
 "${SSH[@]}" 'id pp >/dev/null 2>&1 || useradd --system --home /var/lib/pixel-planner --shell /usr/sbin/nologin pp
 mkdir -p /opt/pixel-planner /var/lib/pixel-planner && chown pp:pp /var/lib/pixel-planner'
 scp -q "${OPTS[@]}" server-node/dist/server.mjs "root@$HOST:/opt/pixel-planner/server.mjs"
-scp -q "${OPTS[@]}" server-node/backup.mjs "root@$HOST:/opt/pixel-planner/backup.mjs"
+scp -q "${OPTS[@]}" server-node/dist/backup.mjs "root@$HOST:/opt/pixel-planner/backup.mjs"
 
 echo "== настройки (ключи не выводятся)"
+# Ключ шифрования копий базы: создаётся один раз и хранится у вас в $ENV_FILE. Без него присланные ботом копии не расшифровать.
+if ! grep -q '^BACKUP_KEY=' "$ENV_FILE"; then
+  printf '\nBACKUP_KEY=%s\n' "$(openssl rand -base64 32)" >> "$ENV_FILE"
+  echo "создан ключ копий BACKUP_KEY в $ENV_FILE — не теряйте этот файл"
+fi
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 {
@@ -46,6 +51,7 @@ set -a; source "$ENV_FILE"; set +a
   echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}"
   echo "TELEGRAM_RELAY_URL=${TELEGRAM_RELAY_URL:-}"
   echo "TELEGRAM_RELAY_KEY=${TELEGRAM_RELAY_KEY:-}"
+  echo "BACKUP_KEY=${BACKUP_KEY:-}"
 } | "${SSH[@]}" 'umask 077; cat > /etc/pixel-planner.env; chown root:pp /etc/pixel-planner.env; chmod 640 /etc/pixel-planner.env'
 
 echo "== служба systemd"
@@ -91,6 +97,8 @@ Description=PIXEL PLANNER: копия базы
 Type=oneshot
 User=pp
 UMask=0077
+# Ключ шифрования и бот для отправки копии в Telegram
+EnvironmentFile=/etc/pixel-planner.env
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pixel-planner/backup.mjs
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -110,7 +118,7 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
-"${SSH[@]}" 'systemctl daemon-reload && systemctl enable --now pixel-planner-backup.timer >/dev/null 2>&1 && systemctl start pixel-planner-backup.service && journalctl -u pixel-planner-backup --no-pager -n 2 | tail -1 | cut -c1-160'
+"${SSH[@]}" 'systemctl daemon-reload && systemctl enable --now pixel-planner-backup.timer >/dev/null 2>&1 && systemctl start pixel-planner-backup.service && journalctl -u pixel-planner-backup --no-pager -n 6 | grep -E "копия|Telegram" | tail -2 | cut -c1-200'
 
 echo "== Caddy (HTTPS)"
 "${SSH[@]}" 'command -v caddy >/dev/null || {

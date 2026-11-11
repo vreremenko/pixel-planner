@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "dev:api": "npm run build:node && PORT=8787 DB_PATH=./.dev-data/pixel-planner.sqlite node --disable-warning=ExperimentalWarning server-node/dist/server.mjs",
     "vapid": "node scripts/gen-vapid.mjs",
-    "build:node": "esbuild server-node/src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/server.mjs --legal-comments=none"
+    "build:node": "esbuild server-node/src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/server.mjs --legal-comments=none && esbuild server-node/src/backup.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/backup.mjs --legal-comments=none"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^2.0.0",
