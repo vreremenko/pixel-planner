@@ -1,4 +1,4 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -10,6 +10,7 @@ export class MemoryStore implements Store {
   private activity = new Set<string>();
   private codes = new Map<string, EmailCode>();
   private tgCodes = new Map<string, TelegramCode>();
+  private apiKeys = new Map<string, ApiKeyInfo & { userId: string; keyHash: string }>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
   syncPull(space: string, after: number, limit: number): Promise<SyncRow[]> {
@@ -148,6 +149,27 @@ export class MemoryStore implements Store {
     return Promise.resolve();
   }
 
+  apiKeyCreate(k: { id: string; userId: string; name: string; keyHash: string; now: number }): Promise<void> {
+    this.apiKeys.set(k.id, { id: k.id, userId: k.userId, name: k.name, keyHash: k.keyHash, createdAt: k.now, lastUsedAt: null });
+    return Promise.resolve();
+  }
+
+  apiKeysOfUser(userId: string): Promise<ApiKeyInfo[]> {
+    return Promise.resolve([...this.apiKeys.values()].filter((k) => k.userId === userId).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })));
+  }
+
+  apiKeyDelete(userId: string, id: string): Promise<void> {
+    if (this.apiKeys.get(id)?.userId === userId) this.apiKeys.delete(id);
+    return Promise.resolve();
+  }
+
+  apiKeyUser(keyHash: string, now: number): Promise<string | null> {
+    const k = [...this.apiKeys.values()].find((x) => x.keyHash === keyHash);
+    if (!k) return Promise.resolve(null);
+    k.lastUsedAt = now;
+    return Promise.resolve(k.userId);
+  }
+
   tgCodeGet(codeHash: string): Promise<TelegramCode | null> {
     return Promise.resolve(this.tgCodes.get(codeHash) ?? null);
   }
@@ -164,6 +186,7 @@ export class MemoryStore implements Store {
     for (const a of this.activity) if (a.endsWith(`|${id}`)) this.activity.delete(a);
     for (const [k, c] of this.codes) if (c.userId === id) this.codes.delete(k);
     for (const [k, c] of this.tgCodes) if (c.userId === id) this.tgCodes.delete(k);
+    for (const [k, c] of this.apiKeys) if (c.userId === id) this.apiKeys.delete(k);
     this.users.delete(id);
   }
 

@@ -7,5 +7,6 @@ dev-dist
 .DS_Store
 .claude
 server-node/dist
+mcp/dist
 server-node/.env.vps
 .dev-data

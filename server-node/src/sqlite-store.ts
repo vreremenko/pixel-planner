@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { ActivityRow, AdminRecordRow, AdminUserRow, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -47,6 +47,11 @@ export class SqliteStore implements Store {
       CREATE TABLE IF NOT EXISTS tg_codes (
         code_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user_id TEXT, status TEXT NOT NULL, expires_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL, last_used_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS api_keys_user ON api_keys (user_id);
       CREATE TABLE IF NOT EXISTS activity (day TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
     `);
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
@@ -242,6 +247,28 @@ export class SqliteStore implements Store {
     return Promise.resolve();
   }
 
+  apiKeyCreate(k: { id: string; userId: string; name: string; keyHash: string; now: number }): Promise<void> {
+    this.db.prepare('INSERT INTO api_keys (id, user_id, name, key_hash, created_at) VALUES (?, ?, ?, ?, ?)').run(k.id, k.userId, k.name, k.keyHash, k.now);
+    return Promise.resolve();
+  }
+
+  apiKeysOfUser(userId: string): Promise<ApiKeyInfo[]> {
+    return Promise.resolve(this.db.prepare('SELECT id, name, created_at AS createdAt, last_used_at AS lastUsedAt FROM api_keys WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as ApiKeyInfo[]);
+  }
+
+  apiKeyDelete(userId: string, id: string): Promise<void> {
+    this.db.prepare('DELETE FROM api_keys WHERE user_id = ? AND id = ?').run(userId, id);
+    return Promise.resolve();
+  }
+
+  apiKeyUser(keyHash: string, now: number): Promise<string | null> {
+    const r = this.db.prepare('SELECT user_id, last_used_at FROM api_keys WHERE key_hash = ?').get(keyHash) as { user_id: string; last_used_at: number | null } | undefined;
+    if (!r) return Promise.resolve(null);
+    // Время использования обновляем не чаще раза в час, чтобы не писать в базу на каждый запрос
+    if (now - (r.last_used_at ?? 0) > 3_600_000) this.db.prepare('UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?').run(now, keyHash);
+    return Promise.resolve(r.user_id);
+  }
+
   tgCodeGet(codeHash: string): Promise<TelegramCode | null> {
     const r = this.db.prepare('SELECT code_hash AS codeHash, kind, user_id AS userId, status, expires_at AS expiresAt FROM tg_codes WHERE code_hash = ?').get(codeHash) as TelegramCode | undefined;
     return Promise.resolve(r ?? null);
@@ -262,6 +289,7 @@ export class SqliteStore implements Store {
       this.db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM email_codes WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM tg_codes WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM api_keys WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
     });
     return Promise.resolve();

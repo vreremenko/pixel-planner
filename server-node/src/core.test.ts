@@ -787,3 +787,44 @@ describe('запасной вход через посредника', () => {
     expect(json(await start(d, 'attacker', { 'x-client-ip': '4.4.4.4' })).error).toBe('too_many_attempts');
   });
 });
+
+describe('личные ключи доступа', () => {
+  const keyReq = (method: string, path: string, key: string, body?: unknown) => req(method, path, { token: key, ...(body === undefined ? {} : { body }) });
+
+  it('ключ выдаётся один раз, читает и пишет записи, но не управляет аккаунтом', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    const made = json(await handle(req('POST', 'auth/keys', { token, body: { name: 'Claude Code' } }), d)) as { key: string; id: string };
+    expect(made.key).toMatch(/^ppk_[A-Za-z0-9_-]{43}$/);
+    const list = json(await handle(req('GET', 'auth/keys', { token }), d)) as { keys: { id: string; name: string }[] };
+    expect(list.keys).toEqual([expect.objectContaining({ id: made.id, name: 'Claude Code' })]);
+    expect(JSON.stringify(list)).not.toContain(made.key);
+    // Разрешено
+    expect((await handle(keyReq('PUT', 'sync', made.key, { records: [rec('a', 1)] }), d)).status).toBe(200);
+    expect(((json(await handle(keyReq('GET', 'sync', made.key), d)) as { records: unknown[] }).records)).toHaveLength(1);
+    expect((json(await handle(keyReq('GET', 'auth/me', made.key), d)).user as { email: string }).email).toBe('a@b.ru');
+    // Запрещено
+    for (const [m, p, b] of [['DELETE', 'sync', undefined], ['POST', 'auth/keys', {}], ['GET', 'auth/keys', undefined], ['POST', 'auth/password', { oldPassword: PASSWORD, newPassword: 'новый пароль 123' }], ['DELETE', 'auth/account', { password: PASSWORD }], ['POST', 'auth/logout', {}], ['GET', 'admin/stats', undefined]] as const) {
+      expect((await handle(keyReq(m, p, made.key, b), d)).status).toBe(403);
+    }
+  });
+
+  it('отозванный и выдуманный ключ не работают, чужой ключ не удалить', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    const other = await register(d, 'c@d.ru');
+    const made = json(await handle(req('POST', 'auth/keys', { token, body: {} }), d)) as { key: string; id: string };
+    await handle(req('DELETE', `auth/keys/${made.id}`, { token: other }), d);
+    expect((await handle(keyReq('GET', 'sync', made.key), d)).status).toBe(200);
+    await handle(req('DELETE', `auth/keys/${made.id}`, { token }), d);
+    expect((await handle(keyReq('GET', 'sync', made.key), d)).status).toBe(401);
+    expect((await handle(keyReq('GET', 'sync', `ppk_${'x'.repeat(43)}`), d)).status).toBe(401);
+  });
+
+  it('больше десяти ключей не выдаём', async () => {
+    const d = mk();
+    const token = await register(d, 'a@b.ru');
+    for (let i = 0; i < 10; i++) await handle(req('POST', 'auth/keys', { token, body: {} }), d);
+    expect(json(await handle(req('POST', 'auth/keys', { token, body: {} }), d)).error).toBe('too_many_keys');
+  });
+});

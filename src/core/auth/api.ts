@@ -18,6 +18,7 @@ const MESSAGES: Record<string, string> = {
   telegram_other: 'Этот аккаунт привязан к другому Telegram. Откройте его из того Telegram или войдите по почте в браузере',
   telegram_taken: 'Этот Telegram уже привязан к другому аккаунту',
   telegram_linked: 'Telegram уже привязан к этому аккаунту',
+  too_many_keys: 'Ключей уже 10. Удалите ненужный',
   telegram_only: 'В этот аккаунт можно войти только через Telegram. Сначала добавьте почту и пароль',
   has_email: 'У аккаунта уже есть почта',
   bad_init_data: 'Telegram не подтвердил вход. Закройте приложение и откройте снова',
@@ -115,6 +116,19 @@ export const telegramUnlink = (token: string) => call('auth/telegram', { method:
 export const telegramReminders = (token: string, on: boolean) => call('auth/telegram/reminders', { method: 'POST', token, body: { on } });
 
 export const sendFeedback = (token: string, text: string) => call('feedback', { method: 'POST', token, body: { text, version: APP_VERSION } });
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export const listApiKeys = (token: string) => call('auth/keys', { method: 'GET', token }) as Promise<{ keys: ApiKey[] }>;
+
+export const createApiKey = (token: string, name: string) => call('auth/keys', { method: 'POST', token, body: { name } }) as Promise<{ key: string; id: string; name: string }>;
+
+export const deleteApiKey = (token: string, id: string) => call(`auth/keys/${encodeURIComponent(id)}`, { method: 'DELETE', token });
 
 export const logoutAccount = (token: string) => call('auth/logout', { method: 'POST', token });
 

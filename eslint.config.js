@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist', 'node_modules', 'server-node/dist', '.dev-data'] },
+  { ignores: ['dist', 'dev-dist', 'node_modules', 'server-node/dist', 'mcp/dist', '.dev-data'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
     files: ['src/**/*.{ts,tsx}'],
@@ -29,6 +29,14 @@ export default tseslint.config(
     files: ['server-node/src/**/*.ts'],
     languageOptions: {
       parserOptions: { project: ['./tsconfig.node-server.json'], tsconfigRootDir: import.meta.dirname },
+    },
+    rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
+  },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
+    files: ['mcp/**/*.ts'],
+    languageOptions: {
+      parserOptions: { project: ['./tsconfig.mcp.json'], tsconfigRootDir: import.meta.dirname },
     },
     rules: { '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }] },
   },

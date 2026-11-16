@@ -1,4 +1,6 @@
 import { AccountPanel } from './AccountPanel';
+import { ApiKeysPanel } from './ApiKeysPanel';
+import { inTelegram } from '../telegram/webapp';
 
 /** Личный кабинет: вход, выход, пароль. На телефоне открывается значком в верхней полосе. */
 export function AccountScreen() {
@@ -8,6 +10,7 @@ export function AccountScreen() {
         Личный кабинет
       </h1>
       <AccountPanel />
+      {!inTelegram() && <ApiKeysPanel />}
     </div>
   );
 }

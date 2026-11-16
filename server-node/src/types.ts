@@ -67,6 +67,14 @@ export interface TelegramCode {
   expiresAt: number;
 }
 
+/** Личный ключ доступа (MCP, команды iPhone): в базе только хеш. */
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
 export type CodeKind = 'verify' | 'reset';
 
 /** Код из письма; в базе лежит только его хеш. */
@@ -163,6 +171,11 @@ export interface Store {
   sessionsDeleteAll(userId: string): Promise<void>;
 
   tgCodeSet(c: TelegramCode): Promise<void>;
+  apiKeyCreate(k: { id: string; userId: string; name: string; keyHash: string; now: number }): Promise<void>;
+  apiKeysOfUser(userId: string): Promise<ApiKeyInfo[]>;
+  apiKeyDelete(userId: string, id: string): Promise<void>;
+  /** Владелец ключа; заодно отмечает время использования. */
+  apiKeyUser(keyHash: string, now: number): Promise<string | null>;
   tgCodeGet(codeHash: string): Promise<TelegramCode | null>;
   tgCodeDelete(codeHash: string): Promise<void>;
 

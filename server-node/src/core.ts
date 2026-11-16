@@ -167,11 +167,28 @@ function parseSyncRecord(x: unknown): SyncIn | null {
   return { t: o.t, id: o.id, u: Math.floor(o.u), d: o.d };
 }
 
-/** Пользователь по токену сессии из заголовка Authorization: Bearer <токен>. */
-async function requireUser(req: HttpReq, d: Deps): Promise<{ userId: string; token: string }> {
-  const token = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1];
-  if (!token || !TOKEN_RE.test(token)) throw new HttpError(401, 'unauthorized');
+/** Личный ключ: «ppk_» и случайная часть того же вида, что у токена сессии. */
+const API_KEY_PREFIX = 'ppk_';
+const MAX_API_KEYS = 10;
+
+/**
+ * Пользователь по заголовку Authorization: Bearer <токен>. Личный ключ (MCP, команды iPhone) принимается
+ * только там, где разрешено явно (allowKey): им можно читать и добавлять записи, но не управлять аккаунтом.
+ */
+async function requireUser(req: HttpReq, d: Deps, allowKey = false): Promise<{ userId: string; token: string }> {
+  const raw = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1] ?? '';
   const now = (d.now ?? Date.now)();
+  if (raw.startsWith(API_KEY_PREFIX)) {
+    const key = raw.slice(API_KEY_PREFIX.length);
+    if (!TOKEN_RE.test(key)) throw new HttpError(401, 'unauthorized');
+    if (!allowKey) throw new HttpError(403, 'key_not_allowed');
+    const owner = await d.store.apiKeyUser(tokenHash(raw), now);
+    if (!owner) throw new HttpError(401, 'unauthorized');
+    await d.store.activityTouch(owner, dayOf(now));
+    return { userId: owner, token: '' };
+  }
+  const token = raw;
+  if (!token || !TOKEN_RE.test(token)) throw new HttpError(401, 'unauthorized');
   const userId = await d.store.sessionUser(tokenHash(token), now, SESSION_MAX_IDLE_MS);
   if (!userId) throw new HttpError(401, 'unauthorized');
   await d.store.activityTouch(userId, dayOf(now));
@@ -227,7 +244,8 @@ async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<Htt
 }
 
 async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
-  const { userId: space } = await requireUser(req, d);
+  // Ключом можно читать и добавлять записи, но не стирать все данные аккаунта
+  const { userId: space } = await requireUser(req, d, req.method !== 'DELETE');
   if (req.method === 'GET') {
     const after = Math.max(0, Number(req.query.after ?? 0) || 0);
     const rows = await d.store.syncPull(space, after, MAX_SYNC_PULL + 1);
@@ -594,16 +612,36 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     return json({ ok: true });
   }
 
-  // Остальное — только для вошедшего пользователя
-  const { userId, token } = await requireUser(req, d);
-
-  // GET /api/auth/me
+  // GET /api/auth/me — единственное в аккаунте, что доступно и по личному ключу (узнать, чей он)
   if (action === 'me' && req.method === 'GET') {
+    const { userId, token } = await requireUser(req, d, true);
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
     const version = req.query.v ?? '';
-    if (VERSION_RE.test(version)) await d.store.sessionSetVersion(tokenHash(token), version);
+    if (token && VERSION_RE.test(version)) await d.store.sessionSetVersion(tokenHash(token), version);
     return json({ user: { ...publicUser(user, d.env), telegramReminders: (await telegramDevices(d, userId)).length > 0 } });
+  }
+
+  // Остальное — только по сессии вошедшего пользователя
+  const { userId, token } = await requireUser(req, d);
+
+  // GET /api/auth/keys, POST /api/auth/keys {name}, DELETE /api/auth/keys/<id>: личные ключи доступа
+  if (action === 'keys') {
+    if (req.method === 'GET' && parts.length === 2) return json({ keys: await d.store.apiKeysOfUser(userId) });
+    if (req.method === 'POST' && parts.length === 2) {
+      const b = readJson(req.body) as { name?: unknown };
+      const name = typeof b.name === 'string' && b.name.trim() ? b.name.trim().slice(0, 60) : 'Ключ';
+      if ((await d.store.apiKeysOfUser(userId)).length >= MAX_API_KEYS) throw bad(409, 'too_many_keys');
+      const key = `${API_KEY_PREFIX}${newToken()}`;
+      const id = randomUUID();
+      await d.store.apiKeyCreate({ id, userId, name, keyHash: tokenHash(key), now });
+      // Сам ключ показываем один раз: на сервере остаётся только хеш
+      return json({ key, id, name }, 201);
+    }
+    if (req.method === 'DELETE' && parts.length === 3 && parts[2]) {
+      await d.store.apiKeyDelete(userId, parts[2]);
+      return json({ ok: true });
+    }
   }
 
   // POST /api/auth/verify/send: отправить код ещё раз

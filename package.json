@@ -1,7 +1,7 @@
 {
   "name": "pixel-planner",
   "private": true,
-  "version": "0.27.1",
+  "version": "0.28.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "dev:api": "npm run build:node && PORT=8787 DB_PATH=./.dev-data/pixel-planner.sqlite node --disable-warning=ExperimentalWarning server-node/dist/server.mjs",
     "vapid": "node scripts/gen-vapid.mjs",
+    "build:mcp": "esbuild mcp/server.ts --bundle --platform=node --target=node20 --format=esm --outfile=mcp/dist/pixel-planner-mcp.mjs --legal-comments=none",
     "build:node": "esbuild server-node/src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/server.mjs --legal-comments=none && esbuild server-node/src/backup.ts --bundle --platform=node --target=node22 --format=esm --outfile=server-node/dist/backup.mjs --legal-comments=none"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/node": "^26.6.5",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",
