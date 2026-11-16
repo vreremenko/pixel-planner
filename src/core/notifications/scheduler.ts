@@ -14,7 +14,7 @@ import { db } from '../data/db';
 import { toast } from '../ui';
 import { showSystemNotification } from './notify';
 import { ensurePushRegistered, isPushActive, syncSchedule } from './push';
-import { hasPulled } from '../sync/manager';
+import { hasPulled, onCursorChange, syncCursor } from '../sync/manager';
 import { loadSession } from '../auth/session';
 
 const TICK_MS = 60_000;
@@ -74,8 +74,13 @@ async function flushPush(): Promise<void> {
 
 async function pushSchedule(now: number): Promise<void> {
   try {
+    // Номер берём до расчёта: если данные догонятся во время расчёта, сервер не примет расписание по старым
+    const cursor = syncCursor();
     const planned = await plan(new Date(now), new Date(now + PUSH_HORIZON_MS), true);
-    await syncSchedule(planned.map(({ key, fireAt, kind, ref, date, title, body }) => ({ key, fireAt, kind, ref, date, title, body })));
+    await syncSchedule(
+      planned.map(({ key, fireAt, kind, ref, date, title, body }) => ({ key, fireAt, kind, ref, date, title, body })),
+      cursor,
+    );
   } catch {
     // Нет сети — отправим при следующем тике
   }
@@ -150,6 +155,8 @@ export function startNotifications(): () => void {
   void ensurePushRegistered()
     .catch(() => undefined)
     .finally(() => void tick());
+  // Догнали новые записи сервера (с другого устройства, из бота, от нейросети) — пересчитать и отправить расписание
+  const offCursor = onCursorChange(() => void tick());
   // Перепланирование при изменении настроек
   const unsub = useSettings.subscribe((s, prev) => {
     if (s.settings !== prev.settings) void tick();
@@ -164,6 +171,7 @@ export function startNotifications(): () => void {
   });
   return () => {
     clearTimeout(timer);
+    offCursor();
     unsub();
     sub.unsubscribe();
     document.removeEventListener('visibilitychange', onVisible);

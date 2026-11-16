@@ -169,12 +169,14 @@ async function putSchedule(url: string, body: string): Promise<Response> {
  * Отправить расписание аккаунта на сервер (если не изменилось — ничего не делает). Сервер разошлёт его на все
  * устройства аккаунта, поэтому задача, созданная на компьютере, приходит на телефон, даже если там приложение не открывали.
  */
-export async function syncSchedule(items: ScheduleItem[]): Promise<void> {
+export async function syncSchedule(items: ScheduleItem[], cursor: number | null = null): Promise<void> {
   if ((await loadSession()) === null) return;
   const st = await getPushState();
-  const body = JSON.stringify({ items, ...(st?.enabled ? { deviceId: st.deviceId } : {}) });
+  // cursor: сервер не примет расписание, если у него есть записи новее (их это устройство ещё не видело)
+  const body = JSON.stringify({ items, ...(st?.enabled ? { deviceId: st.deviceId } : {}), ...(cursor !== null ? { cursor } : {}) });
   if (body === lastSent) return;
   const res = await putSchedule(api('schedule'), body);
+  // 409 — данные устарели: после синхронизации номер сменится и расписание уйдёт снова
   if (!res.ok) return;
   lastSent = body;
   // Сервер забыл это устройство (подписка истекла) — переподписываемся

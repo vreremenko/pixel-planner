@@ -94,6 +94,34 @@ export interface DueRow extends ScheduleItem {
   auth: string;
 }
 
+/** Как доставляются напоминания на устройство: для проверки в настройках, без адреса подписки. */
+export interface DeviceStatus {
+  id: string;
+  endpoint: string;
+  createdAt: number;
+  updatedAt: number;
+  lastOkAt: number | null;
+  lastErrAt: number | null;
+  lastErr: string | null;
+  /** Сколько напоминаний ждут отправки и когда ближайшее. */
+  pending: number;
+  nextAt: number | null;
+}
+
+/** Событие доставки, которое стоит показать человеку: ошибка или забытое устройство. */
+export interface PushEvent {
+  at: number;
+  device: string;
+  text: string;
+}
+
+/** Последнее принятое и отклонённое расписание аккаунта. */
+export interface ScheduleMeta {
+  acceptedAt: number | null;
+  count: number;
+  rejectedAt: number | null;
+}
+
 export interface ActivityRow {
   userId: string;
   day: string;
@@ -131,6 +159,8 @@ export interface Store {
   syncDelete(space: string): Promise<void>;
   /** Сколько записей хранит пространство (для ограничения объёма). */
   syncCount(space: string): Promise<number>;
+  /** Номер последней записи пространства (0 — записей нет): по нему видно, свежие ли данные у устройства. */
+  syncSeq(space: string): Promise<number>;
 
   /** Кому принадлежит устройство (null — такого устройства нет). */
   deviceOwner(id: string): Promise<string | null>;
@@ -145,6 +175,14 @@ export interface Store {
   reminderSnooze(deviceId: string, item: ScheduleItem): Promise<void>;
   dueReminders(now: number, limit: number): Promise<DueRow[]>;
   markSent(rows: { deviceId: string; key: string }[]): Promise<void>;
+  /** Итог отправки на устройство: error null — дошло. */
+  deviceReport(id: string, now: number, error: string | null): Promise<void>;
+  devicesStatus(userId: string, now: number): Promise<DeviceStatus[]>;
+  /** Записать событие доставки; хранятся только последние. */
+  pushEventAdd(userId: string, e: PushEvent): Promise<void>;
+  pushEvents(userId: string): Promise<PushEvent[]>;
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void>;
+  scheduleMetaGet(userId: string): Promise<ScheduleMeta>;
 
   /** false — такая почта уже зарегистрирована. */
   userCreate(u: User & { now: number }): Promise<boolean>;

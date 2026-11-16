@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -31,6 +31,9 @@ export class SqliteStore implements Store {
         PRIMARY KEY (device_id, key)
       );
       CREATE INDEX IF NOT EXISTS reminders_due ON reminders (sent, fire_at);
+      CREATE TABLE IF NOT EXISTS push_events (user_id TEXT NOT NULL, at INTEGER NOT NULL, device TEXT NOT NULL, text TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS push_events_user ON push_events (user_id, at);
+      CREATE TABLE IF NOT EXISTS schedule_meta (user_id TEXT PRIMARY KEY, accepted_at INTEGER, count INTEGER NOT NULL DEFAULT 0, rejected_at INTEGER);
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pass_hash TEXT NOT NULL, created_at INTEGER NOT NULL
       );
@@ -57,6 +60,7 @@ export class SqliteStore implements Store {
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
     const cols = this.db.prepare('PRAGMA table_info(devices)').all() as unknown as { name: string }[];
     if (!cols.some((c) => c.name === 'user_id')) this.db.exec('ALTER TABLE devices ADD COLUMN user_id TEXT');
+    if (!cols.some((c) => c.name === 'last_ok_at')) this.db.exec('ALTER TABLE devices ADD COLUMN last_ok_at INTEGER; ALTER TABLE devices ADD COLUMN last_err_at INTEGER; ALTER TABLE devices ADD COLUMN last_err TEXT;');
     const sessionCols = this.db.prepare('PRAGMA table_info(sessions)').all() as unknown as { name: string }[];
     if (!sessionCols.some((c) => c.name === 'app_version')) this.db.exec('ALTER TABLE sessions ADD COLUMN app_version TEXT');
     const userCols = this.db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
@@ -108,6 +112,53 @@ export class SqliteStore implements Store {
 
   syncCount(space: string): Promise<number> {
     return Promise.resolve((this.db.prepare('SELECT COUNT(*) AS n FROM sync_records WHERE space = ?').get(space) as { n: number }).n);
+  }
+
+  syncSeq(space: string): Promise<number> {
+    return Promise.resolve(Number((this.db.prepare('SELECT seq FROM sync_spaces WHERE space = ?').get(space) as Row | undefined)?.seq ?? 0));
+  }
+
+  deviceReport(id: string, now: number, error: string | null): Promise<void> {
+    if (error === null) this.db.prepare('UPDATE devices SET last_ok_at = ? WHERE id = ?').run(now, id);
+    else this.db.prepare('UPDATE devices SET last_err_at = ?, last_err = ? WHERE id = ?').run(now, error.slice(0, 300), id);
+    return Promise.resolve();
+  }
+
+  devicesStatus(userId: string, now: number): Promise<DeviceStatus[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT d.id AS id, d.endpoint AS endpoint, d.created_at AS createdAt, d.updated_at AS updatedAt,
+                d.last_ok_at AS lastOkAt, d.last_err_at AS lastErrAt, d.last_err AS lastErr,
+                (SELECT COUNT(*) FROM reminders r WHERE r.device_id = d.id AND r.sent = 0 AND r.fire_at >= ?2) AS pending,
+                (SELECT MIN(fire_at) FROM reminders r WHERE r.device_id = d.id AND r.sent = 0 AND r.fire_at >= ?2) AS nextAt
+         FROM devices d WHERE d.user_id = ?1 ORDER BY d.updated_at DESC`,
+      )
+      .all(userId, now) as unknown as DeviceStatus[];
+    return Promise.resolve(rows);
+  }
+
+  pushEventAdd(userId: string, e: PushEvent): Promise<void> {
+    this.tx(() => {
+      this.db.prepare('INSERT INTO push_events (user_id, at, device, text) VALUES (?, ?, ?, ?)').run(userId, e.at, e.device, e.text.slice(0, 300));
+      this.db.prepare('DELETE FROM push_events WHERE user_id = ?1 AND rowid NOT IN (SELECT rowid FROM push_events WHERE user_id = ?1 ORDER BY at DESC LIMIT 20)').run(userId);
+    });
+    return Promise.resolve();
+  }
+
+  pushEvents(userId: string): Promise<PushEvent[]> {
+    return Promise.resolve(this.db.prepare('SELECT at, device, text FROM push_events WHERE user_id = ? ORDER BY at DESC LIMIT 20').all(userId) as unknown as PushEvent[]);
+  }
+
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void> {
+    this.db.prepare('INSERT OR IGNORE INTO schedule_meta (user_id) VALUES (?)').run(userId);
+    if (m.acceptedAt !== undefined) this.db.prepare('UPDATE schedule_meta SET accepted_at = ?, count = ? WHERE user_id = ?').run(m.acceptedAt, m.count ?? 0, userId);
+    if (m.rejectedAt !== undefined) this.db.prepare('UPDATE schedule_meta SET rejected_at = ? WHERE user_id = ?').run(m.rejectedAt, userId);
+    return Promise.resolve();
+  }
+
+  scheduleMetaGet(userId: string): Promise<ScheduleMeta> {
+    const r = this.db.prepare('SELECT accepted_at AS acceptedAt, count, rejected_at AS rejectedAt FROM schedule_meta WHERE user_id = ?').get(userId) as ScheduleMeta | undefined;
+    return Promise.resolve(r ? { acceptedAt: r.acceptedAt, count: r.count, rejectedAt: r.rejectedAt } : { acceptedAt: null, count: 0, rejectedAt: null });
   }
 
   syncDelete(space: string): Promise<void> {
@@ -286,6 +337,8 @@ export class SqliteStore implements Store {
       this.db.prepare('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id = ?)').run(id);
       this.db.prepare('DELETE FROM devices WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM push_events WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM schedule_meta WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM activity WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM email_codes WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM tg_codes WHERE user_id = ?').run(id);

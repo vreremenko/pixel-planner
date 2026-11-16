@@ -25,6 +25,30 @@ describe('SqliteStore: синхронизация и напоминания', ()
     s.close();
   });
 
+  it('проверка доставки: номер записей, статус устройств, журнал и расписание', async () => {
+    const s = new SqliteStore(':memory:');
+    expect(await s.syncSeq('u1')).toBe(0);
+    await s.syncPush('u1', [rec('a', 1), rec('b', 1)]);
+    expect(await s.syncSeq('u1')).toBe(2);
+    await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    await s.scheduleReplace(DEVICE, [item('a', 900), item('b', 2000), item('c', 3000)], 1000);
+    await s.deviceReport(DEVICE, 1000, null);
+    await s.deviceReport(DEVICE, 1001, 'ошибка 400');
+    expect(await s.devicesStatus('u1', 1500)).toEqual([expect.objectContaining({ id: DEVICE, lastOkAt: 1000, lastErrAt: 1001, lastErr: 'ошибка 400', pending: 2, nextAt: 2000 })]);
+    expect(await s.devicesStatus('u2', 1500)).toEqual([]);
+    for (let i = 0; i < 25; i++) await s.pushEventAdd('u1', { at: i, device: 'apple', text: `e${String(i)}` });
+    const ev = await s.pushEvents('u1');
+    expect(ev).toHaveLength(20);
+    expect(ev[0]?.text).toBe('e24');
+    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: null, count: 0, rejectedAt: null });
+    await s.scheduleMetaSet('u1', { acceptedAt: 5, count: 3 });
+    await s.scheduleMetaSet('u1', { rejectedAt: 6 });
+    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: 5, count: 3, rejectedAt: 6 });
+    await s.userDelete('u1');
+    expect(await s.pushEvents('u1')).toEqual([]);
+    s.close();
+  });
+
   it('напоминания: наступившие, отправленное не повторяется, удаление устройства', async () => {
     const s = new SqliteStore(':memory:');
     await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });

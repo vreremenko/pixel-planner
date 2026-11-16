@@ -749,6 +749,21 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   throw bad(404, 'not found');
 }
 
+/** Чем доставляются напоминания: по адресу push-сервиса, сам адрес наружу не отдаём. */
+function deviceKind(endpoint: string): string {
+  if (endpoint.startsWith(TG_ENDPOINT)) return 'telegram';
+  try {
+    const host = new URL(endpoint).host;
+    if (host.endsWith('push.apple.com')) return 'apple';
+    if (host.endsWith('googleapis.com')) return 'google';
+    if (host.endsWith('mozilla.com')) return 'mozilla';
+    if (host.endsWith('windows.com')) return 'windows';
+  } catch {
+    // неизвестный адрес
+  }
+  return 'other';
+}
+
 /** Заменить расписание на всех устройствах пользователя; возвращает число принятых напоминаний. */
 async function replaceUserSchedule(d: Deps, userId: string, raw: unknown[] | undefined, now: number): Promise<number> {
   if (!Array.isArray(raw)) throw new HttpError(400, 'items required');
@@ -773,9 +788,23 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
   if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {
     const { userId } = await requireUser(req, d);
-    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown };
+    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown; cursor?: unknown };
+    // Расписание посчитано по данным, которые устройство ещё не догнало (проснулось после долгого сна, не успело синхронизироваться):
+    // такое расписание стёрло бы напоминания, созданные на других устройствах. Устройство пришлёт его снова после синхронизации.
+    if (typeof b.cursor === 'number' && (await d.store.syncSeq(userId)) > b.cursor) {
+      await d.store.scheduleMetaSet(userId, { rejectedAt: now });
+      throw new HttpError(409, 'stale');
+    }
     const known = typeof b.deviceId === 'string' && UUID.test(b.deviceId) ? (await d.store.deviceOwner(b.deviceId)) === userId : null;
-    return json({ ok: true, count: await replaceUserSchedule(d, userId, b.items, now), known });
+    const count = await replaceUserSchedule(d, userId, b.items, now);
+    await d.store.scheduleMetaSet(userId, { acceptedAt: now, count });
+    return json({ ok: true, count, known });
+  }
+  // Проверка доставки для экрана настроек: устройства, последние отправки и ошибки, без адресов подписок
+  if (parts[0] === 'push' && parts[1] === 'status' && parts.length === 2 && req.method === 'GET') {
+    const { userId } = await requireUser(req, d);
+    const devices = (await d.store.devicesStatus(userId, now)).map(({ endpoint, ...rest }) => ({ ...rest, kind: deviceKind(endpoint) }));
+    return json({ devices, schedule: await d.store.scheduleMetaGet(userId), events: await d.store.pushEvents(userId), now });
   }
 
   if (parts[0] !== 'devices') throw new HttpError(404, 'not found');
@@ -876,20 +905,39 @@ export async function sendDue(d: Deps): Promise<number> {
   let sent = 0;
   await Promise.all(
     due.map(async (r) => {
-      if (now - r.fireAt > STALE_MS || gone.has(r.deviceId)) return;
+      if (gone.has(r.deviceId)) return;
       const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body: r.body, fireAt: r.fireAt };
+      const kind = deviceKind(r.endpoint);
+      // Ошибку доставки видно человеку в настройках («Проверка доставки»), а не только в логах сервера
+      // Повторяемые ошибки (сервис push занят) пишем в журнал один раз, когда попытки кончились
+      const fail = async (text: string, final = true) => {
+        await d.store.deviceReport(r.deviceId, now, text);
+        if (!final) return;
+        const owner = await d.store.deviceOwner(r.deviceId);
+        if (owner) await d.store.pushEventAdd(owner, { at: now, device: kind, text: `«${r.title}»: ${text}` });
+      };
+      if (now - r.fireAt > STALE_MS) {
+        await fail('не отправлено вовремя: сервер не смог доставить за 6 часов');
+        return;
+      }
       try {
-        const { status } = await send(d.env, r, data);
+        const { status, detail } = await send(d.env, r, data);
         if (status === 404 || status === 410) {
-          // Почему телефон перестал получать уведомления, видно только здесь
           console.warn('устройство забыто: подписка недействительна', r.deviceId.slice(0, 8), status);
+          await fail(`подписка недействительна (${String(status)}), устройство удалено — откройте на нём приложение`);
           gone.add(r.deviceId);
+        } else if (status < 300) {
+          sent++;
+          await d.store.deviceReport(r.deviceId, now, null);
+        } else {
+          const again = status === 429 || status >= 500;
+          if (again) retry.add(`${r.deviceId}|${r.key}`);
+          await fail(`ошибка ${String(status)}${detail ? `: ${detail.slice(0, 150)}` : ''}`, !again);
         }
-        else if (status < 300) sent++;
-        else if (status === 429 || status >= 500) retry.add(`${r.deviceId}|${r.key}`);
       } catch (e) {
         console.warn('push error', e);
         retry.add(`${r.deviceId}|${r.key}`);
+        await fail(`нет связи: ${e instanceof Error ? e.message.slice(0, 150) : 'ошибка'}`, false);
       }
     }),
   );

@@ -1,10 +1,12 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DueRow, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
   private seq = 0;
   private rows = new Map<string, SyncRow & { space: string }>();
-  private devices = new Map<string, { endpoint: string; p256dh: string; auth: string; userId: string }>();
+  private devices = new Map<string, { endpoint: string; p256dh: string; auth: string; userId: string; createdAt: number; updatedAt: number; lastOkAt: number | null; lastErrAt: number | null; lastErr: string | null }>();
+  private events = new Map<string, PushEvent[]>();
+  private scheduleMeta = new Map<string, ScheduleMeta>();
   private users = new Map<string, User & { createdAt: number }>();
   private sessions = new Map<string, { userId: string; lastUsedAt: number; version?: string }>();
   private activity = new Set<string>();
@@ -36,6 +38,49 @@ export class MemoryStore implements Store {
     return Promise.resolve([...this.rows.values()].filter((r) => r.space === space).length);
   }
 
+  syncSeq(space: string): Promise<number> {
+    return Promise.resolve(Math.max(0, ...[...this.rows.values()].filter((r) => r.space === space).map((r) => r.seq)));
+  }
+
+  deviceReport(id: string, now: number, error: string | null): Promise<void> {
+    const d = this.devices.get(id);
+    if (d && error === null) d.lastOkAt = now;
+    else if (d) Object.assign(d, { lastErrAt: now, lastErr: error });
+    return Promise.resolve();
+  }
+
+  devicesStatus(userId: string, now: number): Promise<DeviceStatus[]> {
+    const out = [...this.devices]
+      .filter(([, d]) => d.userId === userId)
+      .map(([id, d]) => {
+        const left = [...this.reminders.values()].filter((r) => r.deviceId === id && !r.sent && r.fireAt >= now).map((r) => r.fireAt);
+        return { id, endpoint: d.endpoint, createdAt: d.createdAt, updatedAt: d.updatedAt, lastOkAt: d.lastOkAt, lastErrAt: d.lastErrAt, lastErr: d.lastErr, pending: left.length, nextAt: left.length ? Math.min(...left) : null };
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return Promise.resolve(out);
+  }
+
+  pushEventAdd(userId: string, e: PushEvent): Promise<void> {
+    this.events.set(userId, [e, ...(this.events.get(userId) ?? [])].slice(0, 20));
+    return Promise.resolve();
+  }
+
+  pushEvents(userId: string): Promise<PushEvent[]> {
+    return Promise.resolve(this.events.get(userId) ?? []);
+  }
+
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void> {
+    const cur = this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null };
+    if (m.acceptedAt !== undefined) Object.assign(cur, { acceptedAt: m.acceptedAt, count: m.count ?? 0 });
+    if (m.rejectedAt !== undefined) cur.rejectedAt = m.rejectedAt;
+    this.scheduleMeta.set(userId, cur);
+    return Promise.resolve();
+  }
+
+  scheduleMetaGet(userId: string): Promise<ScheduleMeta> {
+    return Promise.resolve(this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null });
+  }
+
   syncDelete(space: string): Promise<void> {
     for (const [k, r] of this.rows) if (r.space === space) this.rows.delete(k);
     return Promise.resolve();
@@ -55,7 +100,8 @@ export class MemoryStore implements Store {
   }
 
   deviceUpsert(d: Device): Promise<void> {
-    this.devices.set(d.id, { endpoint: d.endpoint, p256dh: d.p256dh, auth: d.auth, userId: d.userId });
+    const cur = this.devices.get(d.id);
+    this.devices.set(d.id, { lastOkAt: null, lastErrAt: null, lastErr: null, createdAt: d.now, ...cur, endpoint: d.endpoint, p256dh: d.p256dh, auth: d.auth, userId: cur?.userId ?? d.userId, updatedAt: d.now });
     return Promise.resolve();
   }
 

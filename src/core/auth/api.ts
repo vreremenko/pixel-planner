@@ -138,3 +138,23 @@ export const changePassword = (token: string, oldPassword: string, newPassword: 
 export const adminStats = <T>(token: string) => call('admin/stats', { method: 'GET', token }) as Promise<T>;
 
 export const deleteAccount = (token: string, password: string | null) => call('auth/account', { method: 'DELETE', token, body: password === null ? { confirm: true } : { password } });
+
+/** Проверка доставки напоминаний: устройства аккаунта, последние отправки и ошибки. */
+export interface PushStatus {
+  now: number;
+  devices: {
+    id: string;
+    kind: 'apple' | 'google' | 'mozilla' | 'windows' | 'telegram' | 'other';
+    createdAt: number;
+    updatedAt: number;
+    lastOkAt: number | null;
+    lastErrAt: number | null;
+    lastErr: string | null;
+    pending: number;
+    nextAt: number | null;
+  }[];
+  schedule: { acceptedAt: number | null; count: number; rejectedAt: number | null };
+  events: { at: number; device: string; text: string }[];
+}
+
+export const pushStatus = (token: string) => call('push/status', { method: 'GET', token }) as Promise<PushStatus>;

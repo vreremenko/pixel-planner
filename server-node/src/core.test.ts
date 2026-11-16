@@ -285,6 +285,44 @@ describe('push', () => {
     expect(sent).toEqual(['a']);
   });
 
+  it('расписание по устаревшим данным не принимается и не стирает свежее', async () => {
+    const sent: string[] = [];
+    const d = mk({ send: (_e, _to, data) => (sent.push((data as { key: string }).key), Promise.resolve({ status: 201, detail: '' })) });
+    const token = await register(d, 'a@b.ru');
+    await handle(req('PUT', `devices/${DEVICE}`, { token, body: sub }), d);
+    await handle(req('PUT', 'sync', { token, body: { records: [rec('t1', 1), rec('t2', 1)] } }), d);
+    expect((await handle(req('PUT', 'schedule', { token, body: { cursor: 2, items: [item('fresh', 900_000)] } }), d)).status).toBe(200);
+    // Устройство проснулось со старыми данными (видело только первую запись)
+    expect((await handle(req('PUT', 'schedule', { token, body: { cursor: 1, items: [] } }), d)).status).toBe(409);
+    // Старые версии приложения без номера по-прежнему принимаются
+    expect((await handle(req('PUT', 'schedule', { token, body: { items: [item('fresh', 900_000)] } }), d)).status).toBe(200);
+    await sendDue(d);
+    expect(sent).toEqual(['fresh']);
+    const st = json(await handle(req('GET', 'push/status', { token }), d)) as { devices: { kind: string; lastOkAt: number | null; pending: number }[]; schedule: { count: number; rejectedAt: number | null } };
+    expect(st.devices).toEqual([expect.objectContaining({ kind: 'google', pending: 0 })]);
+    expect(st.devices[0]?.lastOkAt).not.toBeNull();
+    expect(st.schedule.count).toBe(1);
+    expect(st.schedule.rejectedAt).not.toBeNull();
+    expect(JSON.stringify(st)).not.toContain('https://');
+  });
+
+  it('ошибка доставки видна в проверке, повторяемая — один раз', async () => {
+    let status = 400;
+    const d = mk({ send: () => Promise.resolve({ status, detail: 'BadJwtToken' }) });
+    const token = await register(d, 'a@b.ru');
+    await handle(req('PUT', `devices/${DEVICE}`, { token, body: sub }), d);
+    await handle(req('PUT', 'schedule', { token, body: { items: [item('a', 900_000), item('b', 900_000)] } }), d);
+    await sendDue(d);
+    status = 503;
+    await handle(req('PUT', 'schedule', { token, body: { items: [item('c', 900_000)] } }), d);
+    await sendDue(d);
+    await sendDue(d);
+    const st = json(await handle(req('GET', 'push/status', { token }), d)) as { devices: { lastErr: string }[]; events: { text: string }[] };
+    expect(st.events).toHaveLength(2);
+    expect(st.events[0]?.text).toContain('400: BadJwtToken');
+    expect(st.devices[0]?.lastErr).toContain('503');
+  });
+
   it('удаление аккаунта убирает и устройства с напоминаниями', async () => {
     const sent: string[] = [];
     const d = mk({ send: (_e, _to, data) => (sent.push((data as { key: string }).key), Promise.resolve({ status: 201, detail: '' })) });

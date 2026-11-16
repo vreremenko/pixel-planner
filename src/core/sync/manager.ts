@@ -39,6 +39,16 @@ const useSync = create<SyncStore>(() => ({ state: undefined, running: false, unr
 /** Расписание напоминаний можно отправлять только с актуальными данными, иначе старое устройство затрёт новые напоминания. */
 export const hasPulled = (): boolean => useSync.getState().pulled;
 
+/** До какой записи сервера данные на этом устройстве догнаны: сервер по нему отклонит расписание, посчитанное по старым данным. */
+export const syncCursor = (): number | null => useSync.getState().state?.cursor ?? null;
+
+/** Позвать fn, когда устройство догнало новые записи сервера. */
+export function onCursorChange(fn: () => void): () => void {
+  return useSync.subscribe((s, prev) => {
+    if (s.state?.cursor !== prev.state?.cursor) fn();
+  });
+}
+
 export const useUnreachable = (): boolean => useSync((s) => s.unreachable);
 
 class SessionLost extends Error {}

@@ -20,6 +20,7 @@ import { useModules } from '../shell/nav';
 import { sendFeedback, setTelegramReminders, useAuth } from '../auth/store';
 import { fs } from '../ui/fs';
 import { inTelegram } from '../telegram/webapp';
+import { DeliveryCheck } from '../notifications/DeliveryCheck';
 
 const PERM_TEXT: Record<string, string> = {
   granted: 'разрешены',
@@ -341,6 +342,7 @@ function NotificationsPanel() {
           />
         </div>
       )}
+      <DeliveryCheck />
     </Panel>
   );
 }
