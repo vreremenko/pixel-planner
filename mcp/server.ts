@@ -22,22 +22,37 @@ const FALLBACK = process.env.PP_API_FALLBACK ?? 'https://pp-tg-relay.pixel-plann
 const TIMEOUT_MS = 15_000;
 const PUSH_CHUNK = 300;
 
+/** Сначала короткая попытка: если адрес не открывается (VPN), быстрее перейти на другой, чем ждать полный срок. */
+const FIRST_TRY_MS = 6_000;
+
 let base = PRIMARY;
 
+/** Короткое описание сетевой ошибки: по нему видно, где именно оборвалось. */
+const why = (e: unknown): string => {
+  if (!(e instanceof Error)) return String(e);
+  const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+  return e.name === 'TimeoutError' ? 'не ответил вовремя' : (cause?.code ?? cause?.message ?? e.message);
+};
+
 async function api(path: string, init: RequestInit = {}): Promise<unknown> {
-  const call = (b: string) =>
+  const call = (b: string, ms: number) =>
     fetch(`${b}/api/${path}`, {
       ...init,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(ms),
       headers: { authorization: `Bearer ${KEY}`, 'user-agent': 'PixelPlanner-MCP/1.0', ...(init.body ? { 'content-type': 'application/json' } : {}) },
     });
+  const other = base === PRIMARY ? FALLBACK : PRIMARY;
   let res: Response;
   try {
-    res = await call(base);
-  } catch {
+    res = await call(base, FIRST_TRY_MS);
+  } catch (first) {
     // Нет связи с текущим адресом — пробуем другой и запоминаем удачный
-    base = base === PRIMARY ? FALLBACK : PRIMARY;
-    res = await call(base);
+    try {
+      res = await call(other, TIMEOUT_MS);
+      base = other;
+    } catch (second) {
+      throw new ToolError(`Нет связи с сервером приложения. ${base}: ${why(first)}; ${other}: ${why(second)}`);
+    }
   }
   if (res.status === 401) throw new ToolError('Ключ PP_API_KEY не подходит или отозван. Создайте новый в личном кабинете приложения.');
   if (!res.ok) throw new ToolError(`Сервер ответил ошибкой ${String(res.status)}`);
