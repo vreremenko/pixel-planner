@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import type { CreatingHookContext, IndexableType, UpdatingHookContext } from 'dexie';
 import { db } from '../data/db';
 import { metaRepo } from '../data/repo';
-import { apiUrl } from '../apiBase';
+import { apiUrl, checkRoute, isViaFallback } from '../apiBase';
 import { clearSession, loadSession, type Session } from '../auth/session';
 import { toast } from '../ui';
 import { SYNCED_TABLES, syncOnce, type SyncState, type Transport, type WireRecord } from './core';
@@ -19,6 +19,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const DEBOUNCE_MS = 300;
 /** Пока приложение открыто, спрашиваем сервер о новом так часто. */
 const POLL_MS = 5_000;
+const FALLBACK_POLL_EVERY = 4;
 /** После неудачи (нет сети, сервер не отвечает) пробуем снова через это время. */
 const RETRY_MS = 8_000;
 const KEEPALIVE_MAX_BYTES = 60_000;
@@ -77,7 +78,11 @@ async function request(token: string, path: string, init: RequestInit = {}): Pro
     return res;
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === 'AbortError';
-    if (aborted || e instanceof TypeError) useSync.setState({ unreachable: true });
+    if (aborted || e instanceof TypeError) {
+      useSync.setState({ unreachable: true });
+      // Возможно, прямой путь закрыт (VPN): следующая попытка пойдёт через запасной вход
+      void checkRoute();
+    }
     if (aborted) throw new Error('Сервер не отвечает', { cause: e });
     throw e;
   } finally {
@@ -230,7 +235,11 @@ export function startSync(): () => void {
     window.removeEventListener('focus', onWake);
     window.removeEventListener('pageshow', onWake);
   });
+  let ticks = 0;
   const poll = setInterval(() => {
+    ticks++;
+    // Через запасной вход спрашиваем сервер в четыре раза реже: у посредника дневной лимит запросов
+    if (isViaFallback() && ticks % FALLBACK_POLL_EVERY !== 0) return;
     if (document.visibilityState === 'visible' && useSync.getState().state) void syncNow();
   }, POLL_MS);
   unsubs.push(() => clearInterval(poll));

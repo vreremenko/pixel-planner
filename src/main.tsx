@@ -11,6 +11,7 @@ import { ErrorBoundary } from './core/shell/ErrorBoundary';
 import { useSettings } from './core/stores/settings';
 import { setupPwa } from './core/pwa/register';
 import { reloadOnce } from './core/shell/chunkReload';
+import { checkRoute } from './core/apiBase';
 
 declare global {
   interface Window {
@@ -35,6 +36,8 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 window.__appMounted = true;
 
 void useSettings.getState().load();
+// Сразу выясняем, открывается ли сервер напрямую или нужен запасной вход
+void checkRoute();
 
 try {
   setupPwa();

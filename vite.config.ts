@@ -23,7 +23,7 @@ function csp(): Plugin {
       order: 'post',
       handler(html) {
         const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${createHash('sha256').update(m[1] ?? '').digest('base64')}'`);
-        const api = process.env.VITE_API_BASE ? new URL(process.env.VITE_API_BASE).origin : '';
+        const api = [process.env.VITE_API_BASE, process.env.VITE_API_FALLBACK].filter(Boolean).map((u) => new URL(u ?? '').origin).join(' ');
         const policy = [
           "default-src 'none'",
           `script-src 'self' ${inline.join(' ')}`,

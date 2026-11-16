@@ -1,5 +1,5 @@
 /* Запросы к серверу про аккаунт: регистрация, вход, выход, смена пароля, удаление. */
-import { apiUrl } from '../apiBase';
+import { apiUrl, checkRoute } from '../apiBase';
 import { APP_VERSION } from '../changelog';
 import type { Session } from './session';
 
@@ -56,6 +56,7 @@ async function call(path: string, init: { method: string; body?: unknown; token?
     return data;
   } catch (e) {
     if (e instanceof AuthError) throw e;
+    void checkRoute();
     if (e instanceof DOMException && e.name === 'AbortError') throw new AuthError('timeout', 'Сервер не отвечает. Проверьте интернет и повторите');
     throw new AuthError('network', 'Не удалось связаться с сервером. Проверьте интернет и повторите');
   } finally {

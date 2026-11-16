@@ -772,3 +772,18 @@ describe('защита', () => {
     expect(user).toBeTruthy();
   });
 });
+
+describe('запасной вход через посредника', () => {
+  const KEY = 'ключ посредника';
+  // Запрос ссылки на бота: дешёвый и ограничен 30 разами в час с одного адреса
+  const start = (d: Deps, ip: string, headers: Record<string, string>) => handle({ ...req('POST', 'auth/telegram/start', { body: {}, ip }), headers }, d);
+
+  it('адрес клиента от посредника принимается только с его ключом', async () => {
+    const d = mk({ env: { TELEGRAM_RELAY_KEY: KEY } });
+    // Все запросы приходят с адреса Cloudflare, но ограничение считается по настоящему адресу клиента
+    for (let i = 0; i < 31; i++) expect(json(await start(d, 'cloudflare', { 'x-relay-key': KEY, 'x-client-ip': `1.1.1.${String(i)}` })).error).toBe('telegram_unavailable');
+    // Без ключа подставной адрес игнорируется, и все такие запросы считаются как один адрес
+    for (let i = 0; i < 30; i++) await start(d, 'attacker', { 'x-client-ip': `3.3.3.${String(i)}` });
+    expect(json(await start(d, 'attacker', { 'x-client-ip': '4.4.4.4' })).error).toBe('too_many_attempts');
+  });
+});

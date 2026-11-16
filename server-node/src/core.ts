@@ -791,8 +791,20 @@ function corsHeaders(req: HttpReq, env: Env): Record<string, string> {
   };
 }
 
+/**
+ * Запрос пришёл через запасной вход (посредник на Cloudflare): адрес клиента берём из его заголовка,
+ * но только если посредник подтвердил себя ключом, иначе любой подставил бы себе чужой адрес.
+ */
+function viaRelay(req: HttpReq, env: Env): HttpReq {
+  const key = env.TELEGRAM_RELAY_KEY;
+  const ip = req.headers['x-client-ip'];
+  if (!key || !ip || !safeEqual(req.headers['x-relay-key'] ?? '', key)) return req;
+  return { ...req, ip: ip.slice(0, 64) };
+}
+
 /** Точка входа HTTP: запрос → ответ, с CORS и обработкой ошибок. */
-export async function handle(req: HttpReq, d: Deps): Promise<HttpRes> {
+export async function handle(raw: HttpReq, d: Deps): Promise<HttpRes> {
+  const req = viaRelay(raw, d.env);
   const cors = corsHeaders(req, d.env);
   if (req.method === 'OPTIONS') return { status: 204, headers: cors, body: '' };
   try {
