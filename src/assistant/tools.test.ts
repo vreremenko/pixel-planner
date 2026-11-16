@@ -69,6 +69,45 @@ describe('действия помощника', () => {
     expect(run(data, 'get_day')).toContain('Итого: 670 ккал');
   });
 
+  it('удаляет и правит задачу; у повтора — только один день', () => {
+    const data = base();
+    run(data, 'add_task', { title: 'Спросить про книгу' });
+    const id = /Спросить про книгу \[id: ([^\]]+)\]/.exec(run(data, 'get_day'))?.[1] ?? '';
+    expect(run(data, 'update_task', { id, notes: 'взять с собой', time: '10:00' })).toContain('заметка, время');
+    expect(run(data, 'get_day')).toContain('заметка: взять с собой');
+    expect(run(data, 'delete_task', { id })).toContain('Удалил');
+    expect(run(data, 'get_day')).not.toContain('Спросить про книгу');
+
+    expect(run(data, 'update_task', { id: 's1:2026-11-18', notes: 'с Сашей' })).toContain('только за 2026-11-18');
+    expect(run(data, 'get_day', { date: '2026-11-18' })).toContain('заметка: с Сашей');
+    expect(run(data, 'get_day', { date: '2026-11-19' })).not.toContain('заметка');
+    expect(() => run(data, 'update_task', { id: 's1:2026-11-18', tags: ['x'] })).toThrow('всей серии');
+    run(data, 'delete_task', { id: 's1:2026-11-20' });
+    expect(run(data, 'get_day', { date: '2026-11-20' })).not.toContain('Пробежка');
+    expect(run(data, 'get_day', { date: '2026-11-21' })).toContain('Пробежка');
+    expect(() => run(data, 'delete_task', { id: 'нет' })).toThrow('не найдена');
+  });
+
+  it('правит и удаляет операцию и запись еды', () => {
+    const data = base();
+    run(data, 'add_transaction', { kind: 'expense', amount: 300, category: 'транспорт' });
+    const txId = /\[id: ([^\]]+)\]/.exec(run(data, 'list_transactions'))?.[1] ?? '';
+    expect(run(data, 'update_transaction', { id: txId, amount: 450, note: 'такси' })).toContain('сумма, заметка');
+    expect(run(data, 'list_transactions')).toContain('450');
+    run(data, 'delete_transaction', { id: txId });
+    expect(run(data, 'list_transactions')).toBe('Операций нет.');
+
+    run(data, 'log_food', { name: 'Гречка варёная', grams: 200, meal: 'lunch' });
+    const foodId = /ккал\) \[id: ([^\]]+)\]/.exec(run(data, 'get_day'))?.[1] ?? '';
+    expect(run(data, 'update_food', { id: foodId, grams: 100 })).toContain('110 ккал');
+    run(data, 'delete_food', { id: foodId });
+    expect(run(data, 'get_day')).not.toContain('Гречка');
+  });
+
+  it('удаления и правки помечены как разрушающие', () => {
+    for (const t of TOOLS) expect(t.destructive === true).toBe(/^(delete|update)_/.test(t.name));
+  });
+
   it('у всех действий схема параметров — объект JSON Schema', () => {
     for (const t of TOOLS) {
       expect(t.inputSchema.type).toBe('object');

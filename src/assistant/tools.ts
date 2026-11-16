@@ -31,6 +31,8 @@ export interface Tool {
   inputSchema: { type: 'object'; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
   /** Только читает данные. */
   readOnly: boolean;
+  /** Удаляет или переписывает существующее: вызывать только по прямой просьбе пользователя. */
+  destructive?: boolean;
   run: (data: AccountData, input: Record<string, unknown>, ctx: ToolContext) => string;
 }
 
@@ -84,13 +86,13 @@ function dayItems(data: AccountData, d: LocalDate, ctx: ToolContext) {
   const tasks = data.all<Task>('tasks').filter((t) => t.date === d).sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99') || a.order - b.order);
   const occ = buildOccurrences(data.all<RecurringSeries>('series'), data.all<OccurrenceOverride>('overrides'), d, d, ctx.today).filter((o) => o.status !== 'skipped');
   return [
-    ...tasks.map((t) => ({ id: t.id, title: t.title, time: t.time, done: t.done, tags: t.tags, recurring: false })),
-    ...occ.map((o) => ({ id: `${o.seriesId}:${o.originalDate}`, title: o.title, time: o.time, done: o.status === 'done', tags: o.tags, recurring: true })),
+    ...tasks.map((t) => ({ id: t.id, title: t.title, time: t.time, done: t.done, tags: t.tags, notes: t.notes, recurring: false })),
+    ...occ.map((o) => ({ id: `${o.seriesId}:${o.originalDate}`, title: o.title, time: o.time, done: o.status === 'done', tags: o.tags, notes: o.notes, recurring: true })),
   ];
 }
 
 const itemLine = (i: ReturnType<typeof dayItems>[number]) =>
-  `${i.done ? '✔' : '☐'} ${i.time ? `${i.time} ` : ''}${i.title}${i.tags.length ? ` #${i.tags.join(' #')}` : ''}${i.recurring ? ' (повтор)' : ''} [id: ${i.id}]`;
+  `${i.done ? '✔' : '☐'} ${i.time ? `${i.time} ` : ''}${i.title}${i.tags.length ? ` #${i.tags.join(' #')}` : ''}${i.recurring ? ' (повтор)' : ''} [id: ${i.id}]${i.notes ? `\n    заметка: ${i.notes.slice(0, 300)}` : ''}`;
 
 function habitLines(data: AccountData, d: LocalDate): string[] {
   const logs = new Map(data.all<HabitLog>('habitLogs').filter((l) => l.date === d).map((l) => [l.habitId, l]));
@@ -148,14 +150,14 @@ function foodLines(data: AccountData, d: LocalDate): string[] {
   const out = [`Итого: ${macroText(sumEntries(entries))}`];
   for (const m of MEAL_IDS) {
     const mine = entries.filter((e) => e.meal === m);
-    if (mine.length) out.push(`${mealLabel(m)}: ${mine.map((e) => `${e.name} ${String(e.grams)} г (${String(portionOf(e, e.grams).kcal)} ккал)`).join(', ')}`);
+    if (mine.length) out.push(`${mealLabel(m)}: ${mine.map((e) => `${e.name} ${String(e.grams)} г (${String(portionOf(e, e.grams).kcal)} ккал) [id: ${e.id}]`).join(', ')}`);
   }
   return out;
 }
 
 // ---------- инструменты ----------
 
-export const TOOLS: readonly Tool[] = [
+const BASE_TOOLS: readonly Tool[] = [
   {
     name: 'get_day',
     title: 'Сводка дня',
@@ -400,9 +402,243 @@ export const TOOLS: readonly Tool[] = [
   },
 ];
 
+// ---------- правка и удаление ----------
+
+type FoundTask = { kind: 'task'; task: Task } | { kind: 'occurrence'; series: RecurringSeries; original: LocalDate; override: OccurrenceOverride };
+
+/** Задача по id из get_day: обычная или один день повторяющейся (<серия>:<дата>). */
+function findTask(data: AccountData, id: string, ctx: ToolContext): FoundTask {
+  const task = data.get<Task>('tasks', id);
+  if (task) return { kind: 'task', task };
+  const m = /^(.+):(\d{4}-\d{2}-\d{2})$/.exec(id);
+  const series = m ? data.get<RecurringSeries>('series', m[1] ?? '') : undefined;
+  if (!m || !series) throw new ToolError('Задача не найдена. Возьмите id из get_day или list_backlog.');
+  const original = m[2] ?? '';
+  const oid = overrideId(series.id, original);
+  return { kind: 'occurrence', series, original, override: data.get<OccurrenceOverride>('overrides', oid) ?? { id: oid, seriesId: series.id, date: original, createdAt: ctx.now, updatedAt: ctx.now } };
+}
+
+const ONLY_ON_REQUEST = ' Только по прямой просьбе пользователя.';
+
+const EDIT_TOOLS: readonly Tool[] = [
+  {
+    name: 'delete_task',
+    title: 'Удалить задачу',
+    description: 'Удалить задачу. У повторяющейся удаляется только этот день; всю серию — с whole_series: true.' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, whole_series: { type: 'boolean', description: 'Удалить все повторения, а не один день' } }, required: ['id'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const found = findTask(data, text(input.id, 'id', 200), ctx);
+      if (found.kind === 'task') {
+        data.put('tasks', { ...found.task, deletedAt: ctx.now, updatedAt: ctx.now });
+        return `Удалил «${found.task.title}».`;
+      }
+      if (input.whole_series === true) {
+        data.put('series', { ...found.series, deletedAt: ctx.now, updatedAt: ctx.now });
+        return `Удалил повторяющуюся задачу «${found.series.title}» целиком, со всеми днями.`;
+      }
+      data.put('overrides', { ...found.override, cancelled: true, updatedAt: ctx.now });
+      return `Убрал «${found.series.title}» только за ${found.original}. Остальные повторения на месте.`;
+    },
+  },
+  {
+    name: 'update_task',
+    title: 'Изменить задачу',
+    description:
+      'Изменить задачу: название, заметку, дату, время, метки, приоритет. У повторяющейся меняется только этот день (метки — только у всей серии). ' +
+      'Заметка заменяется целиком: чтобы дописать, передайте старый текст вместе с новым.' + ONLY_ON_REQUEST,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        notes: { type: 'string', description: 'Новая заметка целиком; пустая строка убирает заметку' },
+        date: { type: 'string', description: 'today, tomorrow, ГГГГ-ММ-ДД или backlog (только для обычной задачи)' },
+        time: { type: 'string', description: 'ЧЧ:ММ; пустая строка убирает время (только у обычной задачи)' },
+        tags: { type: 'array', items: { type: 'string' } },
+        priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const found = findTask(data, text(input.id, 'id', 200), ctx);
+      const title = optText(input.title, 200);
+      const notes = typeof input.notes === 'string' ? input.notes.trim().slice(0, 5000) : undefined;
+      const time = typeof input.time === 'string' ? input.time.trim() : undefined;
+      if (time && !TIME_RE.test(time)) throw new ToolError('Время: ЧЧ:ММ');
+      const priority = input.priority === 'low' || input.priority === 'medium' || input.priority === 'high' ? input.priority : undefined;
+      const changed: string[] = [];
+      if (found.kind === 'task') {
+        const t = { ...found.task, updatedAt: ctx.now };
+        if (title) { t.title = title; changed.push('название'); }
+        if (notes !== undefined) {
+          if (notes) t.notes = notes;
+          else delete t.notes;
+          changed.push('заметка');
+        }
+        if (input.date !== undefined) {
+          const d = input.date === 'backlog' ? null : date(input.date, ctx);
+          if (d !== t.date) {
+            if (d === null) delete t.time;
+            if (t.date && d && d !== t.date) t.postponedCount += d > t.date ? 1 : 0;
+            if (d === null) t.wasInBacklog = true;
+            t.date = d;
+            delete t.track;
+          }
+          changed.push('дата');
+        }
+        if (time !== undefined) {
+          if (time && t.date === null) throw new ToolError('У задачи в бэклоге не бывает времени');
+          if (time) t.time = time;
+          else delete t.time;
+          changed.push('время');
+        }
+        if (Array.isArray(input.tags)) { t.tags = input.tags.filter((x): x is string => typeof x === 'string').map((x) => x.replace(/^#/, '').trim().toLowerCase()).filter(Boolean).slice(0, 10); changed.push('метки'); }
+        if (priority) { t.priority = priority; changed.push('приоритет'); }
+        if (changed.length === 0) throw new ToolError('Нечего менять');
+        data.put('tasks', t);
+        return `«${t.title}»: изменено — ${changed.join(', ')}.`;
+      }
+      if (Array.isArray(input.tags)) throw new ToolError('Метки повторяющейся задачи меняются только у всей серии, в приложении');
+      if (time === '') throw new ToolError('Убрать время у одного дня повторяющейся задачи можно только в приложении');
+      const o: OccurrenceOverride = { ...found.override, patch: { ...found.override.patch }, updatedAt: ctx.now };
+      const patch = o.patch ?? {};
+      if (title) { patch.title = title; changed.push('название'); }
+      if (notes !== undefined) { patch.notes = notes; changed.push('заметка'); }
+      if (time) { patch.time = time; changed.push('время'); }
+      if (priority) { patch.priority = priority; changed.push('приоритет'); }
+      if (input.date !== undefined) {
+        if (input.date === 'backlog') throw new ToolError('День повторяющейся задачи нельзя убрать в бэклог');
+        const d = date(input.date, ctx);
+        if (d === found.original) delete o.movedTo;
+        else o.movedTo = d;
+        delete o.track;
+        changed.push('дата');
+      }
+      if (changed.length === 0) throw new ToolError('Нечего менять');
+      o.patch = patch;
+      data.put('overrides', o);
+      return `«${patch.title ?? found.series.title}» только за ${found.original}: изменено — ${changed.join(', ')}. Остальные повторения не тронуты.`;
+    },
+  },
+  {
+    name: 'list_transactions',
+    title: 'Операции',
+    description: 'Доходы, расходы и переводы за день или месяц, с id для правки и удаления.',
+    inputSchema: { type: 'object', properties: { date: dateSchema, month: { type: 'string', description: 'ГГГГ-ММ вместо дня' } }, additionalProperties: false },
+    readOnly: true,
+    run: (data, input, ctx) => {
+      const month = typeof input.month === 'string' && /^\d{4}-\d{2}$/.test(input.month) ? input.month : null;
+      const d = month ? null : date(input.date, ctx);
+      const cats = new Map(categories(data).map((c) => [c.id, c.name]));
+      const accounts = new Map(data.all<Account>('fin_accounts').map((a) => [a.id, a.name]));
+      const list = data.all<Tx>('fin_tx').filter((t) => (month ? t.date.startsWith(month) : t.date === d)).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+      if (list.length === 0) return 'Операций нет.';
+      return list
+        .map((t) => {
+          const what = t.kind === 'transfer' ? `перевод ${accounts.get(t.accountId) ?? '?'} → ${accounts.get(t.toAccountId ?? '') ?? '?'}` : `${t.kind === 'income' ? 'доход' : 'расход'}, ${cats.get(t.categoryId ?? '') ?? 'без категории'}, ${accounts.get(t.accountId) ?? '?'}`;
+          return `${t.date} ${rub(t.amount)} ${what}${t.note ? ` «${t.note}»` : ''} [id: ${t.id}]`;
+        })
+        .join('\n');
+    },
+  },
+  {
+    name: 'update_transaction',
+    title: 'Изменить операцию',
+    description: 'Изменить доход или расход: сумму, категорию, счёт, заметку, дату. id — из list_transactions.' + ONLY_ON_REQUEST,
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, amount: { type: 'number', description: 'Рубли' }, category: { type: 'string' }, account: { type: 'string' }, note: { type: 'string', description: 'Пустая строка убирает заметку' }, date: dateSchema },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const tx = data.get<Tx>('fin_tx', text(input.id, 'id', 200));
+      if (!tx) throw new ToolError('Операция не найдена. Возьмите id из list_transactions.');
+      const next: Tx = { ...tx, updatedAt: ctx.now };
+      const changed: string[] = [];
+      if (input.amount !== undefined) { next.amount = kopecks(num(input.amount, 'amount', 0.01, 100_000_000)); changed.push('сумма'); }
+      if (input.category !== undefined) {
+        if (tx.kind === 'transfer') throw new ToolError('У перевода нет категории');
+        next.categoryId = pick(categories(data).filter((c) => c.kind === tx.kind), text(input.category, 'category'), (c) => c.name, 'категорию').id;
+        changed.push('категория');
+      }
+      if (input.account !== undefined) { next.accountId = pick(data.all<Account>('fin_accounts').filter((a) => !a.archived), text(input.account, 'account'), (a) => a.name, 'счёт').id; changed.push('счёт'); }
+      if (typeof input.note === 'string') {
+        const note = input.note.trim().slice(0, 200);
+        if (note) next.note = note;
+        else delete next.note;
+        changed.push('заметка');
+      }
+      if (input.date !== undefined) { next.date = date(input.date, ctx); changed.push('дата'); }
+      if (changed.length === 0) throw new ToolError('Нечего менять');
+      data.put('fin_tx', next);
+      return `Операция ${rub(next.amount)} от ${next.date}: изменено — ${changed.join(', ')}.`;
+    },
+  },
+  {
+    name: 'delete_transaction',
+    title: 'Удалить операцию',
+    description: 'Удалить доход, расход или перевод. Вместе с доходом удаляется отложенное с него в копилку; если это оплата платежа, срок снова станет неоплаченным.' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const tx = data.get<Tx>('fin_tx', text(input.id, 'id', 200));
+      if (!tx) throw new ToolError('Операция не найдена. Возьмите id из list_transactions.');
+      const linked = data.all<Tx>('fin_tx').filter((t) => t.kind === 'transfer' && t.fromTxId === tx.id);
+      for (const t of [...linked, tx]) data.put('fin_tx', { ...t, deletedAt: ctx.now, updatedAt: ctx.now });
+      return `Удалил операцию ${rub(tx.amount)} от ${tx.date}${linked.length ? ` и отложенное с неё (${rub(linked.reduce((a, t) => a + t.amount, 0))})` : ''}${tx.paymentId ? '. Срок платежа снова неоплачен' : ''}.`;
+    },
+  },
+  {
+    name: 'update_food',
+    title: 'Изменить запись еды',
+    description: 'Изменить граммы, приём пищи или дату у записи еды. id — из get_day.' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, grams: { type: 'number' }, meal: { type: 'string', enum: [...MEAL_IDS] }, date: dateSchema }, required: ['id'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const e = data.get<FoodEntry>('food_entries', text(input.id, 'id', 200));
+      if (!e) throw new ToolError('Запись не найдена. Возьмите id из get_day.');
+      const next: FoodEntry = { ...e, updatedAt: ctx.now };
+      if (input.grams !== undefined) next.grams = Math.round(num(input.grams, 'grams', 1, 5000));
+      if (input.meal !== undefined) {
+        const meal = MEAL_IDS.find((m) => m === input.meal);
+        if (!meal) throw new ToolError(`meal: ${MEAL_IDS.join(', ')}`);
+        next.meal = meal;
+      }
+      if (input.date !== undefined) next.date = date(input.date, ctx);
+      data.put('food_entries', next);
+      return `${mealLabel(next.meal)} ${next.date}: ${next.name} ${String(next.grams)} г — ${macroText(portionOf(next, next.grams))}.`;
+    },
+  },
+  {
+    name: 'delete_food',
+    title: 'Удалить запись еды',
+    description: 'Удалить запись еды. id — из get_day.' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const e = data.get<FoodEntry>('food_entries', text(input.id, 'id', 200));
+      if (!e) throw new ToolError('Запись не найдена. Возьмите id из get_day.');
+      data.put('food_entries', { ...e, deletedAt: ctx.now, updatedAt: ctx.now });
+      return `Удалил ${e.name} ${String(e.grams)} г (${mealLabel(e.meal)}, ${e.date}).`;
+    },
+  },
+];
+
 /** Справочник и свои продукты пользователя. */
 function foodList(data: AccountData): FoodRef[] {
   const own = data.all<FoodItem>('food_items').map(({ id, name, brand, portion, kcal, protein, fat, carbs }) => ({ id, name, kcal, protein, fat, carbs, ...(brand ? { brand } : {}), ...(portion ? { portion } : {}) }));
   return [...own, ...CATALOG];
 }
 
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS];

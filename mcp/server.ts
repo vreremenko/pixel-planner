@@ -82,12 +82,12 @@ const server = new Server(
     capabilities: { tools: {} },
     instructions:
       'Ежедневник PIXEL PLANNER пользователя: задачи, привычки, финансы, питание. Начинайте с get_day, чтобы увидеть данные и id задач. ' +
-      'Суммы в рублях, даты ГГГГ-ММ-ДД или today/tomorrow/yesterday. Отвечайте пользователю по-русски.',
+      'Суммы в рублях, даты ГГГГ-ММ-ДД или today/tomorrow/yesterday. Удалять и менять записи только по прямой просьбе пользователя. Отвечайте по-русски.',
   },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, () => ({
-  tools: TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: { title: t.title, readOnlyHint: t.readOnly, destructiveHint: false, openWorldHint: false } })),
+  tools: TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: { title: t.title, readOnlyHint: t.readOnly, destructiveHint: t.destructive === true, openWorldHint: false } })),
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
