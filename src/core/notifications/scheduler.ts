@@ -25,9 +25,16 @@ const MAX_LOOKBACK_MS = 48 * 3_600_000;
 const HORIZON_MS = 26 * 3_600_000;
 /** На сколько вперёд отдаём расписание push-серверу (если приложение долго не открывать). */
 const PUSH_HORIZON_MS = 7 * 86_400_000;
+/**
+ * Расписание для сервера считаем с запасом назад: напоминание, наступившее секунду назад, сервер мог ещё не отправить
+ * (он рассылает раз в несколько секунд), и без запаса оно выпадало из расписания и стиралось. Отправленное сервер не повторит.
+ */
+const PUSH_LOOKBACK_MS = 60_000;
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 let running = false;
+/** Пока шёл проход, просили ещё один (данные догнались, сменились настройки): выполним сразу после, а не через минуту. */
+let again = false;
 
 async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promise<void> {
   const stale = now - r.fireAt > STALE_MS;
@@ -76,7 +83,7 @@ async function pushSchedule(now: number): Promise<void> {
   try {
     // Номер берём до расчёта: если данные догонятся во время расчёта, сервер не примет расписание по старым
     const cursor = syncCursor();
-    const planned = await plan(new Date(now), new Date(now + PUSH_HORIZON_MS), true);
+    const planned = await plan(new Date(now - PUSH_LOOKBACK_MS), new Date(now + PUSH_HORIZON_MS), true);
     await syncSchedule(
       planned.map(({ key, fireAt, kind, ref, date, title, body }) => ({ key, fireAt, kind, ref, date, title, body })),
       cursor,
@@ -87,7 +94,11 @@ async function pushSchedule(now: number): Promise<void> {
 }
 
 export async function tick(): Promise<void> {
-  if (running || !useSettings.getState().loaded) return;
+  if (!useSettings.getState().loaded) return;
+  if (running) {
+    again = true;
+    return;
+  }
   running = true;
   try {
     const now = Date.now();
@@ -126,6 +137,10 @@ export async function tick(): Promise<void> {
     return;
   } finally {
     running = false;
+    if (again) {
+      again = false;
+      void tick();
+    }
   }
 }
 

@@ -114,7 +114,7 @@ export class MemoryStore implements Store {
   scheduleReplace(deviceId: string, items: ScheduleItem[], now: number): Promise<void> {
     for (const [k, r] of this.reminders) {
       if (r.deviceId !== deviceId) continue;
-      if (!r.sent || r.fireAt < now - 3 * 86_400_000) this.reminders.delete(k);
+      if ((!r.sent && r.fireAt > now && !r.key.includes('#snooze')) || r.fireAt < now - 3 * 86_400_000) this.reminders.delete(k);
     }
     for (const it of items) {
       const k = `${deviceId}|${it.key}`;

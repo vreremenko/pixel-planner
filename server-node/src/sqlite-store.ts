@@ -204,7 +204,12 @@ export class SqliteStore implements Store {
 
   scheduleReplace(deviceId: string, items: ScheduleItem[], now: number): Promise<void> {
     this.tx(() => {
-      this.db.prepare('DELETE FROM reminders WHERE device_id = ? AND (sent = 0 OR fire_at < ?)').run(deviceId, now - 3 * DAY);
+      // Уже наступившие, но ещё не отправленные остаются: приложение пересчитывает расписание «от сейчас» через мгновение
+      // после срабатывания, и без этого стирало напоминание раньше, чем рассылка успевала его отправить.
+      // Отложенные («#snooze») в расписании приложения не значатся, их тоже не трогаем.
+      this.db
+        .prepare("DELETE FROM reminders WHERE device_id = ?1 AND ((sent = 0 AND fire_at > ?2 AND key NOT LIKE '%#snooze%') OR fire_at < ?3)")
+        .run(deviceId, now, now - 3 * DAY);
       // Уже отправленные с тем же ключом остаются и не дублируются
       const ins = this.db.prepare('INSERT OR IGNORE INTO reminders (device_id, key, fire_at, kind, ref, date, title, body, sent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)');
       for (const i of items) ins.run(deviceId, i.key, i.fireAt, i.kind, i.ref, i.date, i.title, i.body);

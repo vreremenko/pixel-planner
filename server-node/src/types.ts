@@ -170,7 +170,7 @@ export interface Store {
   deviceUpsert(d: Device): Promise<void>;
   /** Удалить устройство и всё его расписание. */
   deviceDelete(id: string): Promise<void>;
-  /** Заменить будущее расписание устройства; уже отправленные с тем же ключом не дублируются. */
+  /** Заменить будущее расписание устройства; уже отправленные с тем же ключом не дублируются, наступившие и отложенные остаются. */
   scheduleReplace(deviceId: string, items: ScheduleItem[], now: number): Promise<void>;
   reminderSnooze(deviceId: string, item: ScheduleItem): Promise<void>;
   dueReminders(now: number, limit: number): Promise<DueRow[]>;

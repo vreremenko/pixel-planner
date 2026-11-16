@@ -285,6 +285,26 @@ describe('push', () => {
     expect(sent).toEqual(['a']);
   });
 
+  it('наступившее напоминание не стирается новым расписанием, отложенное тоже', async () => {
+    const sent: string[] = [];
+    let now = 1_000_000;
+    const d = mk({ now: () => now, send: (_e, _to, data) => (sent.push((data as { key: string }).key), Promise.resolve({ status: 201, detail: '' })) });
+    const token = await register(d, 'a@b.ru');
+    await handle(req('PUT', `devices/${DEVICE}`, { token, body: sub }), d);
+    await handle(req('PUT', 'schedule', { token, body: { items: [item('due', 1_000_100), item('later', 5_000_000), item('dropped', 6_000_000)] } }), d);
+    await handle(req('POST', `devices/${DEVICE}/snooze`, { token, body: item('z', 1_000_200) }), d);
+    // Момент напоминания прошёл; открытое приложение через мгновение присылает расписание «от сейчас», уже без него
+    now = 1_000_350;
+    await handle(req('PUT', 'schedule', { token, body: { items: [item('later', 5_000_000)] } }), d);
+    expect(await sendDue(d)).toBe(2);
+    expect(sent.sort()).toEqual(['due', 'z']);
+    // Повторная отправка того же расписания не дублирует, а убранное из будущего не приходит
+    await handle(req('PUT', 'schedule', { token, body: { items: [item('due', 1_000_100), item('later', 5_000_000)] } }), d);
+    now = 7_000_000;
+    expect(await sendDue(d)).toBe(1);
+    expect(sent.sort()).toEqual(['due', 'later', 'z']);
+  });
+
   it('расписание по устаревшим данным не принимается и не стирает свежее', async () => {
     const sent: string[] = [];
     const d = mk({ send: (_e, _to, data) => (sent.push((data as { key: string }).key), Promise.resolve({ status: 201, detail: '' })) });

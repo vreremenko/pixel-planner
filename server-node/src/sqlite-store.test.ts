@@ -25,6 +25,16 @@ describe('SqliteStore: синхронизация и напоминания', ()
     s.close();
   });
 
+  it('замена расписания не трогает наступившие и отложенные напоминания', async () => {
+    const s = new SqliteStore(':memory:');
+    await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    await s.scheduleReplace(DEVICE, [item('due', 900), item('future', 2000)], 500);
+    await s.reminderSnooze(DEVICE, item('k#snooze1500', 1500));
+    await s.scheduleReplace(DEVICE, [], 1000);
+    expect((await s.dueReminders(3000, 200)).map((d) => d.key)).toEqual(['due', 'k#snooze1500']);
+    s.close();
+  });
+
   it('проверка доставки: номер записей, статус устройств, журнал и расписание', async () => {
     const s = new SqliteStore(':memory:');
     expect(await s.syncSeq('u1')).toBe(0);

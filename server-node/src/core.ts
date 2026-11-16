@@ -59,6 +59,7 @@ const MAX_SYNC_TOTAL = 50_000;
 const MAX_SYNC_PULL = 300;
 const MAX_SYNC_PULL_BYTES = 500_000;
 const STALE_MS = 6 * 3_600_000;
+const PUSH_TIMEOUT_MS = 15_000;
 const SYNC_TABLE_SET = new Set<string>(SYNC_TABLES);
 /** Сессия живёт, пока ею пользуются: не заходили больше года — нужно войти заново. */
 const SESSION_MAX_IDLE_MS = 365 * 86_400_000;
@@ -277,7 +278,8 @@ async function sendOne(env: Env, to: { endpoint: string; p256dh: string; auth: s
   const vapid = { subject: env.VAPID_SUBJECT ?? '', publicKey: env.VAPID_PUBLIC_KEY ?? '', privateKey: env.VAPID_PRIVATE_KEY ?? '' };
   const subscription: PushSubscription = { endpoint: to.endpoint, expirationTime: null, keys: { p256dh: to.p256dh, auth: to.auth } };
   const payload = await buildPushPayload({ data: JSON.stringify(data), options: { ttl: 3600, urgency: 'high' } }, subscription, vapid);
-  const res = await fetch(to.endpoint, payload);
+  // Без срока один зависший запрос к сервису push задерживал бы всю рассылку, включая Telegram
+  const res = await fetch(to.endpoint, { ...payload, signal: AbortSignal.timeout(PUSH_TIMEOUT_MS) });
   const detail = res.ok ? '' : (await res.text()).slice(0, 300);
   if (!res.ok) console.warn('push failed', res.status, new URL(to.endpoint).host, detail);
   return { status: res.status, detail };
@@ -910,11 +912,16 @@ export async function sendDue(d: Deps): Promise<number> {
       const kind = deviceKind(r.endpoint);
       // Ошибку доставки видно человеку в настройках («Проверка доставки»), а не только в логах сервера
       // Повторяемые ошибки (сервис push занят) пишем в журнал один раз, когда попытки кончились
+      // Запись в журнал не должна ломать саму рассылку: её сбой только пишем в лог
       const fail = async (text: string, final = true) => {
-        await d.store.deviceReport(r.deviceId, now, text);
-        if (!final) return;
-        const owner = await d.store.deviceOwner(r.deviceId);
-        if (owner) await d.store.pushEventAdd(owner, { at: now, device: kind, text: `«${r.title}»: ${text}` });
+        try {
+          await d.store.deviceReport(r.deviceId, now, text);
+          if (!final) return;
+          const owner = await d.store.deviceOwner(r.deviceId);
+          if (owner) await d.store.pushEventAdd(owner, { at: now, device: kind, text: `«${r.title}»: ${text}` });
+        } catch (e) {
+          console.warn('журнал доставки не записан', e);
+        }
       };
       if (now - r.fireAt > STALE_MS) {
         await fail('не отправлено вовремя: сервер не смог доставить за 6 часов');
@@ -928,7 +935,7 @@ export async function sendDue(d: Deps): Promise<number> {
           gone.add(r.deviceId);
         } else if (status < 300) {
           sent++;
-          await d.store.deviceReport(r.deviceId, now, null);
+          await d.store.deviceReport(r.deviceId, now, null).catch((e: unknown) => { console.warn('журнал доставки не записан', e); });
         } else {
           const again = status === 429 || status >= 500;
           if (again) retry.add(`${r.deviceId}|${r.key}`);
