@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -36,6 +36,37 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+  # Сервер: собранный файл уходит на VPS по ключу, который умеет только принять сборку и перезапустить службу
+  # (настройка — server-node/setup-autodeploy.sh). Идёт только после успешных проверок; если сервер не изменился,
+  # перезапуска нет; если новая сборка не поднялась, сервер сам возвращает прежнюю.
+  server:
+    needs: build
+    if: vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: server
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:node
+      - name: Выкладка на сервер
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          tar -cf - -C server-node/dist server.mjs backup.mjs | ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ConnectionAttempts=3 "ppdeploy@$DEPLOY_HOST"
+          rm -f ~/.ssh/deploy
 
   deploy:
     needs: build
