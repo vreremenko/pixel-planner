@@ -904,10 +904,15 @@ export async function sendDue(d: Deps): Promise<number> {
   const due: DueRow[] = await d.store.dueReminders(now, 200);
   const gone = new Set<string>();
   const retry = new Set<string>();
+  // Одно напоминание на один адрес — один раз, даже если адрес записан дважды
+  const seen = new Set<string>();
   let sent = 0;
   await Promise.all(
     due.map(async (r) => {
       if (gone.has(r.deviceId)) return;
+      const once = `${r.endpoint}|${r.key}`;
+      if (seen.has(once)) return;
+      seen.add(once);
       const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body: r.body, fireAt: r.fireAt };
       const kind = deviceKind(r.endpoint);
       // Ошибку доставки видно человеку в настройках («Проверка доставки»), а не только в логах сервера

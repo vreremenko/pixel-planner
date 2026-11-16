@@ -100,6 +100,7 @@ export class MemoryStore implements Store {
   }
 
   deviceUpsert(d: Device): Promise<void> {
+    for (const [id, other] of this.devices) if (other.endpoint === d.endpoint && id !== d.id) void this.deviceDelete(id);
     const cur = this.devices.get(d.id);
     this.devices.set(d.id, { lastOkAt: null, lastErrAt: null, lastErr: null, createdAt: d.now, ...cur, endpoint: d.endpoint, p256dh: d.p256dh, auth: d.auth, userId: cur?.userId ?? d.userId, updatedAt: d.now });
     return Promise.resolve();

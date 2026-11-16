@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { handle } from './core.ts';
 import { json, mk, register, req } from './test-helpers.ts';
 import { SqliteStore } from './sqlite-store.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { ScheduleItem } from './types.ts';
 
 const DEVICE = '11111111-1111-4111-8111-111111111111';
@@ -23,6 +27,40 @@ describe('SqliteStore: синхронизация и напоминания', ()
     await s.syncPush('sp', [rec('d', 9)]);
     expect((await s.syncPull('sp', cursor, 100)).map((r) => r.id)).toEqual(['d']);
     s.close();
+  });
+
+  it('один адрес подписки — одно устройство: повторная регистрация под новым номером не даёт второго уведомления', async () => {
+    const s = new SqliteStore(':memory:');
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    await s.deviceUpsert({ id: DEVICE, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 1 });
+    await s.scheduleReplace(DEVICE, [item('a', 900)], 500);
+    await s.deviceUpsert({ id: OTHER, userId: 'u1', endpoint: 'https://push.test/x', p256dh: 'k', auth: 'a', now: 2 });
+    await s.scheduleReplace(OTHER, [item('a', 900)], 500);
+    expect(await s.devicesOfUser('u1')).toEqual([OTHER]);
+    expect((await s.dueReminders(1000, 200)).map((d) => d.deviceId)).toEqual([OTHER]);
+    // Тот же номер с новым адресом — обычное обновление подписки
+    await s.deviceUpsert({ id: OTHER, userId: 'u1', endpoint: 'https://push.test/y', p256dh: 'k', auth: 'a', now: 3 });
+    expect(await s.devicesOfUser('u1')).toEqual([OTHER]);
+    s.close();
+  });
+
+  it('при запуске убирает накопившиеся дубли одного адреса, оставляя свежую запись', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pp-'));
+    const file = join(dir, 'db.sqlite');
+    new SqliteStore(file).close();
+    const raw = new DatabaseSync(file);
+    const dev = raw.prepare('INSERT INTO devices (id, user_id, endpoint, p256dh, auth, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    dev.run('old', 'u1', 'https://push.test/x', 'k', 'a', 1, 1);
+    dev.run('new', 'u1', 'https://push.test/x', 'k', 'a', 2, 2);
+    dev.run('mac', 'u1', 'https://push.test/mac', 'k', 'a', 1, 1);
+    const rem = raw.prepare("INSERT INTO reminders (device_id, key, fire_at, kind, ref, date, title, body, sent) VALUES (?, 'a', 900, 'task', 'r', '2026-01-01', 't', '', 0)");
+    for (const id of ['old', 'new', 'mac']) rem.run(id);
+    raw.close();
+    const s = new SqliteStore(file);
+    expect((await s.devicesOfUser('u1')).sort()).toEqual(['mac', 'new']);
+    expect((await s.dueReminders(1000, 200)).map((d) => d.deviceId).sort()).toEqual(['mac', 'new']);
+    s.close();
+    rmSync(dir, { recursive: true });
   });
 
   it('замена расписания не трогает наступившие и отложенные напоминания', async () => {

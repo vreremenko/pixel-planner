@@ -69,6 +69,9 @@ export class SqliteStore implements Store {
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_telegram ON users (telegram_id) WHERE telegram_id IS NOT NULL');
     this.db.exec('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id IS NULL)');
     this.db.exec('DELETE FROM devices WHERE user_id IS NULL');
+    // Дубли одного адреса подписки, накопившиеся до того, как их стала убирать регистрация: оставляем самую свежую запись
+    const dupes = 'SELECT d.id FROM devices d WHERE EXISTS (SELECT 1 FROM devices n WHERE n.endpoint = d.endpoint AND (n.updated_at > d.updated_at OR (n.updated_at = d.updated_at AND n.id > d.id)))';
+    this.db.exec(`DELETE FROM reminders WHERE device_id IN (${dupes}); DELETE FROM devices WHERE id IN (${dupes});`);
   }
 
   close(): void {
@@ -185,12 +188,18 @@ export class SqliteStore implements Store {
   }
 
   deviceUpsert(d: Device): Promise<void> {
-    this.db
-      .prepare(
-        `INSERT INTO devices (id, user_id, endpoint, p256dh, auth, created_at, updated_at) VALUES (?1, ?6, ?2, ?3, ?4, ?5, ?5)
-         ON CONFLICT(id) DO UPDATE SET endpoint = ?2, p256dh = ?3, auth = ?4, updated_at = ?5`,
-      )
-      .run(d.id, d.endpoint, d.p256dh, d.auth, d.now, d.userId);
+    this.tx(() => {
+      // Один адрес подписки — одно устройство. Приложение могло зарегистрироваться заново под новым номером
+      // (потеряло локальные данные, вошли в другой аккаунт): старая запись с тем же адресом слала бы второе уведомление.
+      this.db.prepare('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE endpoint = ? AND id <> ?)').run(d.endpoint, d.id);
+      this.db.prepare('DELETE FROM devices WHERE endpoint = ? AND id <> ?').run(d.endpoint, d.id);
+      this.db
+        .prepare(
+          `INSERT INTO devices (id, user_id, endpoint, p256dh, auth, created_at, updated_at) VALUES (?1, ?6, ?2, ?3, ?4, ?5, ?5)
+           ON CONFLICT(id) DO UPDATE SET endpoint = ?2, p256dh = ?3, auth = ?4, updated_at = ?5`,
+        )
+        .run(d.id, d.endpoint, d.p256dh, d.auth, d.now, d.userId);
+    });
     return Promise.resolve();
   }
 
