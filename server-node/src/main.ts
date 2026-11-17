@@ -19,6 +19,7 @@ const env: Env = {
   TELEGRAM_BOT_NAME: process.env.TELEGRAM_BOT_NAME,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   TELEGRAM_RELAY_KEY: process.env.TELEGRAM_RELAY_KEY,
+  TELEGRAM_RELAY_URL: process.env.TELEGRAM_RELAY_URL,
   APP_URL: process.env.APP_URL,
 };
 const sendMail = createMailer(process.env);

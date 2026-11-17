@@ -121,8 +121,12 @@ async function getJson<T>(d: RemoteDeps, kind: string, id: string): Promise<T | 
 }
 
 /** Описания для нейросети: где ресурс и где входить. */
-export function wellKnown(req: HttpReq, path: string): HttpRes {
+export function wellKnown(req: HttpReq, path: string, relayUrl?: string): HttpRes {
   const base = baseUrl(req);
+  // Страницу входа открывает браузер человека, а через часть VPN наш сервер в России не открывается:
+  // её адрес — через посредника на Cloudflare (он пересылает /api/* как есть). Ключи и действия нейросеть
+  // получает со своих серверов напрямую.
+  const browserBase = relayUrl && /^https:\/\/[a-z0-9.-]+\/?$/i.test(relayUrl) ? relayUrl.replace(/\/$/, '') : base;
   const doc = path.slice('.well-known/'.length);
   if (doc === 'oauth-protected-resource' || doc.startsWith('oauth-protected-resource/')) {
     return json({ resource: `${base}/api/mcp`, authorization_servers: [base], bearer_methods_supported: ['header'], resource_name: 'PIXEL PLANNER', scopes_supported: ['planner'] });
@@ -130,7 +134,7 @@ export function wellKnown(req: HttpReq, path: string): HttpRes {
   if (doc === 'oauth-authorization-server' || doc.startsWith('oauth-authorization-server/') || doc === 'openid-configuration') {
     return json({
       issuer: base,
-      authorization_endpoint: `${base}/api/oauth/authorize`,
+      authorization_endpoint: `${browserBase}/api/oauth/authorize`,
       token_endpoint: `${base}/api/oauth/token`,
       registration_endpoint: `${base}/api/oauth/register`,
       response_types_supported: ['code'],

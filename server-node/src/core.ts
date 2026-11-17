@@ -31,6 +31,8 @@ export interface Env {
   APP_URL?: string;
   /** Этим ключом посредник подтверждает, что обновление пришло через него. */
   TELEGRAM_RELAY_KEY?: string;
+  /** Адрес посредника на Cloudflare: через него открывается страница входа нейросетей, если сервер недоступен через VPN. */
+  TELEGRAM_RELAY_URL?: string;
 }
 
 export interface Deps {
@@ -784,7 +786,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   // MCP в интернете и вход нейросетей через OAuth
-  if (parts[0] === '.well-known' && req.method === 'GET') return wellKnown(req, req.path);
+  if (parts[0] === '.well-known' && req.method === 'GET') return wellKnown(req, req.path, d.env.TELEGRAM_RELAY_URL);
   if (parts[0] === 'oauth') return oauth(req, remoteDeps(d, now), parts);
   if (parts[0] === 'mcp' && parts.length === 1) return mcp(req, remoteDeps(d, now));
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта

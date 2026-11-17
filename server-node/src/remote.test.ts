@@ -41,6 +41,9 @@ describe('MCP в интернете и вход через OAuth', () => {
     const no = await handle(rpc(undefined, 'initialize'), d);
     expect(no.status).toBe(401);
     expect(no.headers['www-authenticate']).toContain(`resource_metadata="https://${HOST}/.well-known/oauth-protected-resource/api/mcp"`);
+    // Страница входа — через посредника, если он настроен; остальное — напрямую
+    const viaRelay = json(await handle(at(req('GET', '.well-known/oauth-authorization-server')), mk({ env: { APP_URL: APP, TELEGRAM_RELAY_URL: 'https://relay.test/' } })));
+    expect(viaRelay).toMatchObject({ authorization_endpoint: 'https://relay.test/api/oauth/authorize', token_endpoint: `https://${HOST}/api/oauth/token` });
     const pre = await handle(at({ method: 'OPTIONS', path: 'mcp', query: {}, headers: { origin: 'https://chatgpt.com' }, body: '' }), d);
     expect(pre.headers['access-control-allow-origin']).toBe('*');
   });
