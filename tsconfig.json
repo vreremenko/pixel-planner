@@ -12,9 +12,6 @@
     },
     {
       "path": "./tsconfig.node-server.json"
-    },
-    {
-      "path": "./tsconfig.mcp.json"
     }
   ]
 }
