@@ -223,7 +223,7 @@ describe('SqliteStore: ключи доступа', () => {
     await s.userCreate({ id: 'u', email: 'a@b.ru', passHash: 'h', now: 1 });
     await s.apiKeyCreate({ id: 'k', userId: 'u', name: 'MCP', keyHash: 'hash', now: 5 });
     expect(await s.apiKeyUser('hash', 4_000_000)).toBe('u');
-    expect(await s.apiKeysOfUser('u')).toEqual([{ id: 'k', name: 'MCP', createdAt: 5, lastUsedAt: 4_000_000 }]);
+    expect(await s.apiKeysOfUser('u')).toEqual([{ id: 'k', name: 'MCP', createdAt: 5, lastUsedAt: 4_000_000, oauth: false }]);
     await s.apiKeyDelete('other', 'k');
     expect(await s.apiKeyUser('hash', 1)).toBe('u');
     await s.userDelete('u');

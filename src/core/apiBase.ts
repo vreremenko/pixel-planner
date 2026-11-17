@@ -19,6 +19,9 @@ let lastProbe = 0;
 
 export const apiUrl = (path: string): string => new URL(`api/${path}`, root(viaFallback && fallback ? fallback : base)).href;
 
+/** Адрес MCP для нейросетей в интернете: всегда основной сервер, запасной вход для них не нужен. */
+export const mcpUrl = (): string => new URL('api/mcp', root(base)).href;
+
 /** Идут ли запросы через запасной вход (тогда синхронизация спрашивает сервер реже: у посредника лимит запросов). */
 export const isViaFallback = (): boolean => viaFallback;
 

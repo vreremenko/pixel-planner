@@ -44,8 +44,10 @@ const server = createServer((req, res) => {
   void (async () => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
-      const i = url.pathname.indexOf('/api/');
-      if (i < 0) {
+      // Описания входа для нейросетей лежат в корне сайта (/.well-known/…), остальное — под /api/
+      const wk = url.pathname.startsWith('/.well-known/');
+      const i = wk ? -4 : url.pathname.indexOf('/api/');
+      if (i < 0 && !wk) {
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end('PIXEL PLANNER API');
         return;
       }
@@ -62,7 +64,7 @@ const server = createServer((req, res) => {
       const headers: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k.toLowerCase()] = v;
       const out = await handle(
-        { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: url.pathname.slice(i + 5).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
+        { ip: clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress), method: req.method ?? 'GET', path: (wk ? url.pathname.slice(1) : url.pathname.slice(i + 5)).replace(/\/+$/, ''), query: Object.fromEntries(url.searchParams), headers, body: Buffer.concat(chunks).toString('utf8') },
         deps,
       );
       res.writeHead(out.status, out.headers).end(out.status === 204 ? undefined : out.body);

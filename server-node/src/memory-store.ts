@@ -1,4 +1,4 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, OAuthGrant, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -12,7 +12,8 @@ export class MemoryStore implements Store {
   private activity = new Set<string>();
   private codes = new Map<string, EmailCode>();
   private tgCodes = new Map<string, TelegramCode>();
-  private apiKeys = new Map<string, ApiKeyInfo & { userId: string; keyHash: string }>();
+  private apiKeys = new Map<string, ApiKeyInfo & { userId: string; keyHash: string; clientId?: string; refreshHash?: string; expiresAt?: number }>();
+  private oauthItems = new Map<string, { data: string; expiresAt: number }>();
   private reminders = new Map<string, ScheduleItem & { deviceId: string; sent: boolean }>();
 
   syncPull(space: string, after: number, limit: number): Promise<SyncRow[]> {
@@ -197,12 +198,12 @@ export class MemoryStore implements Store {
   }
 
   apiKeyCreate(k: { id: string; userId: string; name: string; keyHash: string; now: number }): Promise<void> {
-    this.apiKeys.set(k.id, { id: k.id, userId: k.userId, name: k.name, keyHash: k.keyHash, createdAt: k.now, lastUsedAt: null });
+    this.apiKeys.set(k.id, { id: k.id, userId: k.userId, name: k.name, keyHash: k.keyHash, createdAt: k.now, lastUsedAt: null, oauth: false });
     return Promise.resolve();
   }
 
   apiKeysOfUser(userId: string): Promise<ApiKeyInfo[]> {
-    return Promise.resolve([...this.apiKeys.values()].filter((k) => k.userId === userId).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })));
+    return Promise.resolve([...this.apiKeys.values()].filter((k) => k.userId === userId).map(({ id, name, createdAt, lastUsedAt, oauth }) => ({ id, name, createdAt, lastUsedAt, oauth })));
   }
 
   apiKeyDelete(userId: string, id: string): Promise<void> {
@@ -212,9 +213,37 @@ export class MemoryStore implements Store {
 
   apiKeyUser(keyHash: string, now: number): Promise<string | null> {
     const k = [...this.apiKeys.values()].find((x) => x.keyHash === keyHash);
-    if (!k) return Promise.resolve(null);
+    if (!k || (k.expiresAt !== undefined && k.expiresAt <= now)) return Promise.resolve(null);
     k.lastUsedAt = now;
     return Promise.resolve(k.userId);
+  }
+
+  oauthItemPut(kind: string, id: string, data: string, expiresAt: number): Promise<void> {
+    this.oauthItems.set(`${kind}|${id}`, { data, expiresAt });
+    return Promise.resolve();
+  }
+
+  oauthItemGet(kind: string, id: string, now: number): Promise<string | null> {
+    const r = this.oauthItems.get(`${kind}|${id}`);
+    return Promise.resolve(r && (r.expiresAt === 0 || r.expiresAt > now) ? r.data : null);
+  }
+
+  oauthItemDelete(kind: string, id: string): Promise<void> {
+    this.oauthItems.delete(`${kind}|${id}`);
+    return Promise.resolve();
+  }
+
+  oauthGrantSave(g: OAuthGrant): Promise<void> {
+    for (const [k, v] of this.apiKeys) if (v.userId === g.userId && v.clientId === g.clientId) this.apiKeys.delete(k);
+    this.apiKeys.set(g.id, { id: g.id, userId: g.userId, name: g.name, keyHash: g.keyHash, createdAt: g.now, lastUsedAt: null, oauth: true, clientId: g.clientId, refreshHash: g.refreshHash, expiresAt: g.expiresAt });
+    return Promise.resolve();
+  }
+
+  oauthRefresh(refreshHash: string, next: { keyHash: string; refreshHash: string; expiresAt: number }, now: number): Promise<{ userId: string; clientId: string } | null> {
+    const k = [...this.apiKeys.values()].find((x) => x.refreshHash === refreshHash);
+    if (!k?.clientId) return Promise.resolve(null);
+    Object.assign(k, { ...next, lastUsedAt: now });
+    return Promise.resolve({ userId: k.userId, clientId: k.clientId });
   }
 
   tgCodeGet(codeHash: string): Promise<TelegramCode | null> {

@@ -4,6 +4,7 @@ import { Layout } from './Layout';
 import { RouteError } from './RouteError';
 import { SettingsScreen } from '../settings/SettingsScreen';
 import { AccountScreen } from '../account/AccountScreen';
+import { ConnectScreen } from '../account/ConnectScreen';
 import { Dashboard } from './Dashboard';
 import { MoreScreen } from './MoreScreen';
 import { MODULES } from '../../modules';
@@ -34,6 +35,7 @@ const router = createHashRouter([
       { path: 'more', element: <MoreScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
       { path: 'account', element: <AccountScreen /> },
+      { path: 'connect', element: <ConnectScreen /> },
       { path: 'admin', element: <AdminScreen /> },
       // Неизвестный адрес — сводка
       { path: '*', element: <Dashboard /> },

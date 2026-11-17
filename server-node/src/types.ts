@@ -73,6 +73,20 @@ export interface ApiKeyInfo {
   name: string;
   createdAt: number;
   lastUsedAt: number | null;
+  /** Выдан входом OAuth (ChatGPT, claude.ai…), а не создан вручную. */
+  oauth: boolean;
+}
+
+/** Доступ, выданный нейросети через OAuth: в базе только хеши ключа и ключа продления. */
+export interface OAuthGrant {
+  id: string;
+  userId: string;
+  name: string;
+  clientId: string;
+  keyHash: string;
+  refreshHash: string;
+  expiresAt: number;
+  now: number;
 }
 
 export type CodeKind = 'verify' | 'reset';
@@ -212,8 +226,16 @@ export interface Store {
   apiKeyCreate(k: { id: string; userId: string; name: string; keyHash: string; now: number }): Promise<void>;
   apiKeysOfUser(userId: string): Promise<ApiKeyInfo[]>;
   apiKeyDelete(userId: string, id: string): Promise<void>;
-  /** Владелец ключа; заодно отмечает время использования. */
+  /** Владелец ключа (истёкший не считается); заодно отмечает время использования. */
   apiKeyUser(keyHash: string, now: number): Promise<string | null>;
+  /** Временные записи OAuth (клиенты, запросы разрешения, коды): data — JSON; expiresAt 0 — бессрочно. */
+  oauthItemPut(kind: string, id: string, data: string, expiresAt: number, now: number): Promise<void>;
+  oauthItemGet(kind: string, id: string, now: number): Promise<string | null>;
+  oauthItemDelete(kind: string, id: string): Promise<void>;
+  /** Выдать доступ; прежний доступ того же клиента у этого пользователя заменяется. */
+  oauthGrantSave(g: OAuthGrant): Promise<void>;
+  /** Продлить доступ по ключу продления: старые ключи перестают действовать. null — ключ неизвестен. */
+  oauthRefresh(refreshHash: string, next: { keyHash: string; refreshHash: string; expiresAt: number }, now: number): Promise<{ userId: string; clientId: string } | null>;
   tgCodeGet(codeHash: string): Promise<TelegramCode | null>;
   tgCodeDelete(codeHash: string): Promise<void>;
 

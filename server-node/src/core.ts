@@ -12,6 +12,8 @@ import { parseUpdate, type BotEvent, type TelegramApi } from './telegram.ts';
 import { checkInitData, isTelegramOnly, telegramEmail } from './webapp.ts';
 import type { CodeKind, DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
+import { HttpError, SAFE_HEADERS, json, readJson } from './http.ts';
+import { PUBLIC_CORS, isPublicPath, mcp, oauth, wellKnown, type RemoteDeps } from './remote.ts';
 
 export interface Env {
   VAPID_PUBLIC_KEY?: string;
@@ -50,7 +52,6 @@ export interface Deps {
 
 const DAY_MS = 86_400_000;
 const MAX_ITEMS = 500;
-const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
 /** Потолок записей на аккаунт: обычному человеку хватит на много лет, а диск сервера одним аккаунтом не забить. */
@@ -118,31 +119,12 @@ interface OffCached {
   body: string;
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 
 const defaultLimiter = new RateLimiter();
 const defaultOffCache = new Map<string, OffCached>();
 
-/** Ответы с данными не должны оседать ни в чьём кэше. */
-const SAFE_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
-const json = (data: unknown, status = 200): HttpRes => ({ status, headers: { ...SAFE_HEADERS }, body: JSON.stringify(data) });
 const str = (v: unknown, max: number): string | null => (typeof v === 'string' && v.length > 0 ? v.slice(0, max) : null);
 
-function readJson(body: string, limit = MAX_BODY_BYTES): unknown {
-  if (body.length > limit) throw new HttpError(413, 'too large');
-  try {
-    return JSON.parse(body) as unknown;
-  } catch {
-    throw new HttpError(400, 'bad json');
-  }
-}
 
 function parseItem(x: unknown): ScheduleItem | null {
   if (typeof x !== 'object' || x === null) return null;
@@ -766,6 +748,20 @@ function deviceKind(endpoint: string): string {
   return 'other';
 }
 
+function remoteDeps(d: Deps, now: number): RemoteDeps {
+  return {
+    store: d.store,
+    limiter: d.limiter ?? defaultLimiter,
+    now,
+    appUrl: d.env.APP_URL ?? DEFAULT_APP_URL,
+    sessionUser: async (req) => (await requireUser(req, d)).userId,
+    keyUser: async (req) => (await requireUser(req, d, true)).userId,
+    checkQuota: async (userId, adding) => {
+      if ((await d.store.syncCount(userId)) + adding > MAX_SYNC_TOTAL) throw new HttpError(413, 'quota');
+    },
+  };
+}
+
 /** Заменить расписание на всех устройствах пользователя; возвращает число принятых напоминаний. */
 async function replaceUserSchedule(d: Deps, userId: string, raw: unknown[] | undefined, now: number): Promise<number> {
   if (!Array.isArray(raw)) throw new HttpError(400, 'items required');
@@ -787,6 +783,10 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
+  // MCP в интернете и вход нейросетей через OAuth
+  if (parts[0] === '.well-known' && req.method === 'GET') return wellKnown(req, req.path);
+  if (parts[0] === 'oauth') return oauth(req, remoteDeps(d, now), parts);
+  if (parts[0] === 'mcp' && parts.length === 1) return mcp(req, remoteDeps(d, now));
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
   if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {
     const { userId } = await requireUser(req, d);
@@ -874,7 +874,7 @@ function viaRelay(req: HttpReq, env: Env): HttpReq {
 /** Точка входа HTTP: запрос → ответ, с CORS и обработкой ошибок. */
 export async function handle(raw: HttpReq, d: Deps): Promise<HttpRes> {
   const req = viaRelay(raw, d.env);
-  const cors = corsHeaders(req, d.env);
+  const cors = isPublicPath(req.path) ? PUBLIC_CORS : corsHeaders(req, d.env);
   if (req.method === 'OPTIONS') return { status: 204, headers: cors, body: '' };
   try {
     const res = await handleApi(req, d);

@@ -12,6 +12,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { today } from '../src/core/domain/dates';
+import { MCP_INSTRUCTIONS } from '../src/assistant/mcp';
 import { AccountData, type WireRecord } from '../src/assistant/data';
 import { TOOLS, ToolError } from '../src/assistant/tools';
 
@@ -80,9 +81,7 @@ const server = new Server(
   { name: 'pixel-planner', version: '1.0.0' },
   {
     capabilities: { tools: {} },
-    instructions:
-      'Ежедневник PIXEL PLANNER пользователя: задачи, привычки, финансы, питание. Начинайте с get_day, чтобы увидеть данные и id задач. ' +
-      'Суммы в рублях, даты ГГГГ-ММ-ДД или today/tomorrow/yesterday. Удалять и менять записи только по прямой просьбе пользователя. Отвечайте по-русски.',
+    instructions: MCP_INSTRUCTIONS,
   },
 );
 

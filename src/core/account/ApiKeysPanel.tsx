@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createApiKey, deleteApiKey, listApiKeys, type ApiKey } from '../auth/api';
 import { useAuth } from '../auth/store';
 import { formatDateShort, dateOf } from '../domain/dates';
+import { mcpUrl } from '../apiBase';
 import { Button, ConfirmDialog, Modal, Panel, TextInput, rowClass, toast } from '../ui';
 
 const day = (ms: number) => formatDateShort(dateOf(new Date(ms)));
@@ -56,7 +57,17 @@ export function ApiKeysPanel() {
 
   return (
     <Panel title="Ключи доступа" icon="lock" accent="var(--c-habit)">
-      <p style={{ marginTop: 0 }}>Для нейросетей через MCP: Claude, ChatGPT и другие смогут читать ваши задачи, привычки, финансы и питание и добавлять записи. Ключ не даёт менять пароль и удалять аккаунт.</p>
+      <p style={{ marginTop: 0 }}>Для нейросетей через MCP: Claude, ChatGPT и другие смогут читать ваши задачи, привычки, финансы и питание, добавлять и править записи. Доступ не даёт менять пароль и удалять аккаунт.</p>
+      <p>
+        <b>ChatGPT, claude.ai и другие чаты:</b> добавьте коннектор MCP с этим адресом — нейросеть сама попросит вас войти и разрешить доступ:
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <code style={{ overflowWrap: 'anywhere', background: 'var(--c-bg)', padding: '6px 8px', minWidth: 0 }}>{mcpUrl()}</code>
+        <Button small onClick={() => copy(mcpUrl())}>
+          Скопировать
+        </Button>
+      </div>
+      <p style={{ color: 'var(--c-text-dim)' }}>Ниже — подключённые нейросети и ключи для Claude Code на компьютере.</p>
       {keys && keys.length > 0 && (
         <ul style={{ listStyle: 'none', margin: '0 0 12px', padding: 0, display: 'grid', gap: 8 }}>
           {keys.map((k) => (
@@ -65,10 +76,10 @@ export function ApiKeysPanel() {
                 {k.name}
                 <br />
                 <span style={{ color: 'var(--c-text-dim)' }}>
-                  создан {day(k.createdAt)} · {k.lastUsedAt ? `использован ${day(k.lastUsedAt)}` : 'ещё не использован'}
+                  {k.oauth ? 'подключена' : 'создан'} {day(k.createdAt)} · {k.lastUsedAt ? `использован ${day(k.lastUsedAt)}` : 'ещё не использован'}
                 </span>
               </span>
-              <Button small icon="trash" label={`Отозвать ключ «${k.name}»`} onClick={() => setRevoking(k)} />
+              <Button small icon="trash" label={k.oauth ? `Отключить «${k.name}»` : `Отозвать ключ «${k.name}»`} onClick={() => setRevoking(k)} />
             </li>
           ))}
         </ul>
@@ -95,14 +106,14 @@ export function ApiKeysPanel() {
       </Modal>
       <ConfirmDialog
         open={revoking !== null}
-        title="Отозвать ключ?"
-        action="Отозвать"
+        title={revoking?.oauth ? 'Отключить нейросеть?' : 'Отозвать ключ?'}
+        action={revoking?.oauth ? 'Отключить' : 'Отозвать'}
         onClose={() => setRevoking(null)}
         onConfirm={() => {
           if (revoking) deleteApiKey(token, revoking.id).then(reload, fail);
         }}
       >
-        «{revoking?.name}» перестанет работать сразу.
+        «{revoking?.name}» {revoking?.oauth ? 'потеряет доступ сразу. Подключить снова можно в самой нейросети.' : 'перестанет работать сразу.'}
       </ConfirmDialog>
     </Panel>
   );

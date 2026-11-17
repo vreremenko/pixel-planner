@@ -122,7 +122,13 @@ export interface ApiKey {
   name: string;
   createdAt: number;
   lastUsedAt: number | null;
+  /** Нейросеть подключилась сама, через вход (ChatGPT, claude.ai…). */
+  oauth?: boolean;
 }
+
+export const oauthRequest = (token: string, id: string) => call(`oauth/request/${encodeURIComponent(id)}`, { method: 'GET', token }) as Promise<{ client: string; redirectHost: string }>;
+
+export const oauthApprove = (token: string, id: string, allow: boolean) => call('oauth/approve', { method: 'POST', token, body: { id, allow } }) as Promise<{ redirect: string }>;
 
 export const listApiKeys = (token: string) => call('auth/keys', { method: 'GET', token }) as Promise<{ keys: ApiKey[] }>;
 
