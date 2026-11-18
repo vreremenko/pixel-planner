@@ -11,6 +11,7 @@ import { goalView, movedToday } from '../modules/finance/domain/goals';
 import { rub } from '../modules/finance/domain/money';
 import { ALL_DAYS, DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
+import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, type BodyValues } from '../modules/gym/domain/body';
 import { portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
 import { MEALS, type FoodEntry, type FoodItem, type FoodRef, type Macros, type Meal } from '../modules/food/domain/types';
 import { buildOccurrences, overrideId } from '../modules/planner/domain/recurrence';
@@ -350,26 +351,31 @@ const BASE_TOOLS: readonly Tool[] = [
   {
     name: 'find_food',
     title: 'Найти продукт',
-    description: 'Найти продукт в справочнике и своих продуктах пользователя; значения на 100 г.',
+    description:
+      'Найти продукт в справочнике и своих продуктах пользователя; значения на 100 г. Ищите по названию вместе с маркой, если пользователь её назвал. ' +
+      'Если нужного продукта (той же марки и вида) нет — не подставляйте похожий: сами найдите КБЖУ на 100 г в интернете и передайте их в log_food.',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
     readOnly: true,
     run: (data, input) => {
       const found = searchFoods(foodList(data), text(input.query, 'query', 80), 10);
-      return found.length ? found.map((f) => `${f.name}: ${macroText(f)} на 100 г${f.portion ? `, порция ${String(f.portion)} г` : ''}`).join('\n') : 'Ничего не нашёл. Можно записать еду со своими КБЖУ на 100 г.';
+      return found.length ? found.map((f) => `${f.name}: ${macroText(f)} на 100 г${f.portion ? `, порция ${String(f.portion)} г` : ''}`).join('\n') : 'В справочнике нет. Найдите КБЖУ этого продукта на 100 г в интернете (сайт производителя или магазина) и передайте их в log_food — продукт сохранится в «Мои продукты».';
     },
   },
   {
     name: 'log_food',
     title: 'Записать еду',
-    description: 'Записать съеденное. Без КБЖУ ищется продукт в справочнике по названию; иначе передайте значения на 100 г.',
+    description:
+      'Записать съеденное. Без КБЖУ ищется продукт в справочнике и своих продуктах по названию. Если там нет именно этого продукта, найдите его КБЖУ на 100 г в интернете ' +
+      'и передайте kcal, protein, fat, carbs (и brand) — продукт сохранится в «Мои продукты» и в следующий раз найдётся сам. Граммы не названы — возьмите обычную порцию и скажите об этом.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Что съели' },
+        name: { type: 'string', description: 'Что съели, как назвал пользователь (без марки)' },
+        brand: { type: 'string', description: 'Марка или производитель, если известны' },
         grams: { type: 'number', description: 'Сколько граммов' },
         meal: { type: 'string', enum: [...MEAL_IDS], description: 'Приём пищи' },
         date: dateSchema,
-        kcal: { type: 'number', description: 'Ккал на 100 г, если продукта нет в справочнике' },
+        kcal: { type: 'number', description: 'Ккал на 100 г, если продукта нет в справочнике (найдите в интернете)' },
         protein: { type: 'number' },
         fat: { type: 'number' },
         carbs: { type: 'number' },
@@ -383,21 +389,28 @@ const BASE_TOOLS: readonly Tool[] = [
       const grams = Math.round(num(input.grams, 'grams', 1, 5000));
       const meal = MEAL_IDS.find((m) => m === input.meal);
       if (!meal) throw new ToolError(`meal: ${MEAL_IDS.join(', ')}`);
+      const brand = optText(input.brand, 80);
       let food: FoodRef;
+      let saved = false;
       if (input.kcal !== undefined) {
         const m = (k: string) => (input[k] === undefined ? 0 : num(input[k], k, 0, 1000));
-        food = { id: `custom:${ctx.newId()}`, name, kcal: Math.round(num(input.kcal, 'kcal', 0, 1000)), protein: m('protein'), fat: m('fat'), carbs: m('carbs') };
+        const macros = { kcal: Math.round(num(input.kcal, 'kcal', 0, 1000)), protein: m('protein'), fat: m('fat'), carbs: m('carbs') };
+        // Сохраняем в «Мои продукты», чтобы в следующий раз он нашёлся без интернета; тот же продукт обновляем
+        const same = data.all<FoodItem>('food_items').find((f) => f.kind === 'product' && norm(f.name) === norm(name) && norm(f.brand ?? '') === norm(brand ?? ''));
+        const item = data.put<FoodItem>('food_items', { ...(same ?? meta(ctx)), updatedAt: ctx.now, name, kind: 'product', ...macros, ...(brand ? { brand } : {}) });
+        saved = !same;
+        food = { id: item.id, name, ...macros, ...(brand ? { brand } : {}) };
       } else {
-        const found = searchFoods(foodList(data), name, 5);
+        const found = searchFoods(foodList(data), brand ? `${name} ${brand}` : name, 5);
         const exact = found.find((f) => norm(f.name) === norm(name));
         const one = exact ?? (found.length === 1 ? found[0] : undefined);
         if (!one) throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
         food = one;
       }
       const d = date(input.date, ctx);
-      const { id: foodId, name: foodName, brand, portion, kcal, protein, fat, carbs } = food;
-      data.put<FoodEntry>('food_entries', { ...meta(ctx), date: d, meal, grams, foodId, name: foodName, kcal, protein, fat, carbs, ...(brand ? { brand } : {}), ...(portion ? { portion } : {}) });
-      return `${mealLabel(meal)}: ${foodName} ${String(grams)} г — ${macroText(portionOf(food, grams))}.`;
+      const { id: foodId, name: foodName, brand: foodBrand, portion, kcal, protein, fat, carbs } = food;
+      data.put<FoodEntry>('food_entries', { ...meta(ctx), date: d, meal, grams, foodId, name: foodName, kcal, protein, fat, carbs, ...(foodBrand ? { brand: foodBrand } : {}), ...(portion ? { portion } : {}) });
+      return `${mealLabel(meal)}: ${foodName}${foodBrand ? ` (${foodBrand})` : ''} ${String(grams)} г — ${macroText(portionOf(food, grams))}.${saved ? ' Продукт сохранён в «Мои продукты».' : ''}`;
     },
   },
 ];
@@ -641,4 +654,68 @@ function foodList(data: AccountData): FoodRef[] {
   return [...own, ...CATALOG];
 }
 
-export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS];
+// ---------- замеры тела ----------
+
+const metricText = (id: keyof typeof METRICS, v: number) => `${METRICS[id].label} ${String(v)} ${METRICS[id].unit}`;
+const metricProps = Object.fromEntries(METRIC_IDS.map((id) => [id, { type: 'number', description: `${METRICS[id].label}, ${METRICS[id].unit}` }]));
+
+const BODY_TOOLS: readonly Tool[] = [
+  {
+    name: 'get_measurements',
+    title: 'Замеры тела',
+    description: 'Вес и обхваты пользователя: последнее значение каждого показателя с изменением и последние замеры по датам.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'Сколько последних замеров показать, по умолчанию 10' } }, additionalProperties: false },
+    readOnly: true,
+    run: (data, input) => {
+      const entries = data.all<BodyEntry>('gym_body').sort((a, b) => (a.date < b.date ? 1 : -1));
+      if (!entries.length) return 'Замеров пока нет.';
+      const limit = input.limit === undefined ? 10 : Math.round(num(input.limit, 'limit', 1, 100));
+      return [
+        'Последние значения:',
+        ...summaries(entries).map((x) => `  ${metricText(x.id, x.last.value)} (${x.last.date})${x.prev ? `, ${formatDelta(x.last.value - x.prev.value)} к ${x.prev.date}` : ''}${x.first.date !== x.last.date ? `, с ${x.first.date}: ${formatDelta(x.last.value - x.first.value)}` : ''}`),
+        '',
+        'Замеры:',
+        ...entries.slice(0, limit).map((e) => `  ${e.date}: ${METRIC_IDS.filter((id) => e.values[id] !== undefined).map((id) => metricText(id, e.values[id] ?? 0)).join(', ')}`),
+      ].join('\n');
+    },
+  },
+  {
+    name: 'log_measurement',
+    title: 'Записать замер',
+    description: 'Записать вес и/или обхваты (см). Передавайте только названные показатели: за этот день они дописываются к уже записанным.',
+    inputSchema: { type: 'object', properties: { date: dateSchema, ...metricProps }, additionalProperties: false },
+    readOnly: false,
+    run: (data, input, ctx) => {
+      const d = date(input.date, ctx);
+      const values: BodyValues = {};
+      for (const id of METRIC_IDS) if (input[id] !== undefined) values[id] = Math.round(num(input[id], id, 1, 500) * 100) / 100;
+      if (!Object.keys(values).length) throw new ToolError(`Нужен хотя бы один показатель: ${METRIC_IDS.join(', ')}`);
+      const cur = data.get<BodyEntry>('gym_body', bodyId(d));
+      const next = data.put<BodyEntry>('gym_body', { ...(cur ?? { id: bodyId(d), createdAt: ctx.now }), updatedAt: ctx.now, date: d, values: { ...cur?.values, ...values } });
+      return `Замер ${d}: ${METRIC_IDS.filter((id) => next.values[id] !== undefined).map((id) => metricText(id, next.values[id] ?? 0)).join(', ')}.`;
+    },
+  },
+  {
+    name: 'delete_measurement',
+    title: 'Удалить замер',
+    description: 'Удалить замер за дату целиком или отдельные показатели (metrics).' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { date: dateSchema, metrics: { type: 'array', items: { type: 'string', enum: [...METRIC_IDS] } } }, required: ['date'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const d = date(input.date, ctx);
+      const cur = data.get<BodyEntry>('gym_body', bodyId(d));
+      if (!cur) throw new ToolError(`За ${d} замера нет.`);
+      const drop = Array.isArray(input.metrics) ? METRIC_IDS.filter((id) => (input.metrics as unknown[]).includes(id)) : [];
+      const values = Object.fromEntries(Object.entries(cur.values).filter(([id]) => !drop.some((x) => x === id))) as BodyValues;
+      if (drop.length && Object.keys(values).length) {
+        data.put<BodyEntry>('gym_body', { ...cur, values, updatedAt: ctx.now });
+        return `Убрал из замера ${d}: ${drop.map((id) => METRICS[id].label.toLowerCase()).join(', ')}.`;
+      }
+      data.put<BodyEntry>('gym_body', { ...cur, deletedAt: ctx.now, updatedAt: ctx.now });
+      return `Удалил замер за ${d}.`;
+    },
+  },
+];
+
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...BODY_TOOLS];

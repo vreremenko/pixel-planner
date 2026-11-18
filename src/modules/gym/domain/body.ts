@@ -1,9 +1,8 @@
-/* Замеры тела: вес, процент жира и обхваты. Одна запись на день (id = дата), в ней любые из показателей. */
+/* Замеры тела: вес и обхваты. Одна запись на день (id = дата), в ней любые из показателей. */
 import type { LocalDate, SyncMeta } from '../../../core/domain/types';
 
 export const METRICS = {
   weight: { label: 'Вес', unit: 'кг' },
-  fat: { label: 'Жир', unit: '%' },
   neck: { label: 'Шея', unit: 'см' },
   shoulders: { label: 'Плечи', unit: 'см' },
   chest: { label: 'Грудь', unit: 'см' },
