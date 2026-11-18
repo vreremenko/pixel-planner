@@ -146,8 +146,8 @@ describe('синхронизация', () => {
     const d = mk();
     const t = await register(d, 'a@b.ru');
     const gym = (tbl: string, id: string) => ({ t: tbl, id, u: 1, d: JSON.stringify({ id, updatedAt: 1 }) });
-    await handle(req('PUT', 'sync', { token: t, body: { records: [gym('gym_workouts', 'w'), gym('gym_sets', 's'), gym('gym_programs', 'p'), gym('gym_exercises', 'e'), gym('gym_prefs', 'prefs'), gym('food_entries', 'f'), gym('fin_tx', 'm'), gym('gym_unknown', 'z')] } }), d);
-    expect((await pull(d, t)).records.map((r) => r.id).sort()).toEqual(['e', 'f', 'm', 'p', 'prefs', 's', 'w']);
+    await handle(req('PUT', 'sync', { token: t, body: { records: [gym('gym_workouts', 'w'), gym('gym_sets', 's'), gym('gym_programs', 'p'), gym('gym_exercises', 'e'), gym('gym_prefs', 'prefs'), gym('gym_body', 'b'), gym('food_entries', 'f'), gym('fin_tx', 'm'), gym('gym_unknown', 'z')] } }), d);
+    expect((await pull(d, t)).records.map((r) => r.id).sort()).toEqual(['b', 'e', 'f', 'm', 'p', 'prefs', 's', 'w']);
   });
 
   it('вошёл с другого устройства — видит те же данные', async () => {

@@ -5,4 +5,5 @@ export const GYM_TABLES = {
   gym_workouts: 'id, date, updatedAt',
   gym_sets: 'id, workoutId, exerciseId, date, updatedAt',
   gym_prefs: 'id, updatedAt',
+  gym_body: 'id, date, updatedAt',
 };

@@ -1,7 +1,10 @@
 /* Главная раздела: идущая тренировка, следующая по программе, дни программы, история. */
 import { Link, useNavigate } from 'react-router';
 import { Button, Panel, PixelIcon } from '../../../core/ui';
-import { usePrograms, useWorkouts } from '../data/hooks';
+import { useBody, usePrograms, useWorkouts } from '../data/hooks';
+import { METRICS, formatDelta, summaries } from '../domain/body';
+import { formatDateShort } from '../../../core/domain/dates';
+import { formatValue } from '../../../core/domain/numbers';
 import { daysLabel, scheduleFor } from '../domain/logic';
 import { useToday } from '../../../core/shell/useToday';
 import type { Program } from '../domain/types';
@@ -15,7 +18,9 @@ export function GymHome() {
   const todayDate = useToday();
   const programs = usePrograms();
   const workouts = useWorkouts();
+  const body = useBody();
   if (!programs || !workouts) return null;
+  const weight = summaries(body ?? []).find((x) => x.id === 'weight');
   const active = workouts.find((w) => !w.finishedAt);
   const { due: today, done } = scheduleFor(programs, workouts, todayDate);
   const others = programs.filter((p) => !today.includes(p));
@@ -81,6 +86,27 @@ export function GymHome() {
             )}
           </Panel>
         )}
+        <Panel title="Замеры" icon="target" accent="var(--c-gym)">
+          <div className={s.row} style={{ flexWrap: 'wrap' }}>
+            <span className={s.grow}>
+              {weight ? (
+                <>
+                  Вес {formatValue(weight.last.value)}&nbsp;{METRICS.weight.unit}
+                  <br />
+                  <span className={s.dim}>
+                    {formatDateShort(weight.last.date)}
+                    {weight.prev && `, ${formatDelta(weight.last.value - weight.prev.value)}\u00a0${METRICS.weight.unit} к\u00a0прошлому`}
+                  </span>
+                </>
+              ) : (
+                <span className={s.dim}>Вес и обхваты: талия, грудь, шея, руки, ноги — с графиком изменений.</span>
+              )}
+            </span>
+            <Button small icon="right" onClick={() => void navigate('/gym/body')}>
+              Открыть
+            </Button>
+          </div>
+        </Panel>
         <Panel title="История" icon="book" accent="var(--c-gym)">
           {history.length === 0 ? (
             <p className={s.dim} style={{ margin: 0 }}>

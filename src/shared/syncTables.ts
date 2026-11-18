@@ -14,6 +14,7 @@ export const SYNC_TABLES = [
   'gym_workouts',
   'gym_sets',
   'gym_prefs',
+  'gym_body',
   'food_items',
   'food_entries',
   'food_prefs',

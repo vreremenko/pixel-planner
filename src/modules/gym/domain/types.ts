@@ -11,6 +11,7 @@ export const GROUPS = {
   arms: 'Руки',
   legs: 'Ноги',
   core: 'Пресс',
+  neck: 'Шея',
   cardio: 'Кардио',
 } as const;
 export type ExerciseGroup = keyof typeof GROUPS;

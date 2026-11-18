@@ -46,5 +46,5 @@ function maskGrid(rows: readonly string[], masks: readonly [MuscleId, Ellipse[]]
 export const FRONT_GRID = maskGrid(FRONT, FRONT_MASKS);
 export const BACK_GRID = maskGrid(BACK, BACK_MASKS);
 /** Мышцы, которые видны только со спины. */
-export const BACK_ONLY = new Set<MuscleId>(['rearDelts', 'lowerBack', 'glutes', 'hamstrings']);
+export const BACK_ONLY = new Set<MuscleId>(['rearDelts', 'lowerBack', 'glutes', 'hamstrings', 'neckBack']);
 
