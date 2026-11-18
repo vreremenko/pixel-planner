@@ -4,8 +4,8 @@
  * с вызовом инструментов (MCP для Claude, ChatGPT и других; позже — бот и микрофон в приложении).
  * Действия чистые: получают данные и время, возвращают текст ответа и изменения, а отправляет их вызывающий.
  */
-import { addDays, formatDateDay } from '../core/domain/dates';
-import type { LocalDate, SyncMeta } from '../core/domain/types';
+import { formatDateDay } from '../core/domain/dates';
+import type { LocalDate } from '../core/domain/types';
 import { balances, dayPlan, livingTypical, openDues } from '../modules/finance/domain/plan';
 import { goalView, movedToday } from '../modules/finance/domain/goals';
 import { rub } from '../modules/finance/domain/money';
@@ -18,66 +18,13 @@ import { buildOccurrences, overrideId } from '../modules/planner/domain/recurren
 import { isScheduled } from '../modules/planner/domain/streaks';
 import { isCountHabit, type Habit, type HabitLog, type OccurrenceOverride, type Priority, type RecurringSeries, type Task } from '../modules/planner/domain/types';
 import type { AccountData } from './data';
+import { ONLY_ON_REQUEST, TIME_RE, ToolError, date, dateSchema, meta, norm, num, optText, pick, text, type Tool, type ToolContext } from './toolkit';
+import { GYM_TOOLS } from './gymTools';
+import { HABIT_TOOLS } from './habitTools';
 
-export interface ToolContext {
-  now: number;
-  today: LocalDate;
-  newId: () => string;
-}
+export { ToolError, type Tool, type ToolContext } from './toolkit';
 
-export interface Tool {
-  name: string;
-  title: string;
-  description: string;
-  inputSchema: { type: 'object'; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
-  /** Только читает данные. */
-  readOnly: boolean;
-  /** Удаляет или переписывает существующее: вызывать только по прямой просьбе пользователя. */
-  destructive?: boolean;
-  run: (data: AccountData, input: Record<string, unknown>, ctx: ToolContext) => string;
-}
-
-/** Понятная пользователю ошибка: вызывающий показывает её текст как ответ инструмента. */
-export class ToolError extends Error {}
-
-// ---------- разбор параметров ----------
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-const text = (v: unknown, name: string, max = 300): string => {
-  if (typeof v !== 'string' || !v.trim()) throw new ToolError(`Нужен параметр ${name}`);
-  return v.trim().slice(0, max);
-};
-const optText = (v: unknown, max = 300): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
-const num = (v: unknown, name: string, min: number, max: number): number => {
-  const n = typeof v === 'string' ? Number(v.replace(',', '.')) : v;
-  if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max) throw new ToolError(`${name}: нужно число от ${String(min)} до ${String(max)}`);
-  return n;
-};
-/** «today», «tomorrow», «yesterday» или ГГГГ-ММ-ДД. */
-function date(v: unknown, ctx: ToolContext): LocalDate {
-  if (v === undefined || v === null || v === '' || v === 'today') return ctx.today;
-  if (v === 'tomorrow') return addDays(ctx.today, 1);
-  if (v === 'yesterday') return addDays(ctx.today, -1);
-  if (typeof v === 'string' && DATE_RE.test(v)) return v;
-  throw new ToolError('Дата: today, tomorrow, yesterday или ГГГГ-ММ-ДД');
-}
 const kopecks = (rubles: number) => Math.round(rubles * 100);
-const norm = (s: string) => s.toLowerCase().replace(/ё/g, 'е').trim();
-const dateSchema = { type: 'string', description: 'today, tomorrow, yesterday или дата ГГГГ-ММ-ДД; по умолчанию сегодня' };
-const meta = (ctx: ToolContext): SyncMeta => ({ id: ctx.newId(), createdAt: ctx.now, updatedAt: ctx.now });
-
-/** Найти запись по названию: точное совпадение, иначе единственное частичное. */
-function pick<T>(list: readonly T[], query: string, label: (x: T) => string, what: string): T {
-  const q = norm(query);
-  const exact = list.filter((x) => norm(label(x)) === q);
-  if (exact.length === 1 && exact[0]) return exact[0];
-  const part = list.filter((x) => norm(label(x)).includes(q));
-  if (part.length === 1 && part[0]) return part[0];
-  if (part.length === 0) throw new ToolError(`Не нашёл ${what} «${query}». Есть: ${list.map(label).slice(0, 15).join(', ') || 'ничего'}`);
-  throw new ToolError(`Под «${query}» подходит несколько: ${part.map(label).slice(0, 10).join(', ')}. Уточните.`);
-}
 
 // ---------- планировщик ----------
 
@@ -431,7 +378,6 @@ function findTask(data: AccountData, id: string, ctx: ToolContext): FoundTask {
   return { kind: 'occurrence', series, original, override: data.get<OccurrenceOverride>('overrides', oid) ?? { id: oid, seriesId: series.id, date: original, createdAt: ctx.now, updatedAt: ctx.now } };
 }
 
-const ONLY_ON_REQUEST = ' Только по прямой просьбе пользователя.';
 
 const EDIT_TOOLS: readonly Tool[] = [
   {
@@ -718,4 +664,4 @@ const BODY_TOOLS: readonly Tool[] = [
   },
 ];
 
-export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...BODY_TOOLS];
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS];
