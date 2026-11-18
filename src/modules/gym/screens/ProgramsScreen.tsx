@@ -5,6 +5,7 @@ import { useExercises } from '../data/exercises';
 import { usePrograms } from '../data/hooks';
 import type { Program } from '../domain/types';
 import { daysLabel } from '../domain/logic';
+import { programTarget } from '../domain/tracking';
 import { deleteProgram, moveProgram } from '../services/programs';
 import { ProgramEditor } from './ProgramEditor';
 import s from './Gym.module.css';
@@ -53,10 +54,7 @@ export function ProgramsScreen() {
                 {p.items.map((it, j) => (
                   <li key={`${it.exerciseId}-${String(j)}`} className={s.row} style={{ minHeight: 32 }}>
                     <span className={s.grow}>{ex?.byId(it.exerciseId)?.name ?? it.exerciseId}</span>
-                    <span className={s.dim}>
-                      {it.sets} × {it.reps ?? '—'}
-                      {it.weight ? ` · ${String(it.weight)} кг` : ''}
-                    </span>
+                    <span className={s.dim}>{programTarget(it, ex?.byId(it.exerciseId)?.tracking ?? 'weight_reps')}</span>
                   </li>
                 ))}
               </ul>

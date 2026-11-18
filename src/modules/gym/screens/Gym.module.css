@@ -199,3 +199,13 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 var(--gap-3);
 }
+/* Подписи колонок подходов: «кг», «повт.», «сек» */
+.setHead {
+  color: var(--c-text-dim);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+/* Пустые ячейки под флажком и крестиком той же ширины, что кнопки */
+.setHeadPad {
+  width: 44px;
+}

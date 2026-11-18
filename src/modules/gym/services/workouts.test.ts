@@ -23,6 +23,16 @@ describe('сценарии тренировки', () => {
     expect((await setRepo.byWorkout(w2)).map((x) => [x.weight, x.reps])).toEqual([[65, 6], [65, 6]]);
   });
 
+  it('в тренировку по программе попадают цели по времени и дистанции', async () => {
+    const p = await programRepo.save({ name: 'Кор', order: 1, items: [{ exerciseId: 'plank', sets: 2, durationSec: 45 }, { exerciseId: 'running', sets: 1, distanceM: 3000, durationSec: 1200 }] });
+    const sets = await setRepo.byWorkout(await startWorkout(p));
+    expect(sets.map((x) => [x.exerciseId, x.durationSec, x.distanceM, x.reps])).toEqual([
+      ['plank', 45, undefined, undefined],
+      ['plank', 45, undefined, undefined],
+      ['running', 1200, 3000, undefined],
+    ]);
+  });
+
   it('пока идёт тренировка, новая не начинается', async () => {
     const a = await startWorkout();
     expect(await startWorkout()).toBe(a);

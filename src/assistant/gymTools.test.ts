@@ -85,13 +85,28 @@ describe('тренировки через помощника', () => {
   it('создаёт и меняет день программы, тренировка по нему берёт название', () => {
     const data = new AccountData([]);
     expect(run(data, 'save_program', { name: 'Грудь', days: ['пн', 'чт'], exercises: [{ exercise: 'bench-press', sets: 4, reps: '8–12', weight: 60, rest_sec: 120 }] })).toContain(
-      'Жим штанги лёжа: 4 подх. × 8–12, 60 кг, отдых 120 с',
+      'Жим штанги лёжа: 4 × 8–12 · 60 кг, отдых 120 с',
     );
     expect(run(data, 'save_program', { program: 'Грудь', days: [] })).toContain('без расписания');
     expect(run(data, 'list_programs')).toContain('Грудь');
     expect(run(data, 'log_workout', { program: 'грудь', exercises: [{ exercise: 'bench-press', sets: [{ weight: 60, reps: 10 }] }] })).toContain('«Грудь»');
     run(data, 'delete_program', { program: 'Грудь' });
     expect(run(data, 'list_programs')).toBe('Программы пока нет.');
+  });
+
+  it('в программе у упражнений на время и кардио — свои цели, лишние отбрасываются', () => {
+    const data = new AccountData([]);
+    const out = run(data, 'save_program', {
+      name: 'Кор и бег',
+      exercises: [
+        { exercise: 'plank', sets: 3, reps: '10', weight: 5, duration_sec: 45 },
+        { exercise: 'running', sets: 1, distance_km: 5, duration_sec: 1800 },
+      ],
+    });
+    expect(out).toContain('Планка: 3 × 0:45');
+    expect(out).toContain('Бег: 5 км · 30:00');
+    const items = (rows(data, 'gym_programs')[0]?.items ?? []) as Record<string, unknown>[];
+    expect(items[0]).toEqual({ exerciseId: 'plank', sets: 3, durationSec: 45 });
   });
 
   it('своё упражнение: создать, использовать, удалить; справочное удалить нельзя', () => {

@@ -10,10 +10,11 @@ import { CATALOG } from '../modules/gym/domain/catalog';
 import { bestSet, daysLabel, e1rm, formatSet } from '../modules/gym/domain/logic';
 import { MUSCLES, MUSCLE_IDS, type MuscleId } from '../modules/gym/domain/muscles';
 import { GROUPS, type CustomExercise, type ExerciseDef, type ExerciseGroup, type Program, type ProgramItem, type Tracking, type Workout, type WorkoutSet } from '../modules/gym/domain/types';
+import { TRACKINGS, TRACKING_IDS, cleanItem, programTarget } from '../modules/gym/domain/tracking';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, ToolError, date, dateSchema, daysSchema, meta, norm, num, optText, text, weekdays, type Tool, type ToolContext } from './toolkit';
 
-const TRACKING: Record<Tracking, string> = { weight_reps: 'вес × повторы', reps: 'повторы', time: 'время', distance_time: 'дистанция и время' };
+const TRACKING = Object.fromEntries(TRACKING_IDS.map((t) => [t, TRACKINGS[t].label.toLowerCase()])) as Record<Tracking, string>;
 const GROUP_IDS = Object.keys(GROUPS) as ExerciseGroup[];
 
 function exercises(data: AccountData): ExerciseDef[] {
@@ -96,7 +97,7 @@ function findProgram(data: AccountData, query: unknown): Program {
 
 const programLines = (p: Program, defOf: (id: string) => ExerciseDef | undefined) => [
   `${p.name} [id: ${p.id}] — ${daysLabel(p.days)}`,
-  ...p.items.map((i) => `  ${defOf(i.exerciseId)?.name ?? 'Упражнение удалено'}: ${String(i.sets)} подх.${i.reps ? ` × ${i.reps}` : ''}${i.weight ? `, ${String(i.weight)} кг` : ''}${i.restSec ? `, отдых ${String(i.restSec)} с` : ''}`),
+  ...p.items.map((i) => `  ${defOf(i.exerciseId)?.name ?? 'Упражнение удалено'}: ${programTarget(i, defOf(i.exerciseId)?.tracking ?? 'weight_reps')}${i.restSec ? `, отдых ${String(i.restSec)} с` : ''}`),
 ];
 
 const setSchema = {
@@ -244,7 +245,8 @@ export const GYM_TOOLS: readonly Tool[] = [
     title: 'Сохранить день программы',
     description:
       'Создать день программы («Грудь + трицепс») или переписать существующий (program — его название или id). ' +
-      'Переданные exercises заменяют весь список упражнений дня. Менять существующий — только по просьбе пользователя.',
+      'Переданные exercises заменяют весь список упражнений дня. Цели — по типу упражнения: reps и weight для силовых, reps для своего веса, ' +
+      'duration_sec для упражнений на время, distance_km и duration_sec для кардио. Менять существующий — только по просьбе пользователя.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -255,7 +257,15 @@ export const GYM_TOOLS: readonly Tool[] = [
           type: 'array',
           items: {
             type: 'object',
-            properties: { exercise: { type: 'string' }, sets: { type: 'number' }, reps: { type: 'string', description: '«8–12» или «10»' }, weight: { type: 'number' }, rest_sec: { type: 'number' } },
+            properties: {
+              exercise: { type: 'string' },
+              sets: { type: 'number' },
+              reps: { type: 'string', description: '«8–12» или «10»' },
+              weight: { type: 'number', description: 'кг' },
+              duration_sec: { type: 'number' },
+              distance_km: { type: 'number' },
+              rest_sec: { type: 'number' },
+            },
             required: ['exercise', 'sets'],
             additionalProperties: false,
           },
@@ -276,13 +286,19 @@ export const GYM_TOOLS: readonly Tool[] = [
           const x = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
           const def = findExercise(list, x.exercise);
           const reps = typeof x.reps === 'number' ? String(x.reps) : optText(x.reps, 20);
-          return {
-            exerciseId: def.id,
-            sets: Math.round(num(x.sets, 'sets', 1, 20)),
-            ...(reps ? { reps } : {}),
-            ...(x.weight !== undefined ? { weight: num(x.weight, 'weight', 0, 1000) } : {}),
-            ...(x.rest_sec !== undefined ? { restSec: Math.round(num(x.rest_sec, 'rest_sec', 0, 1800)) } : {}),
-          };
+          // Лишние для типа упражнения цели (повторы у планки) отбрасываются
+          return cleanItem(
+            {
+              exerciseId: def.id,
+              sets: Math.round(num(x.sets, 'sets', 1, 20)),
+              ...(reps ? { reps } : {}),
+              ...(x.weight !== undefined ? { weight: num(x.weight, 'weight', 0, 1000) } : {}),
+              ...(x.duration_sec !== undefined ? { durationSec: Math.round(num(x.duration_sec, 'duration_sec', 1, 86_400)) } : {}),
+              ...(x.distance_km !== undefined ? { distanceM: Math.round(num(x.distance_km, 'distance_km', 0.01, 1000) * 1000) } : {}),
+              ...(x.rest_sec !== undefined ? { restSec: Math.round(num(x.rest_sec, 'rest_sec', 0, 1800)) } : {}),
+            },
+            def.tracking,
+          );
         });
       }
       if (!items?.length) throw new ToolError('Нужен список exercises');

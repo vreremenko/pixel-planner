@@ -37,6 +37,10 @@ export interface ProgramItem {
   /** Целевые повторы, свободной строкой: «8–12». */
   reps?: string;
   weight?: number;
+  /** Цель по времени, сек (упражнения на время и кардио). */
+  durationSec?: number;
+  /** Цель по дистанции, м (кардио). */
+  distanceM?: number;
   /** Отдых после подхода, сек; нет — из настроек. */
   restSec?: number;
 }
