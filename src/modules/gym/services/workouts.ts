@@ -2,7 +2,7 @@
 import { today } from '../../../core/domain/dates';
 import { play } from '../../../core/sfx';
 import { IDLE_MS, lastActivity, lastSessionSets } from '../domain/logic';
-import type { Program, WorkoutSet } from '../domain/types';
+import type { Program, ProgramItem, WorkoutSet } from '../domain/types';
 import { setRepo, tables, workoutRepo } from '../data/repo';
 
 /** Начать тренировку: по дню программы (подходы заготовлены, цифры — из прошлого раза или цели) или пустую. */
@@ -25,7 +25,7 @@ export async function startWorkout(program?: Program): Promise<string> {
           date: w.date,
           order: ++order,
           done: false,
-          ...pick(prev, item.weight, Number.isNaN(targetReps) ? undefined : targetReps),
+          ...pick(prev, item, Number.isNaN(targetReps) ? undefined : targetReps),
           ...(item.restSec ? { restSec: item.restSec } : {}),
         });
       }
@@ -35,14 +35,16 @@ export async function startWorkout(program?: Program): Promise<string> {
 }
 
 /** Значения подхода: из прошлого раза, иначе цель программы. */
-function pick(prev: WorkoutSet | undefined, weight?: number, reps?: number): Partial<WorkoutSet> {
+function pick(prev: WorkoutSet | undefined, target?: Pick<ProgramItem, 'weight' | 'durationSec' | 'distanceM'>, reps?: number): Partial<WorkoutSet> {
   const out: Partial<WorkoutSet> = {};
-  const w = prev?.weight ?? weight;
+  const w = prev?.weight ?? target?.weight;
   const r = prev?.reps ?? reps;
+  const d = prev?.durationSec ?? target?.durationSec;
+  const m = prev?.distanceM ?? target?.distanceM;
   if (w !== undefined) out.weight = w;
   if (r !== undefined) out.reps = r;
-  if (prev?.durationSec !== undefined) out.durationSec = prev.durationSec;
-  if (prev?.distanceM !== undefined) out.distanceM = prev.distanceM;
+  if (d !== undefined) out.durationSec = d;
+  if (m !== undefined) out.distanceM = m;
   return out;
 }
 

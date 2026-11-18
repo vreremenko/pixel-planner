@@ -2,15 +2,12 @@
 import { useState } from 'react';
 import { Button, Field, Modal, MultiToggle, Segmented, SelectInput, TextInput, inputClass, toast } from '../../../core/ui';
 import { MUSCLE_IDS, MUSCLES, type MuscleId } from '../domain/muscles';
+import s from './Gym.module.css';
 import { GROUPS, type ExerciseDef, type ExerciseGroup, type Tracking } from '../domain/types';
 import { saveExercise } from '../services/programs';
+import { TRACKINGS, TRACKING_IDS } from '../domain/tracking';
 
-const TRACKING: { value: Tracking; label: string }[] = [
-  { value: 'weight_reps', label: 'Вес × повторы' },
-  { value: 'reps', label: 'Повторы' },
-  { value: 'time', label: 'Время' },
-  { value: 'distance_time', label: 'Дистанция' },
-];
+const TRACKING = TRACKING_IDS.map((value) => ({ value, label: TRACKINGS[value].label }));
 const MUSCLE_OPTIONS = MUSCLE_IDS.map((m) => ({ value: m, label: MUSCLES[m].label }));
 
 export function ExerciseEditor({ open, onClose, exercise, onSaved }: { open: boolean; onClose: () => void; exercise?: ExerciseDef; onSaved?: (id: string) => void }) {
@@ -61,6 +58,10 @@ export function ExerciseEditor({ open, onClose, exercise, onSaved }: { open: boo
       <Field label="Что записывать">
         <Segmented value={tracking} options={TRACKING} onChange={setTracking} label="Что записывать" />
       </Field>
+      <p className={s.hint}>
+        {TRACKINGS[tracking].hint}.
+        {exercise?.custom && tracking !== exercise.tracking && ' Прошлые подходы записаны по-старому: в истории у них останутся только подходящие цифры.'}
+      </p>
       <Field label="Основные мышцы">
         <MultiToggle values={primary} options={MUSCLE_OPTIONS} onChange={setPrimary} label="Основные мышцы" />
       </Field>

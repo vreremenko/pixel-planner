@@ -5,6 +5,7 @@ import { Button, Checkbox, ConfirmDialog, Modal, Panel, cx, toast } from '../../
 import { parseValue, formatValue } from '../../../core/domain/numbers';
 import { useExercises } from '../data/exercises';
 import { useAllSets, usePrefs, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
+import { durationInput, parseDuration } from '../domain/tracking';
 import { exerciseOrder, formatSet, lastSessionSets, programItemsFromSets, summarize, type WorkoutSummary } from '../domain/logic';
 import type { ExerciseDef, Tracking, WorkoutSet } from '../domain/types';
 import { addExercise, addSet, deleteWorkout, finishWorkout, removeExercise, removeSet, toggleSet, updateSet } from '../services/workouts';
@@ -14,16 +15,37 @@ import { ProgramEditor } from './ProgramEditor';
 import { useIsMobile } from '../../../core/shell/topbarSlot';
 import s from './Gym.module.css';
 
-/** Поля подхода по типу записи: [подпись, поле, множитель для ввода]. */
-const FIELDS: Record<Tracking, readonly [string, 'weight' | 'reps' | 'durationSec' | 'distanceM', number][]> = {
-  weight_reps: [['кг', 'weight', 1], ['повт.', 'reps', 1]],
-  reps: [['повт.', 'reps', 1]],
-  time: [['сек', 'durationSec', 1]],
-  distance_time: [['км', 'distanceM', 1000], ['мин', 'durationSec', 60]],
+type SetKey = 'weight' | 'reps' | 'durationSec' | 'distanceM';
+interface CellKind {
+  label: string;
+  key: SetKey;
+  show: (v: number) => string;
+  parse: (t: string) => number | null;
+}
+const number = (label: string, key: SetKey, mult = 1): CellKind => ({
+  label,
+  key,
+  show: (v) => formatValue(v / mult),
+  parse: (t) => {
+    const v = parseValue(t);
+    return v === null ? null : Math.round(v * mult * 100) / 100;
+  },
+});
+const duration = (label: string, plain: 'sec' | 'min'): CellKind => ({ label, key: 'durationSec', show: (v) => durationInput(v, plain), parse: (t) => parseDuration(t, plain) });
+
+/** Поля подхода по типу записи. Время вводится как «1:30» или числом: секунды у упражнений на время, минуты у кардио. */
+const FIELDS: Record<Tracking, readonly CellKind[]> = {
+  weight_reps: [number('кг', 'weight'), number('повт.', 'reps')],
+  reps: [number('повт.', 'reps')],
+  time: [duration('сек', 'sec')],
+  distance_time: [number('км', 'distanceM', 1000), duration('мин', 'min')],
 };
 
-function NumberCell({ value, label, mult, onSave }: { value: number | undefined; label: string; mult: number; onSave: (v: number | undefined) => void }) {
-  const shown = value === undefined ? '' : formatValue(value / mult);
+const RPE: CellKind = { label: 'RPE 1–10', key: 'reps', show: (v) => formatValue(v), parse: parseValue };
+
+function NumberCell({ value, kind, onSave }: { value: number | undefined; kind: CellKind; onSave: (v: number | undefined) => void }) {
+  const { label } = kind;
+  const shown = value === undefined ? '' : kind.show(value);
   const [text, setText] = useState(shown);
   const [prev, setPrev] = useState(shown);
   if (prev !== shown) {
@@ -38,11 +60,28 @@ function NumberCell({ value, label, mult, onSave }: { value: number | undefined;
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
-        const v = parseValue(text);
-        onSave(v === null ? undefined : Math.round(v * mult * 100) / 100);
+        const v = kind.parse(text);
+        // Непонятное значение не стираем молча: возвращаем прежнее
+        if (v === null && text.trim()) setText(shown);
+        else onSave(v ?? undefined);
       }}
       style={{ textAlign: 'center' }}
     />
+  );
+}
+
+/** Подписи колонок над подходами: в заполненном поле подсказки не видно, а «45» без единицы непонятно. */
+function SetHeader({ tracking }: { tracking: Tracking }) {
+  const fields = FIELDS[tracking];
+  return (
+    <div className={cx(s.setRow, s.setHead)} style={fields.length === 1 ? { gridTemplateColumns: '28px 1fr auto auto', minHeight: 0 } : { minHeight: 0 }} aria-hidden="true">
+      <span />
+      {fields.map((f) => (
+        <span key={f.key}>{f.label}</span>
+      ))}
+      <span className={s.setHeadPad} />
+      <span className={s.setHeadPad} />
+    </div>
   );
 }
 
@@ -51,8 +90,8 @@ function SetRow({ set, n, def, rpe, onDone }: { set: WorkoutSet; n: number; def:
   return (
     <div className={cx(s.setRow, set.done && s.setDone)} style={fields.length === 1 ? { gridTemplateColumns: '28px 1fr auto auto' } : undefined}>
       <span className={s.setNum}>{n}</span>
-      {fields.map(([label, key, mult]) => (
-        <NumberCell key={key} label={label} mult={mult} value={set[key]} onSave={(v) => void updateSet(set, { [key]: v })} />
+      {fields.map((f) => (
+        <NumberCell key={f.key} kind={f} value={set[f.key]} onSave={(v) => void updateSet(set, { [f.key]: v })} />
       ))}
       <Checkbox
         checked={set.done}
@@ -66,7 +105,7 @@ function SetRow({ set, n, def, rpe, onDone }: { set: WorkoutSet; n: number; def:
       <Button small variant="ghost" icon="close" label="Убрать подход" onClick={() => void removeSet(set.id)} />
       {rpe && set.done && (
         <div style={{ gridColumn: '2 / -1' }}>
-          <NumberCell label="RPE 1–10" mult={1} value={set.rpe} onSave={(v) => void updateSet(set, { rpe: v === undefined ? undefined : Math.min(10, Math.max(1, v)) })} />
+          <NumberCell kind={RPE} value={set.rpe} onSave={(v) => void updateSet(set, { rpe: v === undefined ? undefined : Math.min(10, Math.max(1, v)) })} />
         </div>
       )}
     </div>
@@ -154,6 +193,7 @@ export function WorkoutScreen() {
               actions={active ? <Button small variant="ghost" icon="trash" label="Убрать упражнение" onClick={() => setRemoving(exId)} /> : undefined}
             >
               <p className={s.hint}>{last.length ? `В прошлый раз: ${last.map((x) => formatSet(x, tracking)).join(', ')}` : 'Первый раз — рекорд по умолчанию'}</p>
+              {mine.length > 0 && <SetHeader tracking={tracking} />}
               {mine.map((set, i) => (
                 <SetRow key={set.id} set={set} n={i + 1} def={def} rpe={prefs.rpe} onDone={() => prefs.restTimer.on && startRest(set.restSec ?? prefs.restTimer.sec)} />
               ))}

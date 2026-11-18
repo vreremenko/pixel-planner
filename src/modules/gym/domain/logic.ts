@@ -1,6 +1,7 @@
 /* Расчёты раздела тренировок: чистые функции без базы. */
 import { WEEKDAYS_SHORT, weekday } from '../../../core/domain/dates';
 import type { LocalDate, Weekday } from '../../../core/domain/types';
+import { formatDuration } from './tracking';
 import type { ExerciseDef, Program, ProgramItem, Tracking, Workout, WorkoutSet } from './types';
 
 /** Расчётный максимум на одно повторение (формула Эпли); null — не силовой подход. */
@@ -99,16 +100,15 @@ export function summarize(workout: Workout, sets: readonly WorkoutSet[], history
 
 /** Короткая запись подхода: «60 × 10», «12 повт.», «1:30», «5 км · 25:00». */
 export function formatSet(s: Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' | 'distanceM'>, tracking: Tracking): string {
-  const time = (sec: number) => `${String(Math.floor(sec / 60))}:${String(sec % 60).padStart(2, '0')}`;
   switch (tracking) {
     case 'weight_reps':
       return `${String(s.weight ?? 0)} × ${String(s.reps ?? 0)}`;
     case 'reps':
       return `${String(s.reps ?? 0)} повт.`;
     case 'time':
-      return time(s.durationSec ?? 0);
+      return formatDuration(s.durationSec ?? 0);
     case 'distance_time':
-      return `${String(Math.round((s.distanceM ?? 0) / 100) / 10)} км${s.durationSec ? ` · ${time(s.durationSec)}` : ''}`;
+      return `${String(Math.round((s.distanceM ?? 0) / 100) / 10)} км${s.durationSec ? ` · ${formatDuration(s.durationSec)}` : ''}`;
   }
 }
 
@@ -133,6 +133,9 @@ export function programItemsFromSets(sets: readonly WorkoutSet[], tracking: (exe
     if ((t === 'weight_reps' || t === 'reps') && reps.length > 0) item.reps = dash(Math.min(...reps), Math.max(...reps));
     const weights = mine.map((s) => s.weight).filter((w): w is number => w !== undefined && w > 0);
     if (t === 'weight_reps' && weights.length > 0) item.weight = Math.max(...weights);
+    const max = (k: 'durationSec' | 'distanceM') => Math.max(0, ...mine.map((s) => s[k] ?? 0));
+    if ((t === 'time' || t === 'distance_time') && max('durationSec') > 0) item.durationSec = max('durationSec');
+    if (t === 'distance_time' && max('distanceM') > 0) item.distanceM = max('distanceM');
     return item;
   });
 }
