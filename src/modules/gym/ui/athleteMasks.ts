@@ -18,6 +18,8 @@ const pair = (cx: number, cy: number, rx: number, ry: number): Ellipse[] => [
 ];
 
 export const FRONT_MASKS: readonly [MuscleId, Ellipse[]][] = [
+  ['neckFront', [[36, 17.4, 2.6, 1.6]]],
+  ['neckSide', [[32.5, 17.4, 1.6, 1.6], [39.5, 17.4, 1.6, 1.6]]],
   ['traps', pair(26.5, 20, 4.5, 2.2)],
   ['frontDelts', pair(20.5, 27, 3, 4.5)],
   ['sideDelts', pair(16, 27, 3.5, 5.5)],
@@ -33,6 +35,8 @@ export const FRONT_MASKS: readonly [MuscleId, Ellipse[]][] = [
 ];
 
 export const BACK_MASKS: readonly [MuscleId, Ellipse[]][] = [
+  ['neckBack', [[37, 16.2, 4, 2.2]]],
+  ['neckSide', [[32.3, 17.5, 1.3, 1.4], [41.7, 17.5, 1.3, 1.4]]],
   ['traps', [[35, 21, 9, 3.5], [35, 27, 5, 4]]],
   ['rearDelts', pair(20.5, 25.5, 3.5, 3.5)],
   ['sideDelts', pair(14.5, 28, 2.5, 4.5)],

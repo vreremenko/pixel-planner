@@ -16,6 +16,9 @@ export const MUSCLES = {
   quads: { label: 'Квадрицепс', letter: 'U' },
   hamstrings: { label: 'Бицепс бедра', letter: 'N' },
   calves: { label: 'Икры', letter: 'V' },
+  neckFront: { label: 'Передние мышцы шеи', letter: 'H' },
+  neckSide: { label: 'Боковые мышцы шеи', letter: 'S' },
+  neckBack: { label: 'Задние мышцы шеи', letter: 'P' },
 } as const;
 
 export type MuscleId = keyof typeof MUSCLES;

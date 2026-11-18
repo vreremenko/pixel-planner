@@ -2,6 +2,7 @@
 import { db } from '../../../core/data/db';
 import { alive, removeRow, saveRow, type New } from '../../../core/data/repo';
 import type { SyncMeta } from '../../../core/domain/types';
+import type { BodyEntry } from '../domain/body';
 import { DEFAULT_PREFS, type CustomExercise, type GymPrefs, type Program, type Workout, type WorkoutSet } from '../domain/types';
 
 export const tables = {
@@ -19,6 +20,9 @@ export const tables = {
   },
   get prefs() {
     return db.table<GymPrefs, string>('gym_prefs');
+  },
+  get body() {
+    return db.table<BodyEntry, string>('gym_body');
   },
 };
 
@@ -67,4 +71,10 @@ export const prefsRepo = {
     const cur = await prefsRepo.get();
     await tables.prefs.put({ ...cur, ...p, updatedAt: Date.now() });
   },
+};
+
+export const bodyRepo = {
+  all: async () => (await tables.body.toArray()).filter(alive).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+  save: (x: New<BodyEntry>) => saveRow(tables.body, x),
+  remove: (id: string) => removeRow(tables.body, id),
 };

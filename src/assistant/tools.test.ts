@@ -69,6 +69,31 @@ describe('действия помощника', () => {
     expect(run(data, 'get_day')).toContain('Итого: 670 ккал');
   });
 
+  it('еда со своими КБЖУ сохраняется в «Мои продукты» и потом находится без КБЖУ', () => {
+    const data = base();
+    expect(run(data, 'log_food', { name: 'Сосиски молочные', brand: 'Папа может', grams: 100, meal: 'dinner', kcal: 250, protein: 11, fat: 22, carbs: 1 })).toContain('сохранён');
+    expect(run(data, 'find_food', { query: 'сосиски папа может' })).toContain('250 ккал');
+    expect(run(data, 'log_food', { name: 'Сосиски молочные', brand: 'Папа может', grams: 50, meal: 'lunch' })).toContain('125 ккал');
+    // Повторная запись со своими КБЖУ обновляет тот же продукт, а не плодит копии
+    run(data, 'log_food', { name: 'Сосиски молочные', brand: 'Папа может', grams: 100, meal: 'dinner', kcal: 260 });
+    expect(data.changes().filter((c) => c.t === 'food_items')).toHaveLength(1);
+  });
+
+  it('замеры: запись, дописывание за тот же день, сводка и удаление', () => {
+    const data = base();
+    run(data, 'log_measurement', { date: '2026-11-01', weight: 84, waist: 90 });
+    expect(run(data, 'log_measurement', { weight: '82,5' })).toContain('Вес 82.5 кг');
+    expect(run(data, 'log_measurement', { neck: 40 })).toContain('Вес 82.5 кг, Шея 40 см');
+    const sum = run(data, 'get_measurements');
+    expect(sum).toContain('Вес 82.5 кг (2026-11-16), −1.5 к 2026-11-01');
+    expect(sum).toContain('Талия 90 см');
+    expect(() => run(data, 'log_measurement', {})).toThrow(ToolError);
+    expect(run(data, 'delete_measurement', { date: 'today', metrics: ['neck'] })).toContain('шея');
+    expect(run(data, 'get_measurements')).not.toContain('Шея');
+    run(data, 'delete_measurement', { date: '2026-11-01' });
+    expect(run(data, 'get_measurements')).not.toContain('Талия');
+  });
+
   it('удаляет и правит задачу; у повтора — только один день', () => {
     const data = base();
     run(data, 'add_task', { title: 'Спросить про книгу' });
