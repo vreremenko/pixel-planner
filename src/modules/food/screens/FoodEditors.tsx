@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button, ConfirmDialog, Modal, TextInput, toast } from '../../../core/ui';
 import { parseValue } from '../../../core/domain/numbers';
 import type { LocalDate } from '../../../core/domain/types';
-import { dishPer100, macroLine } from '../domain/logic';
+import { dishPer100, kcalFromMacros, kcalMismatch, macroLine } from '../domain/logic';
 import type { FoodItem, Ingredient, Meal } from '../domain/types';
 import { deleteFood, saveFood } from '../services/foods';
 import { FoodSearch } from './FoodSearch';
@@ -31,11 +31,19 @@ export function ProductEditor({ item, onClose, onSaved }: { item?: FoodItem | un
   const [fat, setFat] = useState(text(item?.fat));
   const [carbs, setCarbs] = useState(text(item?.carbs));
   const [portion, setPortion] = useState(text(item?.portion));
+  // Калории считаются по БЖУ, пока их не вписали руками (у нового продукта — сразу, у сохранённого — если поле очистить)
+  const [kcalAuto, setKcalAuto] = useState(!item);
+  const macros = [protein, fat, carbs].map((v) => parseValue(v));
+  const hasMacros = macros.some((v) => v !== null);
+  const byMacros = kcalFromMacros(macros[0] ?? 0, macros[1] ?? 0, macros[2] ?? 0);
+  const shownKcal = kcalAuto ? (hasMacros ? String(byMacros) : '') : kcal;
+  const typedKcal = parseValue(kcal);
+  const mismatch = !kcalAuto && hasMacros && typedKcal !== null && kcalMismatch(typedKcal, byMacros);
 
   const save = async () => {
-    const k = parseValue(kcal);
+    const k = parseValue(shownKcal);
     if (!name.trim() || k === null) {
-      toast('Нужны название и калории', 'alert', 'var(--c-warn)');
+      toast('Нужны название и калории или БЖУ', 'alert', 'var(--c-warn)');
       return;
     }
     const p = parseValue(portion);
@@ -56,11 +64,29 @@ export function ProductEditor({ item, onClose, onSaved }: { item?: FoodItem | un
       <TextInput label="Название" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} data-autofocus />
       <p className={s.hint}>Значения на 100 г: они есть на упаковке.</p>
       <div className={s.grid4}>
-        <TextInput label="Ккал" inputMode="decimal" value={kcal} onChange={(e) => setKcal(e.target.value)} />
+        <TextInput
+          label="Ккал"
+          inputMode="decimal"
+          value={shownKcal}
+          placeholder="по БЖУ"
+          onChange={(e) => {
+            setKcal(e.target.value);
+            setKcalAuto(e.target.value.trim() === '');
+          }}
+        />
         <TextInput label="Белки" inputMode="decimal" value={protein} onChange={(e) => setProtein(e.target.value)} />
         <TextInput label="Жиры" inputMode="decimal" value={fat} onChange={(e) => setFat(e.target.value)} />
         <TextInput label="Углеводы" inputMode="decimal" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
       </div>
+      {kcalAuto && hasMacros && <p className={s.hint}>Калории посчитаны по БЖУ: белки и углеводы по 4 ккал на грамм, жиры по 9. Если на упаковке другое число — впишите его.</p>}
+      {mismatch && (
+        <p className={s.warn}>
+          По БЖУ выходит около {byMacros} ккал — проверьте цифры.{' '}
+          <Button small variant="ghost" onClick={() => setKcalAuto(true)}>
+            Подставить {byMacros}
+          </Button>
+        </p>
+      )}
       <TextInput label="Обычная порция, г" inputMode="decimal" value={portion} placeholder="Необязательно" onChange={(e) => setPortion(e.target.value)} />
     </Modal>
   );

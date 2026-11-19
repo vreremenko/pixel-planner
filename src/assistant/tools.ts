@@ -12,7 +12,7 @@ import { rub } from '../modules/finance/domain/money';
 import { ALL_DAYS, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
 import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, type BodyValues } from '../modules/gym/domain/body';
-import { portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
+import { kcalFromMacros, portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
 import { MEALS, type FoodEntry, type FoodItem, type FoodRef, type Macros, type Meal } from '../modules/food/domain/types';
 import { buildOccurrences, overrideId } from '../modules/planner/domain/recurrence';
 import { isScheduled } from '../modules/planner/domain/streaks';
@@ -321,7 +321,7 @@ const BASE_TOOLS: readonly Tool[] = [
         grams: { type: 'number', description: 'Сколько граммов' },
         meal: { type: 'string', enum: [...MEAL_IDS], description: 'Приём пищи' },
         date: dateSchema,
-        kcal: { type: 'number', description: 'Ккал на 100 г, если продукта нет в справочнике (найдите в интернете)' },
+        kcal: { type: 'number', description: 'Ккал на 100 г, если продукта нет в справочнике (найдите в интернете); не указаны — посчитаются по БЖУ' },
         protein: { type: 'number' },
         fat: { type: 'number' },
         carbs: { type: 'number' },
@@ -338,9 +338,12 @@ const BASE_TOOLS: readonly Tool[] = [
       const brand = optText(input.brand, 80);
       let food: FoodRef;
       let saved = false;
-      if (input.kcal !== undefined) {
+      if (['kcal', 'protein', 'fat', 'carbs'].some((k) => input[k] !== undefined)) {
         const m = (k: string) => (input[k] === undefined ? 0 : num(input[k], k, 0, 1000));
-        const macros = { kcal: Math.round(num(input.kcal, 'kcal', 0, 1000)), protein: m('protein'), fat: m('fat'), carbs: m('carbs') };
+        const [protein, fat, carbs] = [m('protein'), m('fat'), m('carbs')];
+        // Калорий нет — считаем по БЖУ, как в форме своего продукта
+        const kcal = input.kcal === undefined ? kcalFromMacros(protein, fat, carbs) : Math.round(num(input.kcal, 'kcal', 0, 1000));
+        const macros = { kcal, protein, fat, carbs };
         // Сохраняем в «Мои продукты», чтобы в следующий раз он нашёлся без интернета; тот же продукт обновляем
         const same = data.all<FoodItem>('food_items').find((f) => f.kind === 'product' && norm(f.name) === norm(name) && norm(f.brand ?? '') === norm(brand ?? ''));
         const item = data.put<FoodItem>('food_items', { ...(same ?? meta(ctx)), updatedAt: ctx.now, name, kind: 'product', ...macros, ...(brand ? { brand } : {}) });

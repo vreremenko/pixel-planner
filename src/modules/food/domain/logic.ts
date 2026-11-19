@@ -109,3 +109,17 @@ export function searchFoods<T extends { name: string; brand?: string }>(list: re
 
 /** «Б17 Ж5 У2» для строки списка. */
 export const macroLine = (m: Macros): string => `Б${String(Math.round(m.protein))} Ж${String(Math.round(m.fat))} У${String(Math.round(m.carbs))}`;
+
+/** Калории по БЖУ на 100 г: белки и углеводы по 4 ккал на грамм, жиры по 9 (коэффициенты Этуотера). */
+export function kcalFromMacros(protein: number, fat: number, carbs: number): number {
+  return Math.round(protein * 4 + fat * 9 + carbs * 4);
+}
+
+/**
+ * Калории с упаковки заметно расходятся с расчётом по БЖУ — скорее опечатка. Расхождение до 20% нормально:
+ * клетчатка, сахарозаменители и округления. Совсем маленькие значения (вода, чай) не проверяем.
+ */
+export function kcalMismatch(kcal: number, byMacros: number): boolean {
+  const big = Math.max(kcal, byMacros);
+  return big >= 20 && Math.abs(kcal - byMacros) / big > 0.2;
+}

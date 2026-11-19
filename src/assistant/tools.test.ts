@@ -66,7 +66,9 @@ describe('действия помощника', () => {
     expect(run(data, 'log_food', { name: 'Гречка варёная', grams: 200, meal: 'lunch' })).toContain('220 ккал');
     expect(run(data, 'log_food', { name: 'Бабушкин пирог', grams: 150, meal: 'snack', kcal: 300, protein: 6 })).toContain('450 ккал');
     expect(() => run(data, 'log_food', { name: 'Абракадабра', grams: 100, meal: 'lunch' })).toThrow('КБЖУ');
-    expect(run(data, 'get_day')).toContain('Итого: 670 ккал');
+    // Только БЖУ — калории по 4/9/4
+    expect(run(data, 'log_food', { name: 'Творог 5%', grams: 100, meal: 'snack', protein: 17, fat: 5, carbs: 3 })).toContain('125 ккал');
+    expect(run(data, 'get_day')).toContain('Итого: 795 ккал');
   });
 
   it('еда со своими КБЖУ сохраняется в «Мои продукты» и потом находится без КБЖУ', () => {
