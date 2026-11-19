@@ -62,18 +62,15 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
         </>
       ) : (
         <>
-          <FoodSearch date={date} meal={meal} onPick={setPicked} onEdit={(item) => setEditor({ kind: item.kind, item })} />
-          <div className={s.below}>
-            <Button small icon="bars" onClick={() => setScanning(true)}>
-              Штрихкод
-            </Button>
-            <Button small icon="plus" onClick={() => setEditor({ kind: 'dish' })}>
-              Создать блюдо
-            </Button>
-            <Button small icon="plus" onClick={() => setEditor({ kind: 'product' })}>
-              Ввести вручную
-            </Button>
-          </div>
+          <FoodSearch
+            date={date}
+            meal={meal}
+            onPick={setPicked}
+            onEdit={(item) => setEditor({ kind: item.kind, item })}
+            onScan={() => setScanning(true)}
+            onNewProduct={() => setEditor({ kind: 'product' })}
+            onNewDish={() => setEditor({ kind: 'dish' })}
+          />
           <p className={s.credit}>
             Магазинные продукты: <a href="https://openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a>, лицензия ODbL. Значения справочника усреднённые.
           </p>
