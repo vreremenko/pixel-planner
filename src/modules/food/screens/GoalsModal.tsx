@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Button, Field, Modal, SelectInput, Segmented, TextInput, toast } from '../../../core/ui';
 import { parseValue } from '../../../core/domain/numbers';
+import { formatDateShort } from '../../../core/domain/dates';
+import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { prefsRepo } from '../data/repo';
 import { calcGoal } from '../domain/logic';
 import { ACTIVITY, type FoodPrefs, type GoalKind, type Macros, type Profile, type Sex } from '../domain/types';
@@ -23,6 +25,7 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
   const [protein, setProtein] = useState(text(prefs.goal?.protein));
   const [fat, setFat] = useState(text(prefs.goal?.fat));
   const [carbs, setCarbs] = useState(text(prefs.goal?.carbs));
+  const [adaptive, setAdaptive] = useState(!!prefs.adaptive);
 
   const profile = (): Profile | null => {
     const a = parseValue(age);
@@ -51,7 +54,11 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
       return;
     }
     const pr = profile();
-    await prefsRepo.patch({ goal: g, ...(pr ? { profile: pr } : {}) });
+    if (adaptive && !pr) {
+      toast('Для подстройки заполните возраст, рост и вес', 'alert', 'var(--c-warn)');
+      return;
+    }
+    await prefsRepo.patch({ goal: g, ...(pr ? { profile: pr } : {}), adaptive });
     onClose();
   };
 
@@ -82,6 +89,18 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
         <TextInput label="Жиры, г" inputMode="numeric" value={fat} onChange={(e) => setFat(e.target.value)} />
         <TextInput label="Углев., г" inputMode="numeric" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
       </div>
+      <ToggleRow
+        label="Подстраивать норму по весу"
+        hint="Раз в неделю, не больше чем на 150 ккал. Точнее всего, если записывать еду и взвешиваться в «Тренировки → Замеры» хотя бы раз в неделю."
+        checked={adaptive}
+        onChange={setAdaptive}
+        color="var(--c-food)"
+      />
+      {prefs.adaptNote && prefs.adaptedAt && (
+        <p className={s.hint}>
+          Последняя подстройка {formatDateShort(prefs.adaptedAt)}: {prefs.adaptNote}
+        </p>
+      )}
     </Modal>
   );
 }

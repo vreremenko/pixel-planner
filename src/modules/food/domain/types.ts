@@ -78,4 +78,9 @@ export interface FoodPrefs extends SyncMeta {
   /** Норма на день; нет — цель ещё не задана. */
   goal?: Macros;
   profile?: Profile;
+  /** Подстраивать норму по весу и записям питания (не чаще раза в неделю, небольшими шагами). */
+  adaptive?: boolean;
+  /** Когда норму последний раз подстроили и почему — показывается в «Цели на день». */
+  adaptedAt?: LocalDate;
+  adaptNote?: string;
 }

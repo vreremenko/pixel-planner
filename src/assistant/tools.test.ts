@@ -120,6 +120,18 @@ describe('действия помощника', () => {
     expect(run(data, 'delete_category', { category: 'Подарки' })).toBe('Удалил категорию «Подарки».');
   });
 
+  it('норма питания и итоги недели', () => {
+    const data = base();
+    expect(run(data, 'get_food_goal')).toContain('не задана');
+    expect(() => run(data, 'update_food_goal', { adaptive: true, kcal: 2000 })).toThrow('профиль');
+    expect(run(data, 'update_food_goal', { kcal: 2200, protein: 150 })).toBe('Норма: 2200 ккал, Б150 Ж0 У0; подстройка под вес выключена.');
+    run(data, 'add_task', { title: 'Сделано', date: 'today' });
+    const week = run(data, 'week_summary');
+    expect(week).toContain('Неделя 16–22 ноября (ещё идёт):');
+    // Задача + ежедневная «Пробежка» из тестовых данных (7 дней)
+    expect(week).toContain('✅ Задачи: 0 из 8');
+  });
+
   it('удаляет и правит задачу; у повтора — только один день', () => {
     const data = base();
     run(data, 'add_task', { title: 'Спросить про книгу' });

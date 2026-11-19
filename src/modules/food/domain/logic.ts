@@ -1,5 +1,5 @@
 /* Расчёты раздела питания: чистые функции без базы. */
-import type { FoodEntry, FoodRef, Ingredient, Macros, Meal, Profile } from './types';
+import type { FoodEntry, FoodRef, GoalKind, Ingredient, Macros, Meal, Profile } from './types';
 
 const ZERO: Macros = { kcal: 0, protein: 0, fat: 0, carbs: 0 };
 
@@ -34,17 +34,20 @@ export function bmr(p: Pick<Profile, 'sex' | 'age' | 'height' | 'weight'>): numb
   return 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === 'male' ? 5 : -161);
 }
 
-const GOAL_FACTOR = { lose: 0.85, keep: 1, gain: 1.1 } as const;
+export const GOAL_FACTOR = { lose: 0.85, keep: 1, gain: 1.1 } as const;
 const PROTEIN_PER_KG = { lose: 2, keep: 1.6, gain: 1.8 } as const;
 const FAT_PER_KG = 0.9;
 
+/** Белок и жиры от веса, углеводы — остаток калорий (как в calcGoal). */
+export function macrosFor(kcal: number, weight: number, goal: GoalKind): Macros {
+  const protein = Math.round(weight * PROTEIN_PER_KG[goal]);
+  const fat = Math.round(weight * FAT_PER_KG);
+  return { kcal, protein, fat, carbs: Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4)) };
+}
+
 /** Норма на день: калории от обмена и активности, белок и жиры от веса, углеводы — остаток калорий. */
 export function calcGoal(p: Profile): Macros {
-  const kcal = Math.round((bmr(p) * p.activity * GOAL_FACTOR[p.goal]) / 10) * 10;
-  const protein = Math.round(p.weight * PROTEIN_PER_KG[p.goal]);
-  const fat = Math.round(p.weight * FAT_PER_KG);
-  const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
-  return { kcal, protein, fat, carbs };
+  return macrosFor(Math.round((bmr(p) * p.activity * GOAL_FACTOR[p.goal]) / 10) * 10, p.weight, p.goal);
 }
 
 const foodKey = (e: Pick<FoodEntry, 'foodId'>) => e.foodId;

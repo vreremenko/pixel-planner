@@ -23,6 +23,7 @@ import { ONLY_ON_REQUEST, TIME_RE, ToolError, date, dateSchema, meta, norm, num,
 import { GYM_TOOLS } from './gymTools';
 import { HABIT_TOOLS } from './habitTools';
 import { CATEGORY_TOOLS, allCategories } from './categoryTools';
+import { SUMMARY_TOOLS } from './summaryTools';
 
 export { ToolError, type Tool, type ToolContext } from './toolkit';
 
@@ -702,4 +703,4 @@ const BODY_TOOLS: readonly Tool[] = [
   },
 ];
 
-export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...CATEGORY_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS];
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...CATEGORY_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS, ...SUMMARY_TOOLS];
