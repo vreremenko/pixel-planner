@@ -90,6 +90,9 @@ describe('тренировки через помощника', () => {
     expect(run(data, 'save_program', { program: 'Грудь', days: [] })).toContain('без расписания');
     expect(run(data, 'list_programs')).toContain('Грудь');
     expect(run(data, 'log_workout', { program: 'грудь', exercises: [{ exercise: 'bench-press', sets: [{ weight: 60, reps: 10 }] }] })).toContain('«Грудь»');
+    // Все подходы до верха диапазона 8–12 — подсказка прибавить вес
+    run(data, 'log_workout', { date: 'yesterday', program: 'Грудь', exercises: [{ exercise: 'bench-press', sets: [{ weight: 60, reps: 12 }, { weight: 60, reps: 12 }] }] });
+    expect(run(data, 'get_workouts', { exercise: 'bench-press' })).toContain('Подсказка: в прошлый раз все подходы по 12 — пора 62,5 кг (+2,5).');
     run(data, 'delete_program', { program: 'Грудь' });
     expect(run(data, 'list_programs')).toBe('Программы пока нет.');
   });

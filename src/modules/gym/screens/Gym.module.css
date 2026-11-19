@@ -209,3 +209,9 @@
 .setHeadPad {
   width: 44px;
 }
+/* Подсказка прогрессии над подходами */
+.tip {
+  margin: 0 0 8px;
+  color: var(--c-gym);
+  font-size: var(--fs-small);
+}

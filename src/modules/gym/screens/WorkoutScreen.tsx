@@ -4,8 +4,9 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Checkbox, ConfirmDialog, Modal, Panel, cx, toast } from '../../../core/ui';
 import { parseValue, formatValue } from '../../../core/domain/numbers';
 import { useExercises } from '../data/exercises';
-import { useAllSets, usePrefs, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
+import { useAllSets, usePrefs, usePrograms, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
 import { durationInput, parseDuration } from '../domain/tracking';
+import { DEFAULT_WEIGHT_STEP, kgText, suggestWeight } from '../domain/progression';
 import { exerciseOrder, formatSet, lastSessionSets, programItemsFromSets, summarize, type WorkoutSummary } from '../domain/logic';
 import type { ExerciseDef, Tracking, WorkoutSet } from '../domain/types';
 import { addExercise, addSet, deleteWorkout, finishWorkout, removeExercise, removeSet, toggleSet, updateSet } from '../services/workouts';
@@ -121,6 +122,7 @@ export function WorkoutScreen() {
   const workouts = useWorkouts();
   const ex = useExercises();
   const prefs = usePrefs();
+  const programs = usePrograms();
   const startRest = useRestTimer((t) => t.start);
   const stopRest = useRestTimer((t) => t.stop);
   const [picking, setPicking] = useState(false);
@@ -184,6 +186,10 @@ export function WorkoutScreen() {
           const mine = sets.filter((x) => x.exerciseId === exId);
           const last = lastSessionSets(all, workouts, exId, workout.id);
           const tracking = def?.tracking ?? 'weight_reps';
+          // Подсказка прогрессии: только в идущей тренировке по программе, где задан диапазон повторов
+          const target = programs?.find((p) => p.id === workout.programId)?.items.find((it) => it.exerciseId === exId)?.reps;
+          const tip = active && def && tracking === 'weight_reps' ? suggestWeight(last, target, def.group, prefs.weightSteps?.[exId] ?? DEFAULT_WEIGHT_STEP) : null;
+          const lighter = tip ? mine.filter((x) => !x.done && (x.weight ?? 0) < tip.weight) : [];
           return (
             <Panel
               key={exId}
@@ -193,6 +199,16 @@ export function WorkoutScreen() {
               actions={active ? <Button small variant="ghost" icon="trash" label="Убрать упражнение" onClick={() => setRemoving(exId)} /> : undefined}
             >
               <p className={s.hint}>{last.length ? `В прошлый раз: ${last.map((x) => formatSet(x, tracking)).join(', ')}` : 'Первый раз — рекорд по умолчанию'}</p>
+              {tip && (
+                <p className={s.tip}>
+                  В прошлый раз все подходы по {tip.reps} — можно {kgText(tip.weight)} кг (+{kgText(tip.weight - tip.from)}).{' '}
+                  {lighter.length > 0 && (
+                    <Button small variant="ghost" onClick={() => void Promise.all(lighter.map((x) => updateSet(x, { weight: tip.weight })))}>
+                      Поставить {kgText(tip.weight)}
+                    </Button>
+                  )}
+                </p>
+              )}
               {mine.length > 0 && <SetHeader tracking={tracking} />}
               {mine.map((set, i) => (
                 <SetRow key={set.id} set={set} n={i + 1} def={def} rpe={prefs.rpe} onDone={() => prefs.restTimer.on && startRest(set.restSec ?? prefs.restTimer.sec)} />
