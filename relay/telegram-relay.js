@@ -2,9 +2,14 @@
  * Посредник между Telegram и сервером. С российского сервера Telegram недоступен, поэтому:
  *   /in/<ключ>   Telegram присылает сюда обновления, они уходят на наш сервер;
  *   /out/<ключ>/ наш сервер присылает сюда запросы к Bot API, они уходят в Telegram.
- *   /api/…       запасной вход в API приложения для тех, у кого сервер не открывается напрямую (часть VPN).
- * Ничего не хранит. Секреты Worker: RELAY_KEY и SERVER_URL.
+ *   /api/…       запасной вход в API приложения для тех, у кого сервер не открывается напрямую (часть VPN);
+ *   /ai/<ключ>   наш сервер спрашивает нейросеть Workers AI (бесплатные модели Cloudflare) — для ввода фразами в боте.
+ * Ничего не хранит. Секреты Worker: RELAY_KEY и SERVER_URL; привязка Workers AI — AI (wrangler.toml).
  */
+
+/** Модели, которые можно звать через посредника: бесплатные и умеющие вызывать действия. */
+const AI_MODELS = new Set(['@cf/openai/gpt-oss-20b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/zai-org/glm-4.7-flash', '@cf/qwen/qwen3-30b-a3b-fp8']);
+const AI_MAX_BODY = 200_000;
 
 /** Какие заголовки приложения передаём серверу; остальное (куки, чужие служебные) отбрасываем. */
 const PASS_HEADERS = ['authorization', 'content-type', 'origin', 'access-control-request-method', 'access-control-request-headers'];
@@ -21,6 +26,24 @@ export default {
         body: request.body,
       });
       return new Response(null, { status: res.ok ? 200 : 502 });
+    }
+    if (pathname === `/ai/${env.RELAY_KEY}` && request.method === 'POST') {
+      if (!env.AI) return Response.json({ error: 'ai not bound' }, { status: 503 });
+      const text = await request.text();
+      if (text.length > AI_MAX_BODY) return Response.json({ error: 'too large' }, { status: 413 });
+      let body;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return Response.json({ error: 'bad json' }, { status: 400 });
+      }
+      const { model, ...input } = body ?? {};
+      if (!AI_MODELS.has(model)) return Response.json({ error: 'model not allowed' }, { status: 400 });
+      try {
+        return Response.json(await env.AI.run(model, input));
+      } catch (e) {
+        return Response.json({ error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+      }
     }
     if (pathname.startsWith('/api/')) {
       // Обновления бота принимаются только от Telegram по секретному пути выше, а не отсюда

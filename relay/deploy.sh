@@ -17,7 +17,7 @@ if [ -z "${TELEGRAM_RELAY_KEY:-}" ]; then
 fi
 
 echo "== публикация на Cloudflare"
-OUT="$(npx --yes wrangler@4 deploy relay/telegram-relay.js --name "$NAME" --compatibility-date 2026-10-01 2>&1)"
+OUT="$(npx --yes wrangler@4 deploy --config relay/wrangler.toml 2>&1)"
 URL="$(printf '%s\n' "$OUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' | head -1)"
 [ -n "$URL" ] || { printf '%s\n' "$OUT" | tail -8; echo "Адрес посредника не найден"; exit 1; }
 echo "$URL"

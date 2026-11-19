@@ -12,6 +12,8 @@ export type Button = { text: string; data: string } | { text: string; webApp: st
 export interface TelegramApi {
   send(chatId: number, text: string, button?: Button): Promise<void>;
   answer(callbackId: string): Promise<void>;
+  /** «Печатает…» в чате, пока готовится ответ (держится ~5 секунд). */
+  typing?(chatId: number): Promise<void>;
 }
 
 const TIMEOUT_MS = 10_000;
@@ -33,6 +35,7 @@ export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
     send: (chatId, text, button) =>
       call('sendMessage', { chat_id: chatId, text, ...(button ? { reply_markup: { inline_keyboard: [['data' in button ? { text: button.text, callback_data: button.data } : { text: button.text, web_app: { url: button.webApp } }]] } } : {}) }),
     answer: (callbackId) => call('answerCallbackQuery', { callback_query_id: callbackId }),
+    typing: (chatId) => call('sendChatAction', { chat_id: chatId, action: 'typing' }),
   };
 }
 

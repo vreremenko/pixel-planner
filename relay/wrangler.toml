@@ -1,0 +1,8 @@
+# Посредник Telegram и нейросети на Cloudflare. Публикация: bash relay/deploy.sh (секреты — там же).
+name = "pp-tg-relay"
+main = "telegram-relay.js"
+compatibility_date = "2026-10-01"
+
+# Workers AI: бесплатные модели Cloudflare для голосового и текстового ввода в боте
+[ai]
+binding = "AI"
