@@ -18,6 +18,8 @@ export interface Category extends SyncMeta {
   name: string;
   kind: CategoryKind;
   archived?: boolean;
+  /** Место в списке (меньше — выше). Нет — стартовые по порядку DEFAULT_CATEGORIES, свои после них по времени создания. */
+  order?: number;
 }
 
 export type TxKind = CategoryKind | 'transfer';

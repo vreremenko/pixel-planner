@@ -9,7 +9,7 @@ import type { LocalDate } from '../core/domain/types';
 import { balances, dayPlan, livingTypical, openDues } from '../modules/finance/domain/plan';
 import { goalView, movedToday } from '../modules/finance/domain/goals';
 import { rub } from '../modules/finance/domain/money';
-import { ALL_DAYS, DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
+import { ALL_DAYS, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
 import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, type BodyValues } from '../modules/gym/domain/body';
 import { portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
@@ -21,6 +21,7 @@ import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, TIME_RE, ToolError, date, dateSchema, meta, norm, num, optText, pick, text, type Tool, type ToolContext } from './toolkit';
 import { GYM_TOOLS } from './gymTools';
 import { HABIT_TOOLS } from './habitTools';
+import { CATEGORY_TOOLS, allCategories } from './categoryTools';
 
 export { ToolError, type Tool, type ToolContext } from './toolkit';
 
@@ -58,9 +59,7 @@ function habitLines(data: AccountData, d: LocalDate): string[] {
 // ---------- финансы ----------
 
 function categories(data: AccountData): Category[] {
-  const stored = new Map(data.all<Category>('fin_categories').map((c) => [c.id, c]));
-  const defaults = DEFAULT_CATEGORIES.map((c) => stored.get(c.id) ?? { ...c, createdAt: 0, updatedAt: 0 });
-  return [...defaults, ...[...stored.values()].filter((c) => !c.id.startsWith('def:'))].filter((c) => !c.archived && !c.deletedAt);
+  return allCategories(data).filter((c) => !c.archived && !c.deletedAt);
 }
 
 function financePlan(data: AccountData, ctx: ToolContext) {
@@ -664,4 +663,4 @@ const BODY_TOOLS: readonly Tool[] = [
   },
 ];
 
-export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS];
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...CATEGORY_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS];

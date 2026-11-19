@@ -94,6 +94,22 @@ describe('действия помощника', () => {
     expect(run(data, 'get_measurements')).not.toContain('Талия');
   });
 
+  it('категории: добавить, переставить, переименовать, скрыть и вернуть', () => {
+    const data = base();
+    expect(run(data, 'add_category', { name: 'Бензин', kind: 'expense', position: 1 })).toContain('Добавил');
+    expect(run(data, 'list_categories')).toContain('Расходы:\n  1. Бензин\n  2. Продукты');
+    expect(() => run(data, 'add_category', { name: 'бензин', kind: 'expense' })).toThrow('уже есть');
+    expect(run(data, 'update_category', { category: 'Бензин', name: 'Топливо', position: 3 })).toBe('«Топливо»: 3-я в расходах.');
+    expect(() => run(data, 'update_category', { category: 'Другое' })).toThrow('несколько');
+    expect(run(data, 'update_category', { category: 'Другое', kind: 'income', archived: true })).toContain('скрыта');
+    expect(run(data, 'list_categories')).toContain('скрытые: Другое');
+    // Расход по скрытой категории не записать, а после возврата — можно
+    run(data, 'update_category', { category: 'Топливо', archived: true });
+    expect(() => run(data, 'add_transaction', { kind: 'expense', amount: 100, category: 'Топливо' })).toThrow();
+    expect(run(data, 'add_category', { name: 'Топливо', kind: 'expense' })).toContain('Вернул');
+    expect(run(data, 'add_transaction', { kind: 'expense', amount: 100, category: 'Топливо' })).toContain('Топливо');
+  });
+
   it('удаляет и правит задачу; у повтора — только один день', () => {
     const data = base();
     run(data, 'add_task', { title: 'Спросить про книгу' });

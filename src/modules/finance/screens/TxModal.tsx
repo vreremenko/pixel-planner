@@ -7,7 +7,8 @@ import { txRepo } from '../data/repo';
 import type { PlanView } from '../data/hooks';
 import { kopecksText, rub, rubUp, toKopecks } from '../domain/money';
 import { defaultSaveAccount, linkedSaves, saveAmount, saveOffer, savingAccounts } from '../domain/save';
-import { byUse } from '../domain/stats';
+import { visibleCategories } from '../domain/categories';
+import { CategoriesModal } from './CategoriesModal';
 import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
 import type { Account, Category, FinPrefs, Tx, TxKind } from '../domain/types';
 import { removeTx, saveFromIncome } from '../services/money';
@@ -30,10 +31,9 @@ interface Props {
 export function TxModal({ kind, tx, today, accounts, categories, txs, view, prefs, onClose }: Props) {
   const live = accounts.filter((a) => !a.archived || a.id === tx?.accountId || a.id === tx?.toAccountId);
   const last = useMemo(() => [...txs].sort((a, b) => b.createdAt - a.createdAt).find((t) => live.some((a) => a.id === t.accountId))?.accountId, [txs, live]);
-  const tiles = useMemo(() => {
-    const use = byUse(txs);
-    return categories.filter((c) => c.kind === kind && (!c.archived || c.id === tx?.categoryId)).sort((a, b) => (use.get(b.id) ?? 0) - (use.get(a.id) ?? 0));
-  }, [categories, kind, tx, txs]);
+  // Порядок плиток — тот, что пользователь выставил в «Категориях»
+  const tiles = useMemo(() => (kind === 'transfer' ? [] : visibleCategories(categories, kind, tx?.categoryId)), [categories, kind, tx]);
+  const [editingCats, setEditingCats] = useState(false);
   const [amount, setAmount] = useState(tx ? kopecksText(tx.amount) : '');
   const [categoryId, setCategoryId] = useState(tx?.categoryId ?? '');
   const [accountId, setAccountId] = useState(tx?.accountId ?? last ?? live[0]?.id ?? '');
@@ -110,6 +110,11 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
               </button>
             ))}
           </div>
+          <div style={{ marginTop: 6 }}>
+            <Button small variant="ghost" icon="edit" onClick={() => setEditingCats(true)}>
+              Изменить категории
+            </Button>
+          </div>
         </Field>
       )}
       <div className={s.grid2}>
@@ -151,6 +156,7 @@ export function TxModal({ kind, tx, today, accounts, categories, txs, view, pref
         </>
       )}
       <TextInput label="Заметка" value={note} onChange={(e) => setNote(e.target.value)} />
+      {editingCats && kind !== 'transfer' && <CategoriesModal kind={kind} onClose={() => setEditingCats(false)} />}
       <ConfirmDialog open={deleting} title="Удалить операцию?" onClose={() => setDeleting(false)} onConfirm={() => {
         if (tx) void removeTx(tx, txs);
         onClose();
