@@ -61,7 +61,7 @@ async function fire(r: PlannedReminder, now: number, pushActive: boolean): Promi
     updatedAt: now,
     ...(shown ? { firedAt: now } : {}),
     // Не показанные (приложение было закрыто) попадут в «пропущенные»; сводку не копим.
-    acknowledged: shown || r.kind === INFO_KIND,
+    acknowledged: shown || r.kind === INFO_KIND || r.kind === 'weekly',
   });
 }
 

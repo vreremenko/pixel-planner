@@ -28,6 +28,7 @@ export const itemRepo = {
 
 export const entryRepo = {
   byDate: async (date: LocalDate) => (await tables.entries.where('date').equals(date).toArray()).filter(alive).sort((a, b) => a.createdAt - b.createdAt),
+  byDateRange: async (from: LocalDate, to: LocalDate) => (await tables.entries.where('date').between(from, to, true, true).toArray()).filter(alive),
   /** Записи за период, для подсказок «недавнее» и «частое». */
   byRange: async (from: LocalDate, to: LocalDate) => (await tables.entries.where('date').between(from, to, true, true).toArray()).filter(alive),
   save: (x: New<FoodEntry>) => saveRow(tables.entries, x),

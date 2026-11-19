@@ -4,7 +4,8 @@
  * даже если приложение долго не открывали (иначе напоминания кончались через неделю).
  */
 import { AccountData } from '../../src/assistant/data.ts';
-import { planAccount } from '../../src/modules/accountReminders.ts';
+import { digestData, planAccount } from '../../src/modules/accountReminders.ts';
+import { digestText } from '../../src/modules/weeklyDigest.ts';
 import type { ScheduleItem, Store, SyncIn } from './types.ts';
 
 /** Пояс по умолчанию, пока устройство не сообщило свой. */
@@ -57,6 +58,14 @@ export async function loadAccount(store: Store, userId: string): Promise<Account
 /** Расписание аккаунта на неделю вперёд в поясе пользователя. */
 export function planItems(data: AccountData, tz: string, now: number): ScheduleItem[] {
   return withTimeZone(tz, () => planAccount(data, new Date(now - LOOKBACK_MS), new Date(now + HORIZON_MS))).map(({ key, fireAt, kind, ref, date, title, body }) => ({ key, fireAt, kind, ref, date, title, body }));
+}
+
+/** Свежий текст «Итогов недели» — в момент отправки, чтобы попал и сегодняшний вечер. null — не удалось. */
+export async function weeklyBody(store: Store, userId: string, end: string): Promise<string | null> {
+  const tz = (await store.scheduleMetaGet(userId)).tz;
+  const data = await loadAccount(store, userId);
+  const text = withTimeZone(isTimeZone(tz) ? tz : DEFAULT_TZ, () => digestText(digestData(data), end));
+  return text || null;
 }
 
 /** Пересчитать и разослать расписание по всем устройствам пользователя; без устройств — ничего. Возвращает число напоминаний. */

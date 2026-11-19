@@ -6,7 +6,10 @@
 import { DEFAULT_SETTINGS, pickAccountSettings, type AppPrefs, type Settings, type SyncMeta } from '../core/domain/types';
 import type { PlannedReminder } from '../core/notifications/types';
 import { planFinance } from './finance/domain/reminderPlan';
-import type { Payment, Tx } from './finance/domain/types';
+import type { Category, Payment, Tx } from './finance/domain/types';
+import type { FoodEntry, FoodPrefs } from './food/domain/types';
+import type { BodyEntry } from './gym/domain/body';
+import { digestText, planWeekly, type DigestData } from './weeklyDigest';
 import { planGym } from './gym/domain/reminderPlan';
 import type { Workout, WorkoutSet } from './gym/domain/types';
 import { planPlanner } from './planner/domain/reminderPlan';
@@ -42,5 +45,25 @@ export function planAccount(rows: AccountRows, from: Date, to: Date): PlannedRem
     ),
     ...planGym(rows.all<Workout>('gym_workouts'), rows.allWithDeleted<WorkoutSet>('gym_sets'), from, to),
     ...planFinance(rows.all<Payment>('fin_payments'), rows.all<Tx>('fin_tx'), from, to),
+    ...planWeekly(settings, from, to, (end) => digestText(digestData(rows, settings), end)),
   ].sort((a, b) => a.fireAt - b.fireAt);
+}
+
+/** Данные для «Итогов недели» из записей аккаунта. */
+export function digestData(rows: AccountRows, settings: Pick<Settings, 'modulesOff'> = accountSettings(rows)): DigestData {
+  return {
+    tasks: rows.all<Task>('tasks'),
+    series: rows.all<RecurringSeries>('series'),
+    overrides: rows.all<OccurrenceOverride>('overrides'),
+    habits: rows.all<Habit>('habits'),
+    habitLogs: rows.all<HabitLog>('habitLogs'),
+    txs: rows.all<Tx>('fin_tx'),
+    categories: rows.all<Category>('fin_categories'),
+    workouts: rows.all<Workout>('gym_workouts'),
+    sets: rows.all<WorkoutSet>('gym_sets'),
+    food: rows.all<FoodEntry>('food_entries'),
+    foodGoalKcal: rows.all<FoodPrefs>('food_prefs')[0]?.goal?.kcal,
+    body: rows.all<BodyEntry>('gym_body'),
+    modulesOff: settings.modulesOff,
+  };
 }

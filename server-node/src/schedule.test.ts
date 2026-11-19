@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toInstant } from '../../src/core/domain/dates.ts';
-import { handle } from './core.ts';
+import { handle, sendDue } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { isTimeZone, refreshSchedule, todayIn, withTimeZone } from './schedule.ts';
 import { json, mk, register, req } from './test-helpers.ts';
@@ -62,5 +62,22 @@ describe('сервер сам считает расписание', () => {
     expect((await due()).length).toBe(keys);
     // Пользователь без устройств — ничего не считаем
     expect(await refreshSchedule(store, 'nobody', NOW)).toBe(0);
+  });
+
+  it('итоги недели: в расписании на воскресенье, текст считается в момент отправки', async () => {
+    const { d, call, due } = await setup('Europe/Moscow');
+    await call('add_task', { title: 'Отчёт', date: '2026-11-20' });
+    const weekly = (await due()).find((r) => r.key === 'weekly:2026-11-22');
+    expect(weekly?.title).toBe('Итоги недели, 16–22 ноября');
+    expect(weekly?.fireAt).toBe(Date.UTC(2026, 10, 22, 16, 0));
+    // После расчёта расписания задачу сделали — в отправленных итогах это уже видно
+    d.now = () => NOW + 60_000;
+    const day = await call('get_day', { date: '2026-11-20' });
+    const id = /Отчёт \[id: ([^\]]+)\]/.exec(day)?.[1] ?? '';
+    expect(await call('complete_task', { id })).toContain('Отметил');
+    const sent: { title: string; body: string }[] = [];
+    await sendDue({ ...d, now: () => Date.UTC(2026, 10, 22, 16, 1), send: (_env, _to, data) => { sent.push(data as { title: string; body: string }); return Promise.resolve({ status: 201, detail: '' }); } });
+    const msg = sent.find((x) => x.title.startsWith('Итоги недели'));
+    expect(msg?.body).toContain('✅ Задачи: 1 из 1');
   });
 });

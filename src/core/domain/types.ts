@@ -35,6 +35,8 @@ export interface Settings {
   notificationsEnabled: boolean;
   quietHours: { enabled: boolean; from: LocalTime; to: LocalTime };
   morningSummary: { enabled: boolean; time: LocalTime };
+  /** «Итоги недели» в воскресенье вечером. */
+  weeklyDigest: { enabled: boolean; time: LocalTime };
   soundEnabled: boolean;
   crtEffect: boolean;
   /** Режим «Для мамы»: светлая тема, крупный читаемый шрифт. Свой на каждом устройстве. */
@@ -50,7 +52,7 @@ export interface Settings {
  * Что из настроек общее для аккаунта и синхронизируется. Остальное — своё на каждом устройстве:
  * уведомления, звук, CRT, режим «Для мамы», часовой пояс.
  */
-export const ACCOUNT_SETTINGS = ['mobileNav', 'modulesOff', 'quietHours', 'morningSummary'] as const;
+export const ACCOUNT_SETTINGS = ['mobileNav', 'modulesOff', 'quietHours', 'morningSummary', 'weeklyDigest'] as const;
 export type AccountSettings = Pick<Settings, (typeof ACCOUNT_SETTINGS)[number]>;
 
 /** Строка таблицы app_prefs: одна на аккаунт. */
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: false,
   quietHours: { enabled: false, from: '23:00', to: '07:00' },
   morningSummary: { enabled: false, time: '08:00' },
+  weeklyDigest: { enabled: true, time: '19:00' },
   soundEnabled: false,
   crtEffect: true,
   momMode: false,

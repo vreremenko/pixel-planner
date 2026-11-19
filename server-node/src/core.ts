@@ -4,7 +4,8 @@
  * (хранилище в памяти — memory-store.ts, боевое — sqlite-store.ts на SQLite).
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { isTimeZone } from './schedule.ts';
+import { isTimeZone, weeklyBody } from './schedule.ts';
+import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
@@ -903,7 +904,8 @@ export async function sendDue(d: Deps): Promise<number> {
       return { status: 503, detail: 'telegram off' };
     }
     const { title, body } = data as { title: string; body: string };
-    await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `⏰ ${title}${body ? `\n${body}` : ''}`);
+    const { kind } = data as { kind?: string };
+    await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `${kind === WEEKLY_KIND ? '📊' : '⏰'} ${title}${body ? `\n${body}` : ''}`);
     return { status: 200, detail: '' };
   };
   const due: DueRow[] = await d.store.dueReminders(now, 200);
@@ -918,7 +920,17 @@ export async function sendDue(d: Deps): Promise<number> {
       const once = `${r.endpoint}|${r.key}`;
       if (seen.has(once)) return;
       seen.add(once);
-      const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body: r.body, fireAt: r.fireAt };
+      let body = r.body;
+      // «Итоги недели» пересчитываем в момент отправки: расписание могли посчитать несколько часов назад
+      if (r.kind === WEEKLY_KIND) {
+        try {
+          const owner = await d.store.deviceOwner(r.deviceId);
+          body = (owner ? await weeklyBody(d.store, owner, r.date) : null) ?? body;
+        } catch (e) {
+          console.warn('итоги недели не пересчитаны', e);
+        }
+      }
+      const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body, fireAt: r.fireAt };
       const kind = deviceKind(r.endpoint);
       // Ошибку доставки видно человеку в настройках («Проверка доставки»), а не только в логах сервера
       // Повторяемые ошибки (сервис push занят) пишем в журнал один раз, когда попытки кончились
