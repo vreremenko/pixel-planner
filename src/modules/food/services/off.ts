@@ -9,6 +9,7 @@ import type { FoodRef } from '../domain/types';
 interface OffProduct {
   code?: string;
   product_name?: string;
+  product_name_ru?: string;
   brands?: string | string[];
   nutriments?: Record<string, number | string | undefined>;
 }
@@ -21,7 +22,7 @@ const num = (v: number | string | undefined): number | null => {
 /** Продукт без названия или без полных значений на 100 г в дневнике бесполезен. */
 export function parseOff(p: OffProduct): FoodRef | null {
   const n = p.nutriments ?? {};
-  const name = p.product_name?.trim();
+  const name = (p.product_name_ru?.trim() || p.product_name?.trim()) ?? undefined;
   const energy = num(n['energy-kcal_100g']);
   const kj = num(n['energy-kj_100g'] ?? n.energy_100g);
   const kcal = energy ?? (kj === null ? null : kj / 4.184);
@@ -53,6 +54,21 @@ export async function searchOff(query: string, signal: AbortSignal): Promise<Foo
       if (!res.ok) throw new Error(`off ${String(res.status)}`);
       const data = (await res.json()) as { products?: OffProduct[] };
       return (data.products ?? []).map(parseOff).filter((x): x is FoodRef => x !== null);
+    } catch (e) {
+      if (signal.aborted || attempt === ATTEMPTS) throw e;
+      await pause(RETRY_MS, signal);
+    }
+  }
+}
+
+/** Продукт по штрихкоду: найден и с полными КБЖУ — FoodRef; нет в базе или без КБЖУ — null. */
+export async function lookupBarcode(code: string, signal: AbortSignal): Promise<FoodRef | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(apiUrl(`food/barcode?code=${encodeURIComponent(code)}`), { signal });
+      if (!res.ok) throw new Error(`off ${String(res.status)}`);
+      const data = (await res.json()) as { product?: OffProduct | null };
+      return data.product ? parseOff({ ...data.product, code: data.product.code ?? code }) : null;
     } catch (e) {
       if (signal.aborted || attempt === ATTEMPTS) throw e;
       await pause(RETRY_MS, signal);

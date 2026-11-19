@@ -7,8 +7,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { newToken, tokenHash, type RateLimiter } from './auth.ts';
 import { HttpError, SAFE_HEADERS, json, readJson } from './http.ts';
-import type { HttpReq, HttpRes, Store, SyncIn } from './types.ts';
-import { AccountData } from '../../src/assistant/data.ts';
+import type { HttpReq, HttpRes, Store } from './types.ts';
+import { DEFAULT_TZ, isTimeZone, loadAccount, refreshSchedule, todayIn } from './schedule.ts';
 import { mcpMessage } from '../../src/assistant/mcp.ts';
 
 export interface RemoteDeps {
@@ -35,9 +35,6 @@ const REGISTER_WINDOW_MS = 3_600_000;
 const REGISTER_MAX_PER_IP = 20;
 const TOKEN_WINDOW_MS = 10 * 60_000;
 const TOKEN_MAX_PER_IP = 60;
-const PULL_PAGE = 1000;
-/** «Сегодня» для нейросети — по Москве: часовой пояс устройства на сервер не попадает. */
-const TIME_ZONE = 'Europe/Moscow';
 
 /** Эти адреса открыты всем сайтам: доступ даёт только ключ в заголовке, а не куки браузера. */
 export const PUBLIC_CORS = {
@@ -261,7 +258,6 @@ export async function oauth(req: HttpReq, d: RemoteDeps, parts: string[]): Promi
   throw new HttpError(404, 'not found');
 }
 
-const todayIn = (now: number): string => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 
 /** /api/mcp: JSON-RPC по HTTP (Streamable HTTP без потока событий). */
 export async function mcp(req: HttpReq, d: RemoteDeps): Promise<HttpRes> {
@@ -284,20 +280,22 @@ export async function mcp(req: HttpReq, d: RemoteDeps): Promise<HttpRes> {
     return json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }, 400);
   }
 
+  // «Сегодня» — в поясе устройств пользователя (его присылает приложение вместе с расписанием)
+  const savedTz = (await d.store.scheduleMetaGet(userId)).tz;
+  const tz = isTimeZone(savedTz) ? savedTz : DEFAULT_TZ;
   const run = async (tool: Parameters<Parameters<typeof mcpMessage>[1]>[0], args: Record<string, unknown>): Promise<string> => {
-    const rows: SyncIn[] = [];
-    for (let after = 0; ; ) {
-      const page = await d.store.syncPull(userId, after, PULL_PAGE);
-      rows.push(...page);
-      if (page.length < PULL_PAGE) break;
-      after = page[page.length - 1]?.seq ?? after;
-    }
-    const data = new AccountData(rows);
-    const text = tool.run(data, args, { now: d.now, today: todayIn(d.now), newId: randomUUID });
+    const data = await loadAccount(d.store, userId);
+    const text = tool.run(data, args, { now: d.now, today: todayIn(d.now, tz), newId: randomUUID });
     const changes = data.changes();
     if (changes.length > 0) {
       await d.checkQuota(userId, changes.length);
       await d.store.syncPush(userId, changes);
+      // Напоминания задач и платежей, добавленных нейросетью, должны прийти, даже если приложение сейчас не открыто
+      try {
+        await refreshSchedule(d.store, userId, d.now, data);
+      } catch (e) {
+        console.error('mcp: расписание не пересчитано', e);
+      }
     }
     return text;
   };

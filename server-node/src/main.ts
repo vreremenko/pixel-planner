@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { handle, sendDue, type Env } from './core.ts';
+import { refreshAll } from './schedule.ts';
 import { createMailer } from './mail.ts';
 import { SqliteStore } from './sqlite-store.ts';
 import { createTelegram } from './telegram.ts';
@@ -91,6 +92,16 @@ setInterval(() => {
       ticking = false;
     });
 }, TICK_MS);
+
+// Продлеваем расписание всем раз в 6 часов: без этого напоминания кончались через неделю, если приложение не открывать
+const REFRESH_MS = 6 * 3_600_000;
+const refresh = () => {
+  refreshAll(store, Date.now())
+    .then((n) => { console.log('расписание продлено:', n); })
+    .catch((e: unknown) => { console.error('продление расписания не удалось', e); });
+};
+setTimeout(refresh, 60_000);
+setInterval(refresh, REFRESH_MS);
 
 const stop = () => {
   server.close();

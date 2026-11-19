@@ -70,8 +70,9 @@ export class MemoryStore implements Store {
     return Promise.resolve(this.events.get(userId) ?? []);
   }
 
-  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void> {
-    const cur = this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null };
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number; tz?: string }): Promise<void> {
+    const cur = this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null, tz: null };
+    if (m.tz !== undefined) cur.tz = m.tz;
     if (m.acceptedAt !== undefined) Object.assign(cur, { acceptedAt: m.acceptedAt, count: m.count ?? 0 });
     if (m.rejectedAt !== undefined) cur.rejectedAt = m.rejectedAt;
     this.scheduleMeta.set(userId, cur);
@@ -79,7 +80,11 @@ export class MemoryStore implements Store {
   }
 
   scheduleMetaGet(userId: string): Promise<ScheduleMeta> {
-    return Promise.resolve(this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null });
+    return Promise.resolve(this.scheduleMeta.get(userId) ?? { acceptedAt: null, count: 0, rejectedAt: null, tz: null });
+  }
+
+  usersWithDevices(): Promise<string[]> {
+    return Promise.resolve([...new Set([...this.devices.values()].map((v) => v.userId))]);
   }
 
   syncDelete(space: string): Promise<void> {

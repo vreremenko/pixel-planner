@@ -3,8 +3,9 @@ import type { PlannedReminder, ReminderProvider, ReminderRef } from '../core/not
 import { financeReminders } from './finance/reminders';
 import { gymReminders } from './gym/reminders';
 import { plannerReminders } from './planner/reminders';
+import { weeklyReminders } from './weeklyReminders';
 
-const PROVIDERS: readonly ReminderProvider[] = [plannerReminders, gymReminders, financeReminders];
+const PROVIDERS: readonly ReminderProvider[] = [plannerReminders, gymReminders, financeReminders, weeklyReminders];
 
 const byKind = (kind: string) => PROVIDERS.find((p) => p.kinds.includes(kind));
 

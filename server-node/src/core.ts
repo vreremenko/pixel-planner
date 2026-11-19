@@ -4,6 +4,8 @@
  * (хранилище в памяти — memory-store.ts, боевое — sqlite-store.ts на SQLite).
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { isTimeZone, weeklyBody } from './schedule.ts';
+import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
@@ -115,6 +117,9 @@ const OFF_CACHE_MAX = 500;
 const OFF_WINDOW_MS = 60_000;
 const OFF_MAX_PER_IP = 30;
 const OFF_QUERY_MAX = 80;
+/** Продукт по штрихкоду (EAN-8, EAN-13, UPC). */
+const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product/';
+const BARCODE_RE = /^\d{8,14}$/;
 
 interface OffCached {
   at: number;
@@ -221,6 +226,43 @@ async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<Htt
   const body = JSON.stringify({ products: data.hits ?? [] });
   cache.delete(q);
   cache.set(q, { at: now, body });
+  if (cache.size > OFF_CACHE_MAX) for (const old of cache.keys()) {
+    cache.delete(old);
+    break;
+  }
+  return { status: 200, headers: { ...SAFE_HEADERS }, body };
+}
+
+/** Продукт по штрихкоду: { product } или { product: null }, если в базе его нет. */
+async function handleFoodBarcode(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const code = (req.query.code ?? '').trim();
+  if (!BARCODE_RE.test(code)) throw new HttpError(400, 'bad barcode');
+  const cache = d.offCache ?? defaultOffCache;
+  const key = `barcode:${code}`;
+  const hit = cache.get(key);
+  if (hit && now - hit.at < OFF_CACHE_MS) return { status: 200, headers: { ...SAFE_HEADERS }, body: hit.body };
+
+  const limiter = d.limiter ?? defaultLimiter;
+  const ipKey = `off:${req.ip ?? 'unknown'}`;
+  if (limiter.count(ipKey, OFF_WINDOW_MS, now) >= OFF_MAX_PER_IP) throw new HttpError(429, 'too many searches');
+  limiter.add(ipKey, now);
+
+  let product: unknown = null;
+  try {
+    const res = await (d.offFetch ?? fetch)(`${OFF_PRODUCT}${code}?fields=code,product_name,product_name_ru,brands,nutriments`, { headers: { 'user-agent': OFF_USER_AGENT }, signal: AbortSignal.timeout(OFF_TIMEOUT_MS) });
+    // 404 — такого продукта в базе нет: это ответ, а не сбой
+    if (res.status !== 404) {
+      if (!res.ok) throw new Error(`off ${String(res.status)}`);
+      const data = (await res.json()) as { status?: number; product?: unknown };
+      product = data.status === 1 || data.product ? (data.product ?? null) : null;
+    }
+  } catch (e) {
+    console.warn('поиск по штрихкоду не удался', e);
+    throw new HttpError(502, 'off unavailable');
+  }
+  const body = JSON.stringify({ product });
+  cache.delete(key);
+  cache.set(key, { at: now, body });
   if (cache.size > OFF_CACHE_MAX) for (const old of cache.keys()) {
     cache.delete(old);
     break;
@@ -780,6 +822,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
     return json({ vapidPublicKey: d.env.VAPID_PUBLIC_KEY, push: Boolean(d.env.VAPID_PUBLIC_KEY && d.env.VAPID_PRIVATE_KEY) });
   }
   if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
+  if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'barcode' && parts.length === 2) return handleFoodBarcode(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
   if (req.method === 'POST' && parts[0] === 'feedback' && parts.length === 1) return handleFeedback(req, d, now);
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
@@ -792,7 +835,9 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
   if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {
     const { userId } = await requireUser(req, d);
-    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown; cursor?: unknown };
+    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown; cursor?: unknown; tz?: unknown };
+    // Пояс устройства: по нему сервер считает «сегодня» для нейросети и сам пересчитывает расписание
+    if (isTimeZone(b.tz)) await d.store.scheduleMetaSet(userId, { tz: b.tz });
     // Расписание посчитано по данным, которые устройство ещё не догнало (проснулось после долгого сна, не успело синхронизироваться):
     // такое расписание стёрло бы напоминания, созданные на других устройствах. Устройство пришлёт его снова после синхронизации.
     if (typeof b.cursor === 'number' && (await d.store.syncSeq(userId)) > b.cursor) {
@@ -900,7 +945,8 @@ export async function sendDue(d: Deps): Promise<number> {
       return { status: 503, detail: 'telegram off' };
     }
     const { title, body } = data as { title: string; body: string };
-    await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `⏰ ${title}${body ? `\n${body}` : ''}`);
+    const { kind } = data as { kind?: string };
+    await tg.send(Number(to.endpoint.slice(TG_ENDPOINT.length)), `${kind === WEEKLY_KIND ? '📊' : '⏰'} ${title}${body ? `\n${body}` : ''}`);
     return { status: 200, detail: '' };
   };
   const due: DueRow[] = await d.store.dueReminders(now, 200);
@@ -915,7 +961,17 @@ export async function sendDue(d: Deps): Promise<number> {
       const once = `${r.endpoint}|${r.key}`;
       if (seen.has(once)) return;
       seen.add(once);
-      const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body: r.body, fireAt: r.fireAt };
+      let body = r.body;
+      // «Итоги недели» пересчитываем в момент отправки: расписание могли посчитать несколько часов назад
+      if (r.kind === WEEKLY_KIND) {
+        try {
+          const owner = await d.store.deviceOwner(r.deviceId);
+          body = (owner ? await weeklyBody(d.store, owner, r.date) : null) ?? body;
+        } catch (e) {
+          console.warn('итоги недели не пересчитаны', e);
+        }
+      }
+      const data = { key: r.key.split('#snooze')[0], kind: r.kind, ref: r.ref, date: r.date, title: r.title, body, fireAt: r.fireAt };
       const kind = deviceKind(r.endpoint);
       // Ошибку доставки видно человеку в настройках («Проверка доставки»), а не только в логах сервера
       // Повторяемые ошибки (сервис push занят) пишем в журнал один раз, когда попытки кончились

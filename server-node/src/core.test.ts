@@ -389,6 +389,23 @@ describe('поиск продуктов', () => {
     expect(urls).toHaveLength(1);
   });
 
+  it('продукт по штрихкоду: найден, не найден, неверный код; ответ кэшируется', async () => {
+    const urls: string[] = [];
+    const product = { code: '4600000000017', product_name: 'Кефир 2,5%', nutriments: { 'energy-kcal_100g': 53 } };
+    const d = mk({
+      offFetch: (u) => {
+        urls.push(u as string);
+        return Promise.resolve((u as string).includes('4600000000017') ? new Response(JSON.stringify({ status: 1, product })) : new Response(JSON.stringify({ status: 0 }), { status: 404 }));
+      },
+    });
+    expect(json(await handle(req('GET', 'food/barcode', { query: { code: '4600000000017' } }), d))).toEqual({ product });
+    expect(json(await handle(req('GET', 'food/barcode', { query: { code: '4600000000017' } }), d))).toEqual({ product });
+    expect(json(await handle(req('GET', 'food/barcode', { query: { code: '1234567890128' } }), d))).toEqual({ product: null });
+    expect((await handle(req('GET', 'food/barcode', { query: { code: '12ab' } }), d)).status).toBe(400);
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toContain('/api/v2/product/4600000000017?fields=');
+  });
+
   it('сбой сервиса не кэширует, частые запросы с одного адреса ограничивает', async () => {
     const down = mk({ offFetch: () => Promise.resolve(new Response('', { status: 503 })) });
     expect((await handle(req('GET', 'food/search', { query: { q: 'творог' } }), down)).status).toBe(502);

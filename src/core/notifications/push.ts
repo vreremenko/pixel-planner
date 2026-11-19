@@ -3,6 +3,7 @@
  * только расписание напоминаний на ближайшие дни (ключ, момент, текст) — не вся база.
  * Сервер по расписанию присылает push, даже когда приложение закрыто.
  */
+import { currentTimeZone } from '../domain/dates';
 import { metaRepo } from '../data/repo';
 import type { PlannedReminder } from './types';
 import { apiUrl as api } from '../apiBase';
@@ -173,7 +174,8 @@ export async function syncSchedule(items: ScheduleItem[], cursor: number | null 
   if ((await loadSession()) === null) return;
   const st = await getPushState();
   // cursor: сервер не примет расписание, если у него есть записи новее (их это устройство ещё не видело)
-  const body = JSON.stringify({ items, ...(st?.enabled ? { deviceId: st.deviceId } : {}), ...(cursor !== null ? { cursor } : {}) });
+  // Пояс устройства: сервер по нему считает «сегодня» для нейросети и сам продлевает расписание
+  const body = JSON.stringify({ items, tz: currentTimeZone(), ...(st?.enabled ? { deviceId: st.deviceId } : {}), ...(cursor !== null ? { cursor } : {}) });
   if (body === lastSent) return;
   const res = await putSchedule(api('schedule'), body);
   // 409 — данные устарели: после синхронизации номер сменится и расписание уйдёт снова

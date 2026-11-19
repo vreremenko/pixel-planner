@@ -307,6 +307,23 @@ function NotificationsPanel() {
         </div>
       )}
       <ToggleRow
+        label="Итоги недели"
+        hint="В воскресенье вечером: задачи, привычки, деньги, тренировки, питание и вес за неделю"
+        checked={settings.weeklyDigest.enabled}
+        onChange={(v) => void update({ weeklyDigest: { ...settings.weeklyDigest, enabled: v } })}
+        color="var(--c-gold)"
+      />
+      {settings.weeklyDigest.enabled && (
+        <div style={{ maxWidth: 200 }}>
+          <TextInput
+            label="Время итогов (воскресенье)"
+            type="time"
+            value={settings.weeklyDigest.time}
+            onChange={(e) => e.target.value && void update({ weeklyDigest: { ...settings.weeklyDigest, time: e.target.value } })}
+          />
+        </div>
+      )}
+      <ToggleRow
         label="Тихие часы"
         hint="Напоминания в это время переносятся на конец тихих часов"
         checked={settings.quietHours.enabled}
