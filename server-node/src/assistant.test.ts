@@ -19,6 +19,7 @@ async function setup(ai: AiClient) {
       return Promise.resolve();
     },
     answer: () => Promise.resolve(),
+    download: () => Promise.resolve(new Uint8Array([1, 2, 3])),
   };
   const d = mk({ now: () => NOW, telegram, ai, defer: (j) => jobs.push(j), env: { TELEGRAM_RELAY_KEY: KEY } }, store);
   await register(d, 'a@b.ru');
@@ -30,7 +31,12 @@ async function setup(ai: AiClient) {
     await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
     await Promise.all(jobs.splice(0));
   };
-  return { store, userId: user?.id ?? '', sent, say };
+  const voice = async (duration = 5, from = 777) => {
+    const r = req('POST', 'telegram/update', { body: { message: { voice: { file_id: 'f1', duration }, chat: { id: from, type: 'private' }, from: { id: from } } } });
+    await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
+    await Promise.all(jobs.splice(0));
+  };
+  return { store, userId: user?.id ?? '', sent, say, voice };
 }
 
 describe('помощник в Telegram', () => {
@@ -141,5 +147,27 @@ describe('помощник в Telegram', () => {
     await say('Добавь задачу');
     expect(tried).toHaveLength(2);
     expect(sent).toEqual(['Нейросеть сейчас не отвечает. Попробуйте чуть позже.']);
+  });
+
+  it('голосовое: распознаётся, дальше как фраза; в ответе — что услышал', async () => {
+    const models: string[] = [];
+    let n = 0;
+    const ai: AiClient = (model, input) => {
+      models.push(model);
+      if (model.includes('whisper')) {
+        expect((input as { audio: string; language: string }).language).toBe('ru');
+        return Promise.resolve({ result: { text: ' Потратил 300 на кофе ' } });
+      }
+      return Promise.resolve(++n === 1 ? { result: { tool_calls: [{ name: 'add_transaction', arguments: { kind: 'expense', amount: 300, category: 'Кафе' } }] } } : { result: { response: 'ок' } });
+    };
+    const { sent, voice } = await setup(ai);
+    await voice();
+    expect(models[0]).toBe('@cf/openai/whisper-large-v3-turbo');
+    expect(sent[0]).toMatch(/^🎤 «Потратил 300 на кофе»\n.*300/s);
+    // Слишком длинное — не распознаём; непривязанный — подсказка
+    await voice(600);
+    expect(sent.at(-1)).toContain('длиннее');
+    await voice(5, 555);
+    expect(sent.at(-1)).toContain('привязан');
   });
 });
