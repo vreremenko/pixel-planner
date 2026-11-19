@@ -35,6 +35,11 @@ export class AccountData {
     return t;
   }
 
+  /** Все записи таблицы, включая удалённые (с deletedAt). */
+  allWithDeleted<T extends SyncMeta>(name: string): T[] {
+    return [...this.table(name).values()] as T[];
+  }
+
   /** Живые (не удалённые) записи таблицы. */
   all<T extends SyncMeta>(name: string): T[] {
     return [...this.table(name).values()].filter((r) => !r.deletedAt) as T[];

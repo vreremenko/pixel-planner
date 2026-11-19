@@ -1,8 +1,9 @@
 /*
  * Порядок категорий: его задаёт пользователь, и он одинаков везде — в окне операции, в настройках, у нейросети.
+ * Удалить можно любую категорию, кроме «Другое»: её операции и платежи переезжают в «Другое» того же вида.
  * Пока порядок не меняли, стартовые идут как в DEFAULT_CATEGORIES, свои — за ними в порядке создания.
  */
-import { DEFAULT_CATEGORIES, type Category, type CategoryKind } from './types';
+import { DEFAULT_CATEGORIES, type Category, type CategoryKind, type Payment, type Tx } from './types';
 
 const DEFAULT_RANK = new Map(DEFAULT_CATEGORIES.map((c, i) => [c.id, i]));
 
@@ -42,4 +43,27 @@ export function moveCategory(list: readonly Category[], id: string, to: number):
 /** Порядок для новой категории — в конец своего вида. */
 export function nextOrder(list: readonly Category[], kind: CategoryKind): number {
   return visibleCategories(list, kind).length;
+}
+
+/** «Другое» у доходов и у расходов: удалить нельзя, сюда переезжают операции удалённых категорий. */
+export const OTHER_ID: Readonly<Record<CategoryKind, string>> = { income: 'def:other-in', expense: 'def:other-out' };
+export const canDelete = (c: Pick<Category, 'id' | 'kind'>) => c.id !== OTHER_ID[c.kind];
+
+/** Что изменится при удалении категории: её операции и платежи с категорией «Другое» вместо неё. */
+export function deletionMoves(c: Pick<Category, 'id' | 'kind'>, txs: readonly Tx[], payments: readonly Payment[]): { txs: Tx[]; payments: Payment[] } {
+  const to = OTHER_ID[c.kind];
+  return {
+    txs: txs.filter((t) => t.categoryId === c.id).map((t) => ({ ...t, categoryId: to })),
+    payments: payments.filter((p) => p.categoryId === c.id).map((p) => ({ ...p, categoryId: to })),
+  };
+}
+
+/** «12 операций и 1 платёж» — для подтверждения и ответа нейросети. */
+export function movesText(m: { txs: readonly unknown[]; payments: readonly unknown[] }): string {
+  const plural = (n: number, one: string, few: string, many: string) => {
+    const d = n % 10;
+    const h = n % 100;
+    return `${String(n)} ${d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many}`;
+  };
+  return [m.txs.length ? plural(m.txs.length, 'операция', 'операции', 'операций') : '', m.payments.length ? plural(m.payments.length, 'платёж', 'платежа', 'платежей') : ''].filter(Boolean).join(' и ');
 }

@@ -1,13 +1,13 @@
 /*
- * «Категории»: свои категории доходов и расходов — добавить, переименовать, переставить, скрыть и вернуть.
- * Открывается из окна операции (плитка «Изменить») и из настроек финансов.
- * Удаления нет намеренно: на категорию ссылаются старые операции, поэтому лишнюю категорию прячут в архив.
+ * «Категории»: свои категории доходов и расходов — добавить, переименовать, переставить, удалить.
+ * Открывается из окна операции («Изменить категории») и из настроек финансов.
+ * При удалении операции и платежи категории переезжают в «Другое»; саму «Другое» удалить нельзя.
  */
 import { useState } from 'react';
-import { Button, Modal, Segmented, cx, inputClass, toast } from '../../../core/ui';
-import { useCategories } from '../data/hooks';
+import { Button, ConfirmDialog, Modal, Segmented, cx, inputClass, toast } from '../../../core/ui';
+import { useCategories, usePayments, useTxs } from '../data/hooks';
 import { categoryRepo } from '../data/repo';
-import { nextOrder, visibleCategories } from '../domain/categories';
+import { OTHER_ID, canDelete, deletionMoves, movesText, nextOrder, visibleCategories } from '../domain/categories';
 import type { Category, CategoryKind } from '../domain/types';
 import s from './Finance.module.css';
 
@@ -16,7 +16,7 @@ const KINDS: readonly { value: CategoryKind; label: string }[] = [
   { value: 'income', label: 'Доходы' },
 ];
 
-function Row({ c, i, count }: { c: Category; i: number; count: number }) {
+function Row({ c, i, count, onDelete }: { c: Category; i: number; count: number; onDelete: (c: Category) => void }) {
   return (
     <li className={s.row}>
       <div className={s.line}>
@@ -33,16 +33,12 @@ function Row({ c, i, count }: { c: Category; i: number; count: number }) {
         />
         <Button small variant="ghost" icon="up" label={`Выше: ${c.name}`} disabled={i === 0} onClick={() => void categoryRepo.move(c.id, i - 1)} />
         <Button small variant="ghost" icon="down" label={`Ниже: ${c.name}`} disabled={i === count - 1} onClick={() => void categoryRepo.move(c.id, i + 1)} />
-        <Button
-          small
-          variant="ghost"
-          icon="close"
-          label={`Скрыть: ${c.name}`}
-          onClick={() => {
-            void categoryRepo.save({ ...c, archived: true });
-            toast(`«${c.name}» скрыта — вернуть можно ниже, в «Скрытых»`, 'check', 'var(--c-fin)');
-          }}
-        />
+        {canDelete(c) ? (
+          <Button small variant="ghost" icon="trash" label={`Удалить: ${c.name}`} onClick={() => onDelete(c)} />
+        ) : (
+          // «Другое» не удаляется: сюда переезжают операции удалённых категорий
+          <Button small variant="ghost" icon="lock" label={`«${c.name}» удалить нельзя: сюда переносятся операции удалённых категорий`} disabled />
+        )}
       </div>
     </li>
   );
@@ -52,7 +48,12 @@ export function CategoriesModal({ kind: initial, onClose }: { kind?: CategoryKin
   const all = useCategories();
   const [kind, setKind] = useState<CategoryKind>(initial ?? 'expense');
   const [name, setName] = useState('');
-  if (!all) return null;
+  const [deleting, setDeleting] = useState<Category | null>(null);
+  const txs = useTxs();
+  const payments = usePayments();
+  if (!all || !txs || !payments) return null;
+  const moves = deleting ? deletionMoves(deleting, txs, payments) : null;
+  const other = all.find((c) => c.id === OTHER_ID[kind]);
   const list = visibleCategories(all, kind);
   const hidden = all.filter((c) => c.kind === kind && c.archived);
 
@@ -74,10 +75,12 @@ export function CategoriesModal({ kind: initial, onClose }: { kind?: CategoryKin
       <div style={{ marginBottom: 12 }}>
         <Segmented value={kind} options={KINDS} onChange={setKind} label="Вид категорий" accent="var(--c-fin)" />
       </div>
-      <p className={s.hint}>В этом порядке категории стоят в окне записи {kind === 'expense' ? 'расхода' : 'дохода'}. Название меняется прямо в строке.</p>
+      <p className={s.hint}>
+        В этом порядке категории стоят в окне записи {kind === 'expense' ? 'расхода' : 'дохода'}. Название меняется прямо в строке. Операции удалённой категории переходят в «{other?.name ?? 'Другое'}».
+      </p>
       <ul className={s.list}>
         {list.map((c, i) => (
-          <Row key={c.id} c={c} i={i} count={list.length} />
+          <Row key={c.id} c={c} i={i} count={list.length} onDelete={setDeleting} />
         ))}
       </ul>
       <form
@@ -94,7 +97,7 @@ export function CategoriesModal({ kind: initial, onClose }: { kind?: CategoryKin
       {hidden.length > 0 && (
         <details style={{ marginTop: 16 }}>
           <summary style={{ cursor: 'pointer' }}>Скрытые ({hidden.length})</summary>
-          <p className={s.hint}>Старые операции с ними остаются в истории и статистике.</p>
+          <p className={s.hint}>Скрытые в прошлых версиях: их можно вернуть или удалить.</p>
           <ul className={s.list}>
             {hidden.map((c) => (
               <li key={c.id} className={s.line}>
@@ -102,11 +105,25 @@ export function CategoriesModal({ kind: initial, onClose }: { kind?: CategoryKin
                 <Button small onClick={() => void categoryRepo.save({ ...c, archived: false, order: nextOrder(all, kind) })}>
                   Вернуть
                 </Button>
+                {canDelete(c) && <Button small variant="ghost" icon="trash" label={`Удалить: ${c.name}`} onClick={() => setDeleting(c)} />}
               </li>
             ))}
           </ul>
         </details>
       )}
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Удалить «${deleting?.name ?? ''}»?`}
+        action="Удалить"
+        onClose={() => setDeleting(null)}
+        onConfirm={() => {
+          if (!deleting) return;
+          const what = moves ? movesText(moves) : '';
+          void categoryRepo.remove(deleting.id).then(() => toast(what ? `Удалено, ${what} — в «${other?.name ?? 'Другое'}»` : 'Категория удалена', 'check', 'var(--c-fin)'));
+        }}
+      >
+        {moves && (moves.txs.length || moves.payments.length) ? `${movesText(moves)} перейдут в категорию «${other?.name ?? 'Другое'}». Суммы и балансы не изменятся.` : 'Операций с этой категорией нет.'}
+      </ConfirmDialog>
     </Modal>
   );
 }
