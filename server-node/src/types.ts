@@ -134,6 +134,8 @@ export interface ScheduleMeta {
   acceptedAt: number | null;
   count: number;
   rejectedAt: number | null;
+  /** Часовой пояс устройств пользователя (IANA): по нему сервер считает «сегодня» и время напоминаний. */
+  tz: string | null;
 }
 
 export interface ActivityRow {
@@ -195,7 +197,9 @@ export interface Store {
   /** Записать событие доставки; хранятся только последние. */
   pushEventAdd(userId: string, e: PushEvent): Promise<void>;
   pushEvents(userId: string): Promise<PushEvent[]>;
-  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void>;
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number; tz?: string }): Promise<void>;
+  /** Пользователи, у которых есть хотя бы одно устройство для напоминаний. */
+  usersWithDevices(): Promise<string[]>;
   scheduleMetaGet(userId: string): Promise<ScheduleMeta>;
 
   /** false — такая почта уже зарегистрирована. */

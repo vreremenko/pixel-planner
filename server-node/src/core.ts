@@ -4,6 +4,7 @@
  * (хранилище в памяти — memory-store.ts, боевое — sqlite-store.ts на SQLite).
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { isTimeZone } from './schedule.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
@@ -792,7 +793,9 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   // Расписание напоминаний аккаунта: его присылает любое устройство, где открыто приложение, а получают все устройства аккаунта
   if (parts[0] === 'schedule' && parts.length === 1 && req.method === 'PUT') {
     const { userId } = await requireUser(req, d);
-    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown; cursor?: unknown };
+    const b = readJson(req.body) as { items?: unknown[]; deviceId?: unknown; cursor?: unknown; tz?: unknown };
+    // Пояс устройства: по нему сервер считает «сегодня» для нейросети и сам пересчитывает расписание
+    if (isTimeZone(b.tz)) await d.store.scheduleMetaSet(userId, { tz: b.tz });
     // Расписание посчитано по данным, которые устройство ещё не догнало (проснулось после долгого сна, не успело синхронизироваться):
     // такое расписание стёрло бы напоминания, созданные на других устройствах. Устройство пришлёт его снова после синхронизации.
     if (typeof b.cursor === 'number' && (await d.store.syncSeq(userId)) > b.cursor) {

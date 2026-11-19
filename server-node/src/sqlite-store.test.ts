@@ -88,10 +88,11 @@ describe('SqliteStore: синхронизация и напоминания', ()
     const ev = await s.pushEvents('u1');
     expect(ev).toHaveLength(20);
     expect(ev[0]?.text).toBe('e24');
-    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: null, count: 0, rejectedAt: null });
+    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: null, count: 0, rejectedAt: null, tz: null });
     await s.scheduleMetaSet('u1', { acceptedAt: 5, count: 3 });
     await s.scheduleMetaSet('u1', { rejectedAt: 6 });
-    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: 5, count: 3, rejectedAt: 6 });
+    await s.scheduleMetaSet('u1', { tz: 'Asia/Yekaterinburg' });
+    expect(await s.scheduleMetaGet('u1')).toEqual({ acceptedAt: 5, count: 3, rejectedAt: 6, tz: 'Asia/Yekaterinburg' });
     await s.userDelete('u1');
     expect(await s.pushEvents('u1')).toEqual([]);
     s.close();

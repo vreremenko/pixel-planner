@@ -15,8 +15,9 @@ import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, ty
 import { kcalFromMacros, portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
 import { MEALS, type FoodEntry, type FoodItem, type FoodRef, type Macros, type Meal } from '../modules/food/domain/types';
 import { buildOccurrences, overrideId } from '../modules/planner/domain/recurrence';
+import { normalizeReminders, remindersOf } from '../modules/planner/domain/reminderSpecs';
 import { isScheduled } from '../modules/planner/domain/streaks';
-import { isCountHabit, type Habit, type HabitLog, type OccurrenceOverride, type Priority, type RecurringSeries, type Task } from '../modules/planner/domain/types';
+import { REMINDER_OFFSETS, isCountHabit, type ReminderOffset, type ReminderSpec, type Habit, type HabitLog, type OccurrenceOverride, type Priority, type RecurringSeries, type Task } from '../modules/planner/domain/types';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, TIME_RE, ToolError, date, dateSchema, meta, norm, num, optText, pick, text, type Tool, type ToolContext } from './toolkit';
 import { GYM_TOOLS } from './gymTools';
@@ -26,6 +27,22 @@ import { CATEGORY_TOOLS, allCategories } from './categoryTools';
 export { ToolError, type Tool, type ToolContext } from './toolkit';
 
 const kopecks = (rubles: number) => Math.round(rubles * 100);
+
+/** Напоминания задачи: за сколько минут до начала. Не переданы — как в приложении: в момент начала, если есть время. */
+const remindersSchema = {
+  type: 'array',
+  items: { type: 'number', enum: [...REMINDER_OFFSETS] },
+  description: 'За сколько минут до начала напомнить: 0 — в момент начала, 5, 15, 30, 60 — за час, 1440 — за день. Пустой список — без напоминаний. Нужно время задачи.',
+};
+function reminderSpecs(v: unknown): ReminderSpec[] | undefined {
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v)) throw new ToolError('reminders: список минут, например [0, 60]');
+  const bad: unknown = (v as unknown[]).find((x) => !(REMINDER_OFFSETS as readonly unknown[]).includes(x));
+  if (bad !== undefined) throw new ToolError(`reminders: можно ${REMINDER_OFFSETS.join(', ')} минут`);
+  return normalizeReminders((v as ReminderOffset[]).map((offsetMin) => ({ offsetMin })));
+}
+const reminderText = (list: readonly ReminderSpec[]) =>
+  list.length ? `, напомню ${list.map((r) => (r.offsetMin === 0 ? 'в начале' : r.offsetMin === 60 ? 'за час' : r.offsetMin === 1440 ? 'за день' : `за ${String(r.offsetMin)} мин`)).join(' и ')}` : '';
 
 // ---------- планировщик ----------
 
@@ -151,6 +168,7 @@ const BASE_TOOLS: readonly Tool[] = [
         title: { type: 'string', description: 'Что сделать' },
         date: { type: 'string', description: 'today, tomorrow, ГГГГ-ММ-ДД или backlog; по умолчанию сегодня' },
         time: { type: 'string', description: 'Время ЧЧ:ММ, необязательно' },
+        reminders: remindersSchema,
         tags: { type: 'array', items: { type: 'string' }, description: 'Метки без #' },
         priority: { type: 'string', enum: ['low', 'medium', 'high'] },
       },
@@ -167,9 +185,12 @@ const BASE_TOOLS: readonly Tool[] = [
       const tags = Array.isArray(input.tags) ? input.tags.filter((t): t is string => typeof t === 'string').map((t) => t.replace(/^#/, '').trim().toLowerCase()).filter(Boolean).slice(0, 10) : [];
       const priority: Priority = input.priority === 'low' || input.priority === 'high' ? input.priority : 'medium';
       const order = Math.max(-1, ...data.all<Task>('tasks').filter((t) => t.date === d).map((t) => t.order)) + 1;
-      const task: Task = { ...meta(ctx), title, date: d, ...(time ? { time } : {}), priority, done: false, order, tags, wasInBacklog: d === null, postponedCount: 0 };
+      const asked = reminderSpecs(input.reminders);
+      if (asked?.length && !time) throw new ToolError('Напоминание ставится к времени: передайте time');
+      const reminders = time ? (asked ?? [{ offsetMin: 0 as const }]) : [];
+      const task: Task = { ...meta(ctx), title, date: d, ...(time ? { time } : {}), ...(reminders.length ? { reminders } : {}), priority, done: false, order, tags, wasInBacklog: d === null, postponedCount: 0 };
       data.put('tasks', task);
-      return `Добавил «${title}» ${d ? `на ${formatDateDay(d)}${time ? ` в ${time}` : ''}` : 'в бэклог'}${priority !== 'medium' ? `, приоритет ${PRIORITY_LABEL[priority]}` : ''}.`;
+      return `Добавил «${title}» ${d ? `на ${formatDateDay(d)}${time ? ` в ${time}` : ''}` : 'в бэклог'}${reminderText(reminders)}${priority !== 'medium' ? `, приоритет ${PRIORITY_LABEL[priority]}` : ''}.`;
     },
   },
   {
@@ -407,7 +428,7 @@ const EDIT_TOOLS: readonly Tool[] = [
     name: 'update_task',
     title: 'Изменить задачу',
     description:
-      'Изменить задачу: название, заметку, дату, время, метки, приоритет. У повторяющейся меняется только этот день (метки — только у всей серии). ' +
+      'Изменить задачу: название, заметку, дату, время, напоминания, метки, приоритет. У повторяющейся меняется только этот день (метки и напоминания — только у всей серии). ' +
       'Заметка заменяется целиком: чтобы дописать, передайте старый текст вместе с новым.' + ONLY_ON_REQUEST,
     inputSchema: {
       type: 'object',
@@ -417,6 +438,7 @@ const EDIT_TOOLS: readonly Tool[] = [
         notes: { type: 'string', description: 'Новая заметка целиком; пустая строка убирает заметку' },
         date: { type: 'string', description: 'today, tomorrow, ГГГГ-ММ-ДД или backlog (только для обычной задачи)' },
         time: { type: 'string', description: 'ЧЧ:ММ; пустая строка убирает время (только у обычной задачи)' },
+        reminders: remindersSchema,
         tags: { type: 'array', items: { type: 'string' } },
         priority: { type: 'string', enum: ['low', 'medium', 'high'] },
       },
@@ -454,9 +476,22 @@ const EDIT_TOOLS: readonly Tool[] = [
         }
         if (time !== undefined) {
           if (time && t.date === null) throw new ToolError('У задачи в бэклоге не бывает времени');
+          // Время появилось впервые — напоминание в момент начала, как в приложении
+          if (time && !t.time && remindersOf(t).length === 0 && input.reminders === undefined) t.reminders = [{ offsetMin: 0 }];
           if (time) t.time = time;
-          else delete t.time;
+          else {
+            delete t.time;
+            delete t.reminders;
+            delete t.reminder;
+          }
           changed.push('время');
+        }
+        const rem = reminderSpecs(input.reminders);
+        if (rem) {
+          if (rem.length && !t.time) throw new ToolError('Напоминание ставится к времени: сначала задайте time');
+          t.reminders = rem;
+          delete t.reminder;
+          changed.push('напоминания');
         }
         if (Array.isArray(input.tags)) { t.tags = input.tags.filter((x): x is string => typeof x === 'string').map((x) => x.replace(/^#/, '').trim().toLowerCase()).filter(Boolean).slice(0, 10); changed.push('метки'); }
         if (priority) { t.priority = priority; changed.push('приоритет'); }
@@ -465,6 +500,7 @@ const EDIT_TOOLS: readonly Tool[] = [
         return `«${t.title}»: изменено — ${changed.join(', ')}.`;
       }
       if (Array.isArray(input.tags)) throw new ToolError('Метки повторяющейся задачи меняются только у всей серии, в приложении');
+      if (input.reminders !== undefined) throw new ToolError('Напоминания повторяющейся задачи меняются только у всей серии, в приложении');
       if (time === '') throw new ToolError('Убрать время у одного дня повторяющейся задачи можно только в приложении');
       const o: OccurrenceOverride = { ...found.override, patch: { ...found.override.patch }, updatedAt: ctx.now };
       const patch = o.patch ?? {};

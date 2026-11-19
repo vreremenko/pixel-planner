@@ -70,6 +70,8 @@ export class SqliteStore implements Store {
     const userCols = this.db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
     if (!userCols.some((c) => c.name === 'email_verified_at')) this.db.exec('ALTER TABLE users ADD COLUMN email_verified_at INTEGER');
     if (!userCols.some((c) => c.name === 'telegram_id')) this.db.exec('ALTER TABLE users ADD COLUMN telegram_id TEXT');
+    const metaCols = this.db.prepare('PRAGMA table_info(schedule_meta)').all() as unknown as { name: string }[];
+    if (!metaCols.some((c) => c.name === 'tz')) this.db.exec('ALTER TABLE schedule_meta ADD COLUMN tz TEXT');
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_telegram ON users (telegram_id) WHERE telegram_id IS NOT NULL');
     this.db.exec('DELETE FROM reminders WHERE device_id IN (SELECT id FROM devices WHERE user_id IS NULL)');
     this.db.exec('DELETE FROM devices WHERE user_id IS NULL');
@@ -156,16 +158,22 @@ export class SqliteStore implements Store {
     return Promise.resolve(this.db.prepare('SELECT at, device, text FROM push_events WHERE user_id = ? ORDER BY at DESC LIMIT 20').all(userId) as unknown as PushEvent[]);
   }
 
-  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number }): Promise<void> {
+  scheduleMetaSet(userId: string, m: { acceptedAt?: number; count?: number; rejectedAt?: number; tz?: string }): Promise<void> {
     this.db.prepare('INSERT OR IGNORE INTO schedule_meta (user_id) VALUES (?)').run(userId);
+    if (m.tz !== undefined) this.db.prepare('UPDATE schedule_meta SET tz = ? WHERE user_id = ?').run(m.tz, userId);
     if (m.acceptedAt !== undefined) this.db.prepare('UPDATE schedule_meta SET accepted_at = ?, count = ? WHERE user_id = ?').run(m.acceptedAt, m.count ?? 0, userId);
     if (m.rejectedAt !== undefined) this.db.prepare('UPDATE schedule_meta SET rejected_at = ? WHERE user_id = ?').run(m.rejectedAt, userId);
     return Promise.resolve();
   }
 
   scheduleMetaGet(userId: string): Promise<ScheduleMeta> {
-    const r = this.db.prepare('SELECT accepted_at AS acceptedAt, count, rejected_at AS rejectedAt FROM schedule_meta WHERE user_id = ?').get(userId) as ScheduleMeta | undefined;
-    return Promise.resolve(r ? { acceptedAt: r.acceptedAt, count: r.count, rejectedAt: r.rejectedAt } : { acceptedAt: null, count: 0, rejectedAt: null });
+    const r = this.db.prepare('SELECT accepted_at AS acceptedAt, count, rejected_at AS rejectedAt, tz FROM schedule_meta WHERE user_id = ?').get(userId) as ScheduleMeta | undefined;
+    return Promise.resolve(r ? { acceptedAt: r.acceptedAt, count: r.count, rejectedAt: r.rejectedAt, tz: r.tz } : { acceptedAt: null, count: 0, rejectedAt: null, tz: null });
+  }
+
+  usersWithDevices(): Promise<string[]> {
+    const rows = this.db.prepare('SELECT DISTINCT user_id FROM devices WHERE user_id IS NOT NULL').all() as unknown as { user_id: string }[];
+    return Promise.resolve(rows.map((r) => r.user_id));
   }
 
   syncDelete(space: string): Promise<void> {
