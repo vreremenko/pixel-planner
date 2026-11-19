@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { runAssistant, type AiClient } from './assistant.ts';
+import { runAssistant, transcribe, type AiClient } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -62,6 +62,8 @@ export interface Deps {
 const DAY_MS = 86_400_000;
 /** Фраз нейросети в боте на пользователя в сутки: бесплатной квоты Workers AI хватит на всех. */
 const AI_MAX_PER_DAY = 60;
+/** Голосовые длиннее не распознаём: обычная просьба укладывается в минуту. */
+const VOICE_MAX_SEC = 120;
 const MAX_ITEMS = 500;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
@@ -451,29 +453,7 @@ async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { ki
     const owner = e.text.trim().startsWith('/') ? null : await d.store.userByTelegram(e.telegramId);
     // Обычная фраза от владельца аккаунта — нейросети: она запишет задачу, расход, еду…
     if (owner && d.ai) {
-      const ai = d.ai;
-      const limiter = d.limiter ?? defaultLimiter;
-      const key = `ai:${owner.id}`;
-      if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) {
-        await tg.send(e.chatId, 'На сегодня лимит фраз для нейросети исчерпан. Завтра снова можно, а пока — в приложении.');
-        return;
-      }
-      limiter.add(key, now);
-      // Ответ нейросети бывает долгим: Telegram ждать не заставляем, иначе он пришлёт сообщение повторно.
-      // Пока думает — «печатает…» (Telegram гасит его через ~5 секунд, поэтому повторяем)
-      const typing = () => void tg.typing?.(e.chatId).catch(() => undefined);
-      typing();
-      const keep = setInterval(typing, 4_500);
-      const job = runAssistant(d.store, ai, owner.id, e.text, now)
-        .finally(() => {
-          clearInterval(keep);
-        })
-        .then((reply) => tg.send(e.chatId, reply))
-        .catch(async (err: unknown) => {
-          console.warn('помощник в боте не ответил', err);
-          await tg.send(e.chatId, 'Нейросеть сейчас не отвечает. Попробуйте чуть позже.').catch(() => undefined);
-        });
-      (d.defer ?? ((p) => void p))(job);
+      await askAssistant(d, tg, e.chatId, owner.id, now, () => Promise.resolve(e.text));
       return;
     }
     const hint = d.ai && !owner && !e.text.trim().startsWith('/') ? ' Чтобы записывать задачи, траты и еду обычными фразами, привяжите Telegram в личном кабинете приложения.' : '';
@@ -503,6 +483,58 @@ async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { ki
   }
   const user = row.userId ? await d.store.userById(row.userId) : null;
   if (user) await tg.send(e.chatId, `Привязать этот Telegram к аккаунту ${user.email}?`, { text: 'Привязать', data: `ok:${code}` });
+}
+
+/**
+ * Фраза (или голосовое) владельца аккаунта → нейросеть → действия → ответ в чат. Ответ бывает долгим, поэтому работа
+ * идёт в фоне: Telegram не ждёт и не присылает сообщение повторно. Пока думает — «печатает…».
+ */
+async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: string, now: number, phrase: () => Promise<string>, heard = false): Promise<void> {
+  const ai = d.ai;
+  if (!ai) return;
+  const limiter = d.limiter ?? defaultLimiter;
+  const key = `ai:${userId}`;
+  if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) {
+    await tg.send(chatId, 'На сегодня лимит фраз для нейросети исчерпан. Завтра снова можно, а пока — в приложении.');
+    return;
+  }
+  limiter.add(key, now);
+  // Telegram гасит «печатает…» через ~5 секунд, поэтому повторяем
+  const typing = () => void tg.typing?.(chatId).catch(() => undefined);
+  typing();
+  const keep = setInterval(typing, 4_500);
+  const job = (async () => {
+    const text = await phrase();
+    if (!text) return 'Не расслышал. Попробуйте ещё раз или напишите текстом.';
+    const reply = await runAssistant(d.store, ai, userId, text, now);
+    // Для голосового показываем, что услышали: так видно, если распознало не то
+    return heard ? `🎤 «${text.slice(0, 300)}»\n${reply}` : reply;
+  })()
+    .finally(() => {
+      clearInterval(keep);
+    })
+    .then((reply) => tg.send(chatId, reply))
+    .catch(async (err: unknown) => {
+      console.warn('помощник в боте не ответил', err);
+      await tg.send(chatId, 'Нейросеть сейчас не отвечает. Попробуйте чуть позже.').catch(() => undefined);
+    });
+  (d.defer ?? ((p) => void p))(job);
+}
+
+/** Голосовое: скачать, распознать, дальше — как обычная фраза. */
+async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'voice' }>, now: number): Promise<void> {
+  const owner = await d.store.userByTelegram(e.telegramId);
+  const ai = d.ai;
+  if (!owner || !ai || !tg.download) {
+    await tg.send(e.chatId, 'Голосовые понимаю, когда Telegram привязан к аккаунту в личном кабинете приложения.');
+    return;
+  }
+  if (e.duration > VOICE_MAX_SEC) {
+    await tg.send(e.chatId, `Голосовое длиннее ${String(VOICE_MAX_SEC / 60)} минут — скажите покороче.`);
+    return;
+  }
+  const download = tg.download.bind(tg);
+  await askAssistant(d, tg, e.chatId, owner.id, now, async () => transcribe(ai, await download(e.fileId)), true);
 }
 
 async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
@@ -535,7 +567,7 @@ async function handleTelegramUpdate(req: HttpReq, d: Deps, now: number): Promise
   const event = parseUpdate(readJson(req.body));
   if (event && d.telegram) {
     const tg = d.telegram;
-    await (event.kind === 'text' ? handleBotText(d, tg, event, now) : handleBotButton(d, tg, event, now)).catch((e: unknown) => {
+    await (event.kind === 'text' ? handleBotText(d, tg, event, now) : event.kind === 'voice' ? handleBotVoice(d, tg, event, now) : handleBotButton(d, tg, event, now)).catch((e: unknown) => {
       console.warn('бот не ответил', e);
     });
   }

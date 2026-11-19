@@ -3,13 +3,16 @@
  *   /in/<ключ>   Telegram присылает сюда обновления, они уходят на наш сервер;
  *   /out/<ключ>/ наш сервер присылает сюда запросы к Bot API, они уходят в Telegram.
  *   /api/…       запасной вход в API приложения для тех, у кого сервер не открывается напрямую (часть VPN);
- *   /ai/<ключ>   наш сервер спрашивает нейросеть Workers AI (бесплатные модели Cloudflare) — для ввода фразами в боте.
+ *   /ai/<ключ>   наш сервер спрашивает нейросеть Workers AI (бесплатные модели Cloudflare) — для ввода фразами в боте
+ *                и распознавания голосовых (Whisper).
+ *   /out/<ключ>/file/bot… — скачивание файла из Telegram (голосовое сообщение) для нашего сервера.
  * Ничего не хранит. Секреты Worker: RELAY_KEY и SERVER_URL; привязка Workers AI — AI (wrangler.toml).
  */
 
 /** Модели, которые можно звать через посредника: бесплатные и умеющие вызывать действия. */
-const AI_MODELS = new Set(['@cf/openai/gpt-oss-20b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/zai-org/glm-4.7-flash', '@cf/qwen/qwen3-30b-a3b-fp8']);
-const AI_MAX_BODY = 200_000;
+const AI_MODELS = new Set(['@cf/openai/gpt-oss-20b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/zai-org/glm-4.7-flash', '@cf/qwen/qwen3-30b-a3b-fp8', '@cf/openai/whisper-large-v3-turbo']);
+/** Голосовое до ~2 минут в base64 — около 1,5 МБ. */
+const AI_MAX_BODY = 3_000_000;
 
 /** Какие заголовки приложения передаём серверу; остальное (куки, чужие служебные) отбрасываем. */
 const PASS_HEADERS = ['authorization', 'content-type', 'origin', 'access-control-request-method', 'access-control-request-headers'];
@@ -66,6 +69,10 @@ export default {
       return new Response(res.body, { status: res.status, headers: res.headers });
     }
     const out = `/out/${env.RELAY_KEY}/`;
+    // Файл из Telegram (голосовое) — только чтение
+    if (pathname.startsWith(`${out}file/bot`) && request.method === 'GET') {
+      return fetch(`https://api.telegram.org/${pathname.slice(out.length)}`);
+    }
     // Только вызовы Bot API (/bot<токен>/<метод>): посредник не должен быть проходом к остальному api.telegram.org
     if (pathname.startsWith(`${out}bot`)) {
       return fetch(`https://api.telegram.org/${pathname.slice(out.length)}${search}`, { method: request.method, headers: { 'content-type': request.headers.get('content-type') ?? 'application/json' }, body: request.body });

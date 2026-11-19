@@ -97,6 +97,14 @@ const plain = (s: string) => s.replace(/\*\*|__/g, '').replace(/^#{1,6}\s+/gm, '
 
 const toolSpec = (t: Tool) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } });
 
+/** Распознавание речи (Whisper на Workers AI): голосовое Telegram (OGG/Opus) → текст. */
+export const SPEECH_MODEL = '@cf/openai/whisper-large-v3-turbo';
+export async function transcribe(ai: AiClient, audio: Uint8Array): Promise<string> {
+  const raw = (await ai(SPEECH_MODEL, { audio: Buffer.from(audio).toString('base64'), language: 'ru' })) as { result?: { text?: unknown }; text?: unknown };
+  const text = raw.result?.text ?? raw.text;
+  return typeof text === 'string' ? text.trim() : '';
+}
+
 /** Модель по очереди: первая не ответила — пробуем следующую. */
 async function ask(ai: AiClient, input: Record<string, unknown>): Promise<unknown> {
   let last: unknown;
