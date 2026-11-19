@@ -305,3 +305,19 @@
   border: 3px solid var(--c-food);
   box-shadow: 0 0 0 999px rgb(0 0 0 / 35%);
 }
+/* Поиск еды: поле и кнопка сканера в одну строку, под ними — «Свой продукт» и «Блюдо» */
+.searchRow {
+  display: flex;
+  gap: var(--gap-2);
+  align-items: stretch;
+}
+.searchRow .search {
+  flex: 1;
+  min-width: 0;
+}
+.searchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+  margin-top: var(--gap-2);
+}

@@ -15,23 +15,95 @@ interface Detector {
   detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]>;
 }
 
-async function makeDetector(): Promise<Detector> {
-  const native = (globalThis as { BarcodeDetector?: { new (o: { formats: string[] }): Detector; getSupportedFormats(): Promise<string[]> } }).BarcodeDetector;
-  if (native) {
-    const supported = await native.getSupportedFormats().catch(() => [] as string[]);
-    if (FORMATS.some((f) => supported.includes(f))) return new native({ formats: FORMATS.filter((f) => supported.includes(f)) });
-  }
-  const [{ BarcodeDetector, prepareZXingModule }, wasm] = await Promise.all([import('barcode-detector/ponyfill'), import('zxing-wasm/reader/zxing_reader.wasm?url')]);
-  // Файл распознавателя — со своего сайта, а не с CDN по умолчанию
-  await prepareZXingModule({ overrides: { locateFile: (path: string, prefix: string) => (path.endsWith('.wasm') ? wasm.default : prefix + path) }, fireImmediately: true });
-  return new BarcodeDetector({ formats: [...FORMATS] });
+type NativeDetector = { new (o: { formats: string[] }): Detector; getSupportedFormats(): Promise<string[]> };
+
+/** Встроенный распознаватель браузера (Chrome на Android). */
+async function nativeDetector(): Promise<Detector | null> {
+  const native = (globalThis as { BarcodeDetector?: NativeDetector }).BarcodeDetector;
+  if (!native) return null;
+  const supported = await native.getSupportedFormats().catch(() => [] as string[]);
+  const formats = FORMATS.filter((f) => supported.includes(f));
+  return formats.length ? new native({ formats }) : null;
 }
 
+/** Распознаватель на WebAssembly; файл — со своего сайта. Проверяем пробным кадром: на части iPhone он не запускается. */
+async function wasmDetector(): Promise<Detector> {
+  const [{ BarcodeDetector, prepareZXingModule }, wasm] = await Promise.all([import('barcode-detector/ponyfill'), import('zxing-wasm/reader/zxing_reader.wasm?url')]);
+  await prepareZXingModule({ overrides: { locateFile: (path: string, prefix: string) => (path.endsWith('.wasm') ? wasm.default : prefix + path) }, fireImmediately: true });
+  const d = new BarcodeDetector({ formats: [...FORMATS] });
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 8;
+  await d.detect(probe);
+  return d;
+}
+
+/** Распознаватель на чистом JavaScript: медленнее, но работает в любом Safari. */
+async function jsDetector(): Promise<Detector> {
+  const z = await import('@zxing/library');
+  const reader = new z.MultiFormatReader();
+  const hints = new Map<number, unknown>([
+    [z.DecodeHintType.POSSIBLE_FORMATS, [z.BarcodeFormat.EAN_13, z.BarcodeFormat.EAN_8, z.BarcodeFormat.UPC_A, z.BarcodeFormat.UPC_E]],
+    [z.DecodeHintType.TRY_HARDER, true],
+  ]);
+  reader.setHints(hints);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('canvas unavailable');
+  return {
+    detect: (v) => {
+      // Кадр уменьшаем: штрихкоду хватает ~800 точек по ширине, а распознавание быстрее
+      const k = Math.min(1, 800 / (v.videoWidth || 800));
+      canvas.width = Math.round(v.videoWidth * k);
+      canvas.height = Math.round(v.videoHeight * k);
+      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+      const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const gray = new Uint8ClampedArray(width * height);
+      for (let i = 0; i < gray.length; i++) gray[i] = (data[i * 4] ?? 0) * 0.299 + (data[i * 4 + 1] ?? 0) * 0.587 + (data[i * 4 + 2] ?? 0) * 0.114;
+      try {
+        const r = reader.decodeWithState(new z.BinaryBitmap(new z.HybridBinarizer(new z.RGBLuminanceSource(gray, width, height))));
+        return Promise.resolve([{ rawValue: r.getText() }]);
+      } catch {
+        return Promise.resolve([]);
+      } finally {
+        reader.reset();
+      }
+    },
+  };
+}
+
+const errText = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, 160);
+
+/** Первый распознаватель, который заработал; ошибки остальных — для подсказки, если не заработал ни один. */
+async function makeDetector(): Promise<Detector> {
+  const errors: string[] = [];
+  try {
+    const n = await nativeDetector();
+    if (n) return n;
+  } catch (e) {
+    errors.push(`встроенный — ${errText(e)}`);
+  }
+  try {
+    return await wasmDetector();
+  } catch (e) {
+    console.warn('распознаватель WebAssembly не запустился', e);
+    errors.push(`wasm — ${errText(e)}`);
+  }
+  try {
+    return await jsDetector();
+  } catch (e) {
+    errors.push(`js — ${errText(e)}`);
+  }
+  throw new DetectorError(errors.join('; '));
+}
+
+class DetectorError extends Error {}
+
 function cameraError(e: unknown): string {
+  if (e instanceof DetectorError) return `Распознаватель штрихкодов не запустился на этом устройстве. Введите цифры ниже. (${e.message})`;
   const name = e instanceof DOMException ? e.name : '';
   if (name === 'NotAllowedError') return 'Нет доступа к камере. Разрешите его в настройках браузера или введите цифры штрихкода ниже.';
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Камера не найдена. Введите цифры штрихкода ниже.';
-  return 'Камера не запустилась. Введите цифры штрихкода ниже.';
+  return `Камера не запустилась. Введите цифры штрихкода ниже. (${errText(e)})`;
 }
 
 export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
@@ -56,11 +128,18 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
     void (async () => {
       try {
         if (!('mediaDevices' in navigator)) throw new DOMException('no camera', 'NotFoundError');
+        // Распознаватель грузим одновременно с камерой
+        const detecting = makeDetector();
+        detecting.catch(() => undefined);
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-        if (!alive() || !video.current) return stop();
-        video.current.srcObject = stream;
-        await video.current.play();
-        const detector = await makeDetector();
+        const el = video.current;
+        if (!alive() || !el) return stop();
+        // Safari показывает видео без полноэкранного режима, только если оно беззвучное и встроенное
+        el.muted = true;
+        el.setAttribute('playsinline', '');
+        el.srcObject = stream;
+        await el.play();
+        const detector = await detecting;
         if (!alive()) return stop();
         setReady(true);
         let busy = false;

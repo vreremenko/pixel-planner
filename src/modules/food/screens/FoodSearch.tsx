@@ -71,9 +71,13 @@ interface Props {
   meal: Meal;
   onPick: (food: Picked) => void;
   onEdit?: (item: FoodItem) => void;
+  /** Действия рядом с поиском: сканер штрихкода, свой продукт, блюдо. */
+  onScan?: () => void;
+  onNewProduct?: () => void;
+  onNewDish?: () => void;
 }
 
-export function FoodSearch({ date, meal, onPick, onEdit }: Props) {
+export function FoodSearch({ date, meal, onPick, onEdit, onScan, onNewProduct, onNewDish }: Props) {
   const [text, setText] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const history = useHistory(date);
@@ -99,7 +103,24 @@ export function FoodSearch({ date, meal, onPick, onEdit }: Props) {
 
   return (
     <>
-      <input className={s.search} value={text} placeholder="Творог, борщ, Простоквашино" aria-label="Поиск еды" onChange={(e) => setText(e.target.value)} data-autofocus />
+      <div className={s.searchRow}>
+        <input className={s.search} value={text} placeholder="Творог, борщ, Простоквашино" aria-label="Поиск еды" onChange={(e) => setText(e.target.value)} data-autofocus />
+        {onScan && <Button icon="barcode" label="Сканировать штрихкод" onClick={onScan} />}
+      </div>
+      {(onNewProduct || onNewDish) && (
+        <div className={s.searchActions}>
+          {onNewProduct && (
+            <Button small variant="ghost" icon="plus" onClick={onNewProduct}>
+              Свой продукт
+            </Button>
+          )}
+          {onNewDish && (
+            <Button small variant="ghost" icon="plus" onClick={onNewDish}>
+              Блюдо
+            </Button>
+          )}
+        </div>
+      )}
       <div className={s.tabs}>
         <Segmented value={tab} options={TABS} onChange={setTab} label="Что показать" accent="var(--c-food)" />
       </div>
