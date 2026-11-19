@@ -9,7 +9,8 @@ import { searchFoods } from '../modules/food/domain/logic';
 import { CATALOG } from '../modules/gym/domain/catalog';
 import { bestSet, daysLabel, e1rm, formatSet } from '../modules/gym/domain/logic';
 import { MUSCLES, MUSCLE_IDS, type MuscleId } from '../modules/gym/domain/muscles';
-import { GROUPS, type CustomExercise, type ExerciseDef, type ExerciseGroup, type Program, type ProgramItem, type Tracking, type Workout, type WorkoutSet } from '../modules/gym/domain/types';
+import { GROUPS, type CustomExercise, type ExerciseDef, type GymPrefs, type ExerciseGroup, type Program, type ProgramItem, type Tracking, type Workout, type WorkoutSet } from '../modules/gym/domain/types';
+import { DEFAULT_WEIGHT_STEP, kgText, suggestWeight } from '../modules/gym/domain/progression';
 import { TRACKINGS, TRACKING_IDS, cleanItem, programTarget } from '../modules/gym/domain/tracking';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, ToolError, date, dateSchema, daysSchema, meta, norm, num, optText, text, weekdays, type Tool, type ToolContext } from './toolkit';
@@ -143,9 +144,15 @@ export const GYM_TOOLS: readonly Tool[] = [
         if (!sessions.length) return `«${def.name}» ещё не делали.`;
         const best = bestSet(mine, def.tracking);
         const rm = best ? e1rm(best.weight, best.reps) : null;
+        // Подсказка прогрессии: последний раз все рабочие подходы дошли до верха диапазона программы
+        const target = data.all<Program>('gym_programs').flatMap((p) => p.items).find((it) => it.exerciseId === def.id)?.reps;
+        const lastSets = sessions[0] ? mine.filter((s) => s.workoutId === sessions[0]?.id) : [];
+        const step = data.all<GymPrefs>('gym_prefs')[0]?.weightSteps?.[def.id] ?? DEFAULT_WEIGHT_STEP;
+        const tip = def.tracking === 'weight_reps' ? suggestWeight(lastSets, target, def.group, step) : null;
         return [
           `${def.name}${best ? `, лучший подход: ${formatSet(best, def.tracking)} (${best.date})${rm && def.tracking === 'weight_reps' ? `, расчётный максимум ${String(rm)} кг` : ''}` : ''}`,
           ...sessions.map((w) => `${w.date}: ${mine.filter((s) => s.workoutId === w.id).sort((a, b) => a.order - b.order).map((s) => formatSet(s, def.tracking)).join(', ')}`),
+          ...(tip ? [`Подсказка: в прошлый раз все подходы по ${String(tip.reps)} — пора ${kgText(tip.weight)} кг (+${kgText(tip.weight - tip.from)}).`] : []),
         ].join('\n');
       }
       if (!workouts.length) return 'Тренировок пока нет.';

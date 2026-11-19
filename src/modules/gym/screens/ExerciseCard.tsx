@@ -1,9 +1,12 @@
 /* Карточка упражнения: атлет с работающими мышцами, техника, мои результаты. */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { Button, ConfirmDialog, Panel, toast } from '../../../core/ui';
+import { Button, ConfirmDialog, Panel, TextInput, toast } from '../../../core/ui';
 import { useExercises } from '../data/exercises';
-import { useAllSets, useWorkouts } from '../data/hooks';
+import { useAllSets, usePrefs, useWorkouts } from '../data/hooks';
+import { prefsRepo } from '../data/repo';
+import { DEFAULT_WEIGHT_STEP, kgText } from '../domain/progression';
+import { parseValue } from '../../../core/domain/numbers';
 import { bestSet, e1rm, formatSet } from '../domain/logic';
 import { MUSCLES } from '../domain/muscles';
 import { GROUPS } from '../domain/types';
@@ -15,12 +18,39 @@ import { ExerciseAnimation } from '../ui/ExerciseAnimation';
 import { ANIMS, type Anim } from '../ui/anims';
 import s from './Gym.module.css';
 
+/** Шаг снаряда для подсказки «можно добавить вес»: у штанги 2,5 кг, у гантелей 2, у тренажёра 5. */
+function WeightStep({ exerciseId, steps }: { exerciseId: string; steps: Record<string, number> | undefined }) {
+  const cur = steps?.[exerciseId] ?? DEFAULT_WEIGHT_STEP;
+  return (
+    <div style={{ maxWidth: 240, marginBottom: 12 }}>
+      <TextInput
+        key={cur}
+        label="Шаг веса, кг"
+        inputMode="decimal"
+        defaultValue={kgText(cur)}
+        onBlur={(e) => {
+          const v = parseValue(e.target.value);
+          if (v === null || v <= 0 || v > 50) {
+            e.target.value = kgText(cur);
+            return;
+          }
+          if (v !== cur) void prefsRepo.patch({ weightSteps: { ...steps, [exerciseId]: v } });
+        }}
+      />
+      <p className={s.hint} style={{ marginTop: 4 }}>
+        Насколько можно добавить вес на этом снаряде: штанга 2,5, гантели 2, тренажёр 5.
+      </p>
+    </div>
+  );
+}
+
 export function ExerciseCard() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const ex = useExercises();
   const sets = useAllSets();
   const workouts = useWorkouts();
+  const prefs = usePrefs();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [anim, setAnim] = useState<{ id: string; data: Anim } | null>(null);
@@ -116,6 +146,7 @@ export function ExerciseCard() {
                 <br />
                 <span className={s.dim}>Тренировок с упражнением: {sessions.length}</span>
               </p>
+              {def.tracking === 'weight_reps' && prefs && <WeightStep exerciseId={def.id} steps={prefs.weightSteps} />}
               <ul className={s.list}>
                 {sessions.slice(0, 8).map(({ workout, sets: list }) => (
                   <li key={workout?.id} className={s.row}>

@@ -84,6 +84,8 @@ export interface WorkoutSet extends SyncMeta {
 export interface GymPrefs extends SyncMeta {
   restTimer: { on: boolean; sec: number };
   rpe: boolean;
+  /** Шаг снаряда по упражнениям, кг (для подсказки прогрессии); нет — 2,5 кг. */
+  weightSteps?: Record<string, number>;
 }
 
 export const DEFAULT_PREFS: Omit<GymPrefs, keyof SyncMeta> = { restTimer: { on: true, sec: 90 }, rpe: false };
