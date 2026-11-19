@@ -1,14 +1,15 @@
-/* Действия помощника с категориями доходов и расходов: список, добавить, переименовать, переставить, скрыть, вернуть. */
-import { moveCategory, nextOrder, sortCategories, visibleCategories } from '../modules/finance/domain/categories';
-import { DEFAULT_CATEGORIES, type Category, type CategoryKind } from '../modules/finance/domain/types';
+/* Действия помощника с категориями доходов и расходов: список, добавить, переименовать, переставить, удалить (операции — в «Другое»). */
+import { OTHER_ID, canDelete, deletionMoves, moveCategory, movesText, nextOrder, sortCategories, visibleCategories } from '../modules/finance/domain/categories';
+import { DEFAULT_CATEGORIES, type Category, type CategoryKind, type Payment, type Tx } from '../modules/finance/domain/types';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, ToolError, meta, norm, num, optText, pick, text, type Tool } from './toolkit';
 
 /** Все категории аккаунта (стартовые + свои, с архивными), по порядку пользователя. */
 export function allCategories(data: AccountData): Category[] {
-  const stored = new Map(data.all<Category>('fin_categories').map((c) => [c.id, c]));
+  // Удалённые тоже нужны: стартовая с отметкой удаления не должна вернуться из DEFAULT_CATEGORIES
+  const stored = new Map(data.allWithDeleted<Category>('fin_categories').map((c) => [c.id, c]));
   const defaults = DEFAULT_CATEGORIES.map((c): Category => stored.get(c.id) ?? { ...c, createdAt: 0, updatedAt: 0 });
-  return sortCategories([...defaults, ...[...stored.values()].filter((c) => !c.id.startsWith('def:'))]);
+  return sortCategories([...defaults, ...[...stored.values()].filter((c) => !c.id.startsWith('def:'))].filter((c) => !c.deletedAt));
 }
 
 const KIND_LABEL: Record<CategoryKind, string> = { expense: 'Расходы', income: 'Доходы' };
@@ -55,13 +56,10 @@ export const CATEGORY_TOOLS: readonly Tool[] = [
   {
     name: 'update_category',
     title: 'Изменить категорию',
-    description:
-      'Переименовать категорию (name), переставить (position, считая с 1), скрыть (archived: true) или вернуть (archived: false). ' +
-      'Скрытая не показывается при записи, но старые операции с ней остаются.' +
-      ONLY_ON_REQUEST,
+    description: 'Переименовать категорию (name), переставить (position, считая с 1) или вернуть скрытую в прошлых версиях (archived: false).' + ONLY_ON_REQUEST,
     inputSchema: {
       type: 'object',
-      properties: { category: { type: 'string', description: 'Название' }, kind: { ...kindSchema, description: 'Если одинаковые названия у дохода и расхода («Другое»)' }, name: { type: 'string' }, position: { type: 'number' }, archived: { type: 'boolean' } },
+      properties: { category: { type: 'string', description: 'Название' }, kind: { ...kindSchema, description: 'Если одинаковые названия у дохода и расхода («Другое»)' }, name: { type: 'string' }, position: { type: 'number' }, archived: { type: 'boolean', enum: [false] } },
       required: ['category'],
       additionalProperties: false,
     },
@@ -77,12 +75,33 @@ export const CATEGORY_TOOLS: readonly Tool[] = [
         if (allCategories(data).some((c) => c.id !== cur.id && c.kind === cur.kind && !c.archived && norm(c.name) === norm(name))) throw new ToolError(`Категория «${name}» уже есть.`);
         next.name = name;
       }
-      if (input.archived === true) next.archived = true;
       if (input.archived === false && cur.archived) next = { ...next, archived: false, order: nextOrder(allCategories(data), cur.kind) };
       data.put('fin_categories', next);
       if (input.position !== undefined && !next.archived) for (const c of moveCategory(allCategories(data), cur.id, Math.round(num(input.position, 'position', 1, 100)) - 1)) data.put('fin_categories', { ...c, updatedAt: ctx.now });
       const pos = visibleCategories(allCategories(data), cur.kind).findIndex((c) => c.id === cur.id);
       return `«${next.name}»: ${next.archived ? 'скрыта' : `${String(pos + 1)}-я в ${cur.kind === 'expense' ? 'расходах' : 'доходах'}`}.`;
+    },
+  },
+  {
+    name: 'delete_category',
+    title: 'Удалить категорию',
+    description: 'Удалить категорию. Её операции и платежи переходят в «Другое» того же вида; «Другое» удалить нельзя.' + ONLY_ON_REQUEST,
+    inputSchema: { type: 'object', properties: { category: { type: 'string', description: 'Название' }, kind: kindSchema }, required: ['category'], additionalProperties: false },
+    readOnly: false,
+    destructive: true,
+    run: (data, input, ctx) => {
+      const kind = input.kind === undefined ? undefined : kindOf(input.kind);
+      const all = allCategories(data);
+      const c = pick(all.filter((x) => !kind || x.kind === kind), text(input.category, 'category', 40), (x) => x.name, 'категорию');
+      if (!canDelete(c)) throw new ToolError(`«${c.name}» удалить нельзя: сюда переносятся операции удалённых категорий.`);
+      const moves = deletionMoves(c, data.all<Tx>('fin_tx'), data.all<Payment>('fin_payments'));
+      for (const t of moves.txs) data.put('fin_tx', { ...t, updatedAt: ctx.now });
+      for (const p of moves.payments) data.put('fin_payments', { ...p, updatedAt: ctx.now });
+      const other = all.find((x) => x.id === OTHER_ID[c.kind]);
+      if (other?.archived) data.put('fin_categories', { ...other, archived: false, updatedAt: ctx.now });
+      data.put('fin_categories', { ...c, deletedAt: ctx.now, updatedAt: ctx.now });
+      const what = movesText(moves);
+      return `Удалил категорию «${c.name}»${what ? `; ${what} — теперь в «${other?.name ?? 'Другое'}»` : ''}.`;
     },
   },
 ];

@@ -2,7 +2,7 @@
 import { db } from '../../../core/data/db';
 import { alive, removeRow, saveRow, type New } from '../../../core/data/repo';
 import type { SyncMeta } from '../../../core/domain/types';
-import { moveCategory, sortCategories } from '../domain/categories';
+import { OTHER_ID, canDelete, deletionMoves, moveCategory, sortCategories } from '../domain/categories';
 import { DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../domain/types';
 
 const tables = {
@@ -40,6 +40,23 @@ export const categoryRepo = {
     return sortCategories([...defaults, ...rows.filter((r) => !r.id.startsWith('def:'))].filter(alive));
   },
   save: (x: New<Category>) => saveRow(tables.categories, x),
+  /**
+   * Удалить категорию: её операции и платежи переезжают в «Другое» того же вида, всё одной транзакцией.
+   * «Другое» удалить нельзя. Стартовую категорию тоже записываем в базу — с отметкой удаления, иначе она вернётся.
+   */
+  remove: async (id: string) => {
+    const c = (await categoryRepo.all()).find((x) => x.id === id);
+    if (!c || !canDelete(c)) return;
+    await db.transaction('rw', [tables.categories, tables.tx, tables.payments], async () => {
+      const moves = deletionMoves(c, await txRepo.all(), await paymentRepo.all());
+      for (const t of moves.txs) await saveRow(tables.tx, t);
+      for (const p of moves.payments) await saveRow(tables.payments, p);
+      const other = (await categoryRepo.all()).find((x) => x.id === OTHER_ID[c.kind]);
+      if (other?.archived) await saveRow(tables.categories, { ...other, archived: false });
+      const now = Date.now();
+      await tables.categories.put({ ...c, deletedAt: now, updatedAt: now });
+    });
+  },
   /** Переставить на позицию `to` среди видимых категорий того же вида. */
   move: async (id: string, to: number) => {
     for (const c of moveCategory(await categoryRepo.all(), id, to)) await saveRow(tables.categories, c);

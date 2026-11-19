@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { moveCategory, nextOrder, sortCategories, visibleCategories } from './categories';
+import { canDelete, deletionMoves, moveCategory, movesText, nextOrder, sortCategories, visibleCategories } from './categories';
+import type { Payment, Tx } from './types';
 import { DEFAULT_CATEGORIES, type Category } from './types';
 
 const defaults = DEFAULT_CATEGORIES.map((c): Category => ({ ...c, createdAt: 0, updatedAt: 0 }));
@@ -32,5 +33,26 @@ describe('порядок категорий', () => {
     expect(visibleCategories(list, 'expense', 'a').some((c) => c.id === 'a')).toBe(true);
     expect(nextOrder(list, 'expense')).toBe(DEFAULT_CATEGORIES.filter((c) => c.kind === 'expense').length);
     expect(sortCategories([mine('x', 'X', 1, { order: 0 }), mine('y', 'Y', 0, { order: 5 })]).map((c) => c.id)).toEqual(['x', 'y']);
+  });
+});
+
+describe('удаление категории', () => {
+  it('операции и платежи переезжают в «Другое» своего вида', () => {
+    const tx = (id: string, categoryId: string, kind: 'income' | 'expense'): Tx => ({ id, date: '2026-11-19', kind, amount: 100, accountId: 'a', categoryId, createdAt: 0, updatedAt: 0 });
+    const pay: Payment = { id: 'p', name: 'Интернет', amount: 500, categoryId: 'def:subs', repeat: 'month', date: '2026-11-20', skipped: [], createdAt: 0, updatedAt: 0 };
+    const m = deletionMoves({ id: 'def:subs', kind: 'expense' }, [tx('1', 'def:subs', 'expense'), tx('2', 'def:food', 'expense')], [pay]);
+    expect(m.txs.map((t) => [t.id, t.categoryId])).toEqual([['1', 'def:other-out']]);
+    expect(m.payments[0]?.categoryId).toBe('def:other-out');
+    expect(deletionMoves({ id: 'def:work', kind: 'income' }, [tx('3', 'def:work', 'income')], []).txs[0]?.categoryId).toBe('def:other-in');
+    expect(movesText(m)).toBe('1 операция и 1 платёж');
+    expect(movesText({ txs: Array(12), payments: [] })).toBe('12 операций');
+    expect(movesText({ txs: Array(22), payments: Array(3) })).toBe('22 операции и 3 платежа');
+  });
+
+  it('«Другое» удалить нельзя, остальные можно', () => {
+    expect(canDelete({ id: 'def:other-out', kind: 'expense' })).toBe(false);
+    expect(canDelete({ id: 'def:other-in', kind: 'income' })).toBe(false);
+    expect(canDelete({ id: 'def:food', kind: 'expense' })).toBe(true);
+    expect(canDelete({ id: 'x', kind: 'income' })).toBe(true);
   });
 });
