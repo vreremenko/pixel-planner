@@ -2,6 +2,7 @@
 import { db } from '../../../core/data/db';
 import { alive, removeRow, saveRow, type New } from '../../../core/data/repo';
 import type { SyncMeta } from '../../../core/domain/types';
+import { moveCategory, sortCategories } from '../domain/categories';
 import { DEFAULT_CATEGORIES, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../domain/types';
 
 const tables = {
@@ -36,9 +37,13 @@ export const categoryRepo = {
     const rows = await tables.categories.toArray();
     const stored = new Map(rows.map((r) => [r.id, r]));
     const defaults = DEFAULT_CATEGORIES.map((c): Category => stored.get(c.id) ?? { ...c, createdAt: 0, updatedAt: 0 });
-    return [...defaults, ...rows.filter((r) => !r.id.startsWith('def:'))].filter(alive);
+    return sortCategories([...defaults, ...rows.filter((r) => !r.id.startsWith('def:'))].filter(alive));
   },
   save: (x: New<Category>) => saveRow(tables.categories, x),
+  /** Переставить на позицию `to` среди видимых категорий того же вида. */
+  move: async (id: string, to: number) => {
+    for (const c of moveCategory(await categoryRepo.all(), id, to)) await saveRow(tables.categories, c);
+  },
 };
 
 export const txRepo = {

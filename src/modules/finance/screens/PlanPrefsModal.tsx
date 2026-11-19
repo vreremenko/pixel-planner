@@ -1,46 +1,17 @@
-/* Настройки плана: рабочие дни, откладывание, советы и категории. */
+/* Настройки плана: рабочие дни, откладывание, советы; вход в «Категории». */
 import { useState } from 'react';
-import { Button, Field, Modal, MultiToggle, SelectInput, TextInput, cx, inputClass, toast } from '../../../core/ui';
+import { Button, Field, Modal, MultiToggle, SelectInput, TextInput, toast } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
-import { categoryRepo, prefsRepo } from '../data/repo';
+import { prefsRepo } from '../data/repo';
+import { CategoriesModal } from './CategoriesModal';
 import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
 import { defaultSaveAccount, savingAccounts } from '../domain/save';
-import { ALL_DAYS, type Account, type Category, type CategoryKind, type FinPrefs } from '../domain/types';
+import { ALL_DAYS, type Account, type Category, type FinPrefs } from '../domain/types';
 import s from './Finance.module.css';
 
 const DAYS = ALL_DAYS.map((d) => ({ value: d, label: WEEKDAYS_SHORT[d] ?? '' }));
-
-function CategoryList({ kind, title, categories }: { kind: CategoryKind; title: string; categories: Category[] }) {
-  const [name, setName] = useState('');
-  const add = async () => {
-    if (!name.trim()) return;
-    await categoryRepo.save({ name: name.trim(), kind });
-    setName('');
-  };
-  return (
-    <Field label={title}>
-      <ul className={s.list}>
-        {categories.filter((c) => c.kind === kind && !c.archived).map((c) => (
-          <li key={c.id} className={s.row}>
-            <div className={s.line}>
-              <input className={cx(inputClass, s.grow)} aria-label={`Название: ${c.name}`} defaultValue={c.name} onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v && v !== c.name) void categoryRepo.save({ ...c, name: v });
-              }} />
-              <Button small variant="ghost" icon="trash" label={`В архив: ${c.name}`} onClick={() => void categoryRepo.save({ ...c, archived: true })} />
-            </div>
-          </li>
-        ))}
-      </ul>
-      <div className={s.line}>
-        <input className={cx(inputClass, s.grow)} aria-label="Новая категория" placeholder="Новая категория" value={name} onChange={(e) => setName(e.target.value)} />
-        <Button small icon="plus" label="Добавить категорию" onClick={() => void add()} />
-      </div>
-    </Field>
-  );
-}
 
 export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; categories: Category[]; onClose: () => void }) {
   const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
@@ -53,6 +24,7 @@ export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs
   // Снимок полей при открытии: по нему видно, что есть несохранённые правки.
   const [opened] = useState(form);
   const [asking, setAsking] = useState(false);
+  const [cats, setCats] = useState(false);
   const close = () => (form === opened ? onClose() : setAsking(true));
 
   const save = async () => {
@@ -89,8 +61,15 @@ export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs
         ) : (
           <p className={s.warn}>Нет счёта вне плана. Добавьте копилку на вкладке «План» в «Счета» и снимите у неё «Учитывать в плане».</p>
         ))}
-      <CategoryList kind="expense" title="Категории расходов" categories={categories} />
-      <CategoryList kind="income" title="Категории доходов" categories={categories} />
+      <Field label="Категории">
+        <p className={s.hint} style={{ marginTop: 0 }}>
+          Расходов: {categories.filter((c) => c.kind === 'expense' && !c.archived).length}, доходов: {categories.filter((c) => c.kind === 'income' && !c.archived).length}.
+        </p>
+        <Button icon="edit" onClick={() => setCats(true)}>
+          Изменить категории
+        </Button>
+      </Field>
+      {cats && <CategoriesModal onClose={() => setCats(false)} />}
       <Modal open={asking} onClose={() => setAsking(false)} title="Сохранить изменения?" accent="var(--c-warn)" footer={
         <>
           <Button onClick={onClose}>Не сохранять</Button>

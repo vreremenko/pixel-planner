@@ -66,7 +66,9 @@ describe('действия помощника', () => {
     expect(run(data, 'log_food', { name: 'Гречка варёная', grams: 200, meal: 'lunch' })).toContain('220 ккал');
     expect(run(data, 'log_food', { name: 'Бабушкин пирог', grams: 150, meal: 'snack', kcal: 300, protein: 6 })).toContain('450 ккал');
     expect(() => run(data, 'log_food', { name: 'Абракадабра', grams: 100, meal: 'lunch' })).toThrow('КБЖУ');
-    expect(run(data, 'get_day')).toContain('Итого: 670 ккал');
+    // Только БЖУ — калории по 4/9/4
+    expect(run(data, 'log_food', { name: 'Творог 5%', grams: 100, meal: 'snack', protein: 17, fat: 5, carbs: 3 })).toContain('125 ккал');
+    expect(run(data, 'get_day')).toContain('Итого: 795 ккал');
   });
 
   it('еда со своими КБЖУ сохраняется в «Мои продукты» и потом находится без КБЖУ', () => {
@@ -92,6 +94,22 @@ describe('действия помощника', () => {
     expect(run(data, 'get_measurements')).not.toContain('Шея');
     run(data, 'delete_measurement', { date: '2026-11-01' });
     expect(run(data, 'get_measurements')).not.toContain('Талия');
+  });
+
+  it('категории: добавить, переставить, переименовать, скрыть и вернуть', () => {
+    const data = base();
+    expect(run(data, 'add_category', { name: 'Бензин', kind: 'expense', position: 1 })).toContain('Добавил');
+    expect(run(data, 'list_categories')).toContain('Расходы:\n  1. Бензин\n  2. Продукты');
+    expect(() => run(data, 'add_category', { name: 'бензин', kind: 'expense' })).toThrow('уже есть');
+    expect(run(data, 'update_category', { category: 'Бензин', name: 'Топливо', position: 3 })).toBe('«Топливо»: 3-я в расходах.');
+    expect(() => run(data, 'update_category', { category: 'Другое' })).toThrow('несколько');
+    expect(run(data, 'update_category', { category: 'Другое', kind: 'income', archived: true })).toContain('скрыта');
+    expect(run(data, 'list_categories')).toContain('скрытые: Другое');
+    // Расход по скрытой категории не записать, а после возврата — можно
+    run(data, 'update_category', { category: 'Топливо', archived: true });
+    expect(() => run(data, 'add_transaction', { kind: 'expense', amount: 100, category: 'Топливо' })).toThrow();
+    expect(run(data, 'add_category', { name: 'Топливо', kind: 'expense' })).toContain('Вернул');
+    expect(run(data, 'add_transaction', { kind: 'expense', amount: 100, category: 'Топливо' })).toContain('Топливо');
   });
 
   it('удаляет и правит задачу; у повтора — только один день', () => {

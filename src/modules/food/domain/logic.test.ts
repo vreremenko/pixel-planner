@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bmr, calcGoal, dishPer100, frequentFoods, macroLine, portionOf, recentFoods, searchFoods, sumEntries } from './logic';
+import { bmr, calcGoal, dishPer100, frequentFoods, kcalFromMacros, kcalMismatch, macroLine, portionOf, recentFoods, searchFoods, sumEntries } from './logic';
 import type { FoodEntry, Meal } from './types';
 
 const m = { kcal: 100, protein: 10, fat: 5, carbs: 20 };
@@ -60,5 +60,18 @@ describe('поиск и подсказки', () => {
     expect(searchFoods(list, 'творожный сыр')).toHaveLength(1);
     expect(searchFoods(list, 'мед')).toHaveLength(1);
     expect(searchFoods(list, '  ')).toEqual([]);
+  });
+});
+
+describe('калории по БЖУ', () => {
+  it('считает по 4/9/4 и ловит заметное расхождение с этикеткой', () => {
+    // Куриная грудка: Б23 Ж2 У0 → 110
+    expect(kcalFromMacros(23, 2, 0)).toBe(110);
+    expect(kcalFromMacros(12.5, 25.3, 1.2)).toBe(283);
+    // Этикетка 105 при расчёте 110 — нормально; 25 вместо 250 — опечатка
+    expect(kcalMismatch(105, 110)).toBe(false);
+    expect(kcalMismatch(25, 250)).toBe(true);
+    // Вода и чай: малые значения не проверяем
+    expect(kcalMismatch(0, 4)).toBe(false);
   });
 });

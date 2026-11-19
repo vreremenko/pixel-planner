@@ -276,3 +276,8 @@
   font: inherit;
   text-align: center;
 }
+/* Калории заметно расходятся с БЖУ: похоже на опечатку */
+.warn {
+  margin: var(--gap-2) 0;
+  color: var(--c-warn);
+}

@@ -33,10 +33,3 @@ export function lastMonths(month: LocalDate, n: number): LocalDate[] {
   const first = startOfMonth(month);
   return Array.from({ length: n }, (_, i) => addMonths(first, i - n + 1));
 }
-
-/** Категории в порядке частоты: нужная чаще всего оказывается первой плиткой. */
-export function byUse(txs: readonly Tx[]): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const t of txs) if (t.categoryId) out.set(t.categoryId, (out.get(t.categoryId) ?? 0) + 1);
-  return out;
-}
