@@ -5,6 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
+import { runAssistant, type AiClient } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -50,11 +51,17 @@ export interface Deps {
   sendMail?: SendMail;
   /** Бот; без него вход через Telegram выключен. */
   telegram?: TelegramApi;
+  /** Нейросеть для фраз в боте (через посредника); без неё бот отвечает только приветствием. */
+  ai?: AiClient;
+  /** Как выполнять долгую фоновую работу (ответ нейросети): по умолчанию не ждём; в тестах — собираем, чтобы дождаться. */
+  defer?: (job: Promise<void>) => void;
   /** Отправка push; в тестах подменяется. */
   send?: (env: Env, to: { endpoint: string; p256dh: string; auth: string }, data: unknown) => Promise<{ status: number; detail: string }>;
 }
 
 const DAY_MS = 86_400_000;
+/** Фраз нейросети в боте на пользователя в сутки: бесплатной квоты Workers AI хватит на всех. */
+const AI_MAX_PER_DAY = 60;
 const MAX_ITEMS = 500;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
@@ -441,7 +448,36 @@ async function issueTelegramCode(d: Deps, kind: 'login' | 'link', userId: string
 async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'text' }>, now: number): Promise<void> {
   const match = /^\/start (login|link)_([A-Za-z0-9_-]{43})$/.exec(e.text.trim());
   if (!match) {
-    await tg.send(e.chatId, 'Привет! Это бот PIXEL PLANNER: задачи, привычки, тренировки, питание и финансы. Откройте приложение прямо здесь.', { text: 'Открыть приложение', webApp: d.env.APP_URL ?? DEFAULT_APP_URL });
+    const owner = e.text.trim().startsWith('/') ? null : await d.store.userByTelegram(e.telegramId);
+    // Обычная фраза от владельца аккаунта — нейросети: она запишет задачу, расход, еду…
+    if (owner && d.ai) {
+      const ai = d.ai;
+      const limiter = d.limiter ?? defaultLimiter;
+      const key = `ai:${owner.id}`;
+      if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) {
+        await tg.send(e.chatId, 'На сегодня лимит фраз для нейросети исчерпан. Завтра снова можно, а пока — в приложении.');
+        return;
+      }
+      limiter.add(key, now);
+      // Ответ нейросети бывает долгим: Telegram ждать не заставляем, иначе он пришлёт сообщение повторно.
+      // Пока думает — «печатает…» (Telegram гасит его через ~5 секунд, поэтому повторяем)
+      const typing = () => void tg.typing?.(e.chatId).catch(() => undefined);
+      typing();
+      const keep = setInterval(typing, 4_500);
+      const job = runAssistant(d.store, ai, owner.id, e.text, now)
+        .finally(() => {
+          clearInterval(keep);
+        })
+        .then((reply) => tg.send(e.chatId, reply))
+        .catch(async (err: unknown) => {
+          console.warn('помощник в боте не ответил', err);
+          await tg.send(e.chatId, 'Нейросеть сейчас не отвечает. Попробуйте чуть позже.').catch(() => undefined);
+        });
+      (d.defer ?? ((p) => void p))(job);
+      return;
+    }
+    const hint = d.ai && !owner && !e.text.trim().startsWith('/') ? ' Чтобы записывать задачи, траты и еду обычными фразами, привяжите Telegram в личном кабинете приложения.' : '';
+    await tg.send(e.chatId, `Привет! Это бот PIXEL PLANNER: задачи, привычки, тренировки, питание и финансы. Откройте приложение прямо здесь.${hint}`, { text: 'Открыть приложение', webApp: d.env.APP_URL ?? DEFAULT_APP_URL });
     return;
   }
   const [, kind, code = ''] = match;

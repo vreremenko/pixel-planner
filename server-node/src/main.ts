@@ -10,6 +10,7 @@ import { refreshAll } from './schedule.ts';
 import { createMailer } from './mail.ts';
 import { SqliteStore } from './sqlite-store.ts';
 import { createTelegram } from './telegram.ts';
+import { createAi } from './assistant.ts';
 
 const env: Env = {
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
@@ -30,7 +31,8 @@ const dbPath = process.env.DB_PATH ?? './data/pixel-planner.sqlite';
 mkdirSync(dirname(dbPath), { recursive: true });
 const store = new SqliteStore(dbPath);
 /** Одни и те же зависимости для запросов и для рассылки напоминаний: раньше рассылка не знала про бота. */
-const deps = { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}) };
+const ai = createAi(process.env);
+const deps = { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}), ...(ai ? { ai } : {}) };
 
 const MAX_BODY = 1_000_000;
 /** Как часто проверять наступившие напоминания: отправка идёт почти в момент срока. */
