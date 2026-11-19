@@ -124,7 +124,7 @@ describe('действия помощника', () => {
     const data = base();
     expect(run(data, 'get_food_goal')).toContain('не задана');
     expect(() => run(data, 'update_food_goal', { adaptive: true, kcal: 2000 })).toThrow('профиль');
-    expect(run(data, 'update_food_goal', { kcal: 2200, protein: 150 })).toBe('Норма: 2200 ккал, Б150 Ж0 У0; подстройка под вес выключена.');
+    expect(run(data, 'update_food_goal', { kcal: 2200, protein: 150 })).toBe('Норма: 2200 ккал, Б150 Ж0 У0; синхронизация нормы по весу выключена.');
     run(data, 'add_task', { title: 'Сделано', date: 'today' });
     const week = run(data, 'week_summary');
     expect(week).toContain('Неделя 16–22 ноября (ещё идёт):');

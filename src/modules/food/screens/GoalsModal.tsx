@@ -1,5 +1,11 @@
-/* Цель на день: калькулятор по формуле Миффлина — Сан-Жеора и ручная правка любого числа. */
+/*
+ * Цель на день: калькулятор по формуле Миффлина — Сан-Жеора и ручная правка любого числа.
+ * Вес не свой: поле показывает последний вес из «Замеров», а введённый здесь записывается туда же.
+ */
 import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useToday } from '../../../core/shell/useToday';
+import { latestWeight, saveWeight } from '../data/weight';
 import { Button, Field, Modal, SelectInput, Segmented, TextInput, toast } from '../../../core/ui';
 import { parseValue } from '../../../core/domain/numbers';
 import { formatDateShort } from '../../../core/domain/dates';
@@ -18,7 +24,11 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
   const [sex, setSex] = useState<Sex>(p?.sex ?? 'male');
   const [age, setAge] = useState(text(p?.age));
   const [height, setHeight] = useState(text(p?.height));
-  const [weight, setWeight] = useState(text(p?.weight));
+  const today = useToday();
+  const latest = useLiveQuery(latestWeight, []);
+  // Пока поле не трогали, в нём последний вес из «Замеров» (он мог появиться уже после открытия окна)
+  const [typedWeight, setTypedWeight] = useState<string | null>(null);
+  const weight = typedWeight ?? (latest ? String(latest.value) : text(p?.weight));
   const [activity, setActivity] = useState(text(p?.activity) || '1.375');
   const [goal, setGoal] = useState<GoalKind>(p?.goal ?? 'keep');
   const [kcal, setKcal] = useState(text(prefs.goal?.kcal));
@@ -55,9 +65,12 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
     }
     const pr = profile();
     if (adaptive && !pr) {
-      toast('Для подстройки заполните возраст, рост и вес', 'alert', 'var(--c-warn)');
+      toast('Для синхронизации заполните возраст, рост и вес', 'alert', 'var(--c-warn)');
       return;
     }
+    // Новый вес — в «Замеры»: там его единственное место
+    const w = parseValue(weight);
+    if (w && (!latest || Math.abs(latest.value - w) >= 0.05)) await saveWeight(today, w);
     await prefsRepo.patch({ goal: g, ...(pr ? { profile: pr } : {}), adaptive });
     onClose();
   };
@@ -75,8 +88,9 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
       <div className={s.grid3}>
         <TextInput label="Возраст" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value)} />
         <TextInput label="Рост, см" inputMode="numeric" value={height} onChange={(e) => setHeight(e.target.value)} />
-        <TextInput label="Вес, кг" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
+        <TextInput label="Вес, кг" inputMode="decimal" value={weight} onChange={(e) => setTypedWeight(e.target.value)} />
       </div>
+      <p className={s.hint}>{latest ? `Вес из «Замеров» от ${formatDateShort(latest.date)}. Новый запишется туда же.` : 'Вес сохранится в «Замерах» — там можно следить за ним дальше.'}</p>
       <SelectInput label="Активность" value={activity} options={[...ACTIVITY]} onChange={(e) => setActivity(e.target.value)} />
       <Field label="Цель">
         <Segmented value={goal} options={GOALS} onChange={setGoal} label="Цель" accent="var(--c-food)" />
@@ -90,15 +104,15 @@ export function GoalsModal({ prefs, onClose }: { prefs: FoodPrefs; onClose: () =
         <TextInput label="Углев., г" inputMode="numeric" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
       </div>
       <ToggleRow
-        label="Подстраивать норму по весу"
-        hint="Раз в неделю, не больше чем на 150 ккал. Точнее всего, если записывать еду и взвешиваться в «Тренировки → Замеры» хотя бы раз в неделю."
+        label="Синхронизация нормы по весу"
+        hint="Раз в неделю норма пересчитывается по вашему весу из «Замеров»."
         checked={adaptive}
         onChange={setAdaptive}
         color="var(--c-food)"
       />
       {prefs.adaptNote && prefs.adaptedAt && (
         <p className={s.hint}>
-          Последняя подстройка {formatDateShort(prefs.adaptedAt)}: {prefs.adaptNote}
+          {formatDateShort(prefs.adaptedAt)}: {prefs.adaptNote}
         </p>
       )}
     </Modal>

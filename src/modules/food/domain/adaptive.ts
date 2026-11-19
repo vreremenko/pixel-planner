@@ -53,7 +53,6 @@ export function trendPerDay(points: readonly WeightPoint[]): number {
   return den === 0 ? 0 : xs.reduce((a, x, i) => a + (x - mx) * ((points[i]?.value ?? my) - my), 0) / den;
 }
 
-const kgText = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 const kcalText = (n: number) => Math.round(n).toLocaleString('ru-RU');
 const round10 = (n: number) => Math.round(n / 10) * 10;
 
@@ -73,19 +72,15 @@ export function adaptGoal(x: AdaptInput): Adaptation | null {
   const span = weights.length ? diffDays(weights.at(-1)?.date ?? end, weights[0]?.date ?? end) : 0;
 
   let target: number;
-  let why: string;
   if (days.length >= MIN_FOOD_DAYS && weights.length >= MIN_WEIGHINS && span >= MIN_WEIGHT_SPAN) {
+    // Реальный расход: средние калории минус изменение веса по тренду
     const intake = days.reduce((a, k) => a + k, 0) / days.length;
-    const slope = trendPerDay(weights);
-    const expenditure = intake - slope * KCAL_PER_KG;
+    const expenditure = intake - trendPerDay(weights) * KCAL_PER_KG;
     if (expenditure < 1000 || expenditure > 6000) return null;
     target = expenditure * GOAL_FACTOR[profile.goal];
-    const change = slope * 7;
-    const trend = Math.abs(change) < 0.05 ? 'вес почти не меняется' : `вес ${change > 0 ? '+' : '−'}${kgText(Math.abs(change))} кг в неделю`;
-    why = `расход по вашим данным ≈ ${kcalText(round10(expenditure))} ккал: в среднем ${kcalText(round10(intake))} ккал в день, ${trend}`;
   } else if (profile.weight !== x.profile.weight) {
+    // Записей еды мало — по формуле с новым весом
     target = calcGoal(profile).kcal;
-    why = `вес ${kgText(x.profile.weight)} → ${kgText(profile.weight)} кг, норма пересчитана по формуле (для точной подстройки записывайте еду и взвешивайтесь)`;
   } else {
     return null;
   }
@@ -94,12 +89,8 @@ export function adaptGoal(x: AdaptInput): Adaptation | null {
   const diff = Math.max(-MAX_STEP, Math.min(MAX_STEP, target - x.goal.kcal));
   const kcal = Math.max(floor, round10(x.goal.kcal + diff));
   if (Math.abs(kcal - x.goal.kcal) < MIN_CHANGE) {
-    // Норма почти та же — обновим только вес в профиле
-    return profile.weight !== x.profile.weight ? { goal: macrosFor(x.goal.kcal, profile.weight, profile.goal), profile, note: `Вес в профиле обновлён: ${kgText(profile.weight)} кг, норма прежняя` } : null;
+    // Норма почти та же — тихо обновим только вес в профиле (без сообщения и без отметки о пересчёте)
+    return profile.weight !== x.profile.weight ? { goal: macrosFor(x.goal.kcal, profile.weight, profile.goal), profile, note: '' } : null;
   }
-  return {
-    goal: macrosFor(kcal, profile.weight, profile.goal),
-    profile,
-    note: `Норма ${kcalText(x.goal.kcal)} → ${kcalText(kcal)} ккал: ${why}.${Math.abs(target - x.goal.kcal) > MAX_STEP ? ' Меняем постепенно, не больше 150 ккал в неделю.' : ''}`,
-  };
+  return { goal: macrosFor(kcal, profile.weight, profile.goal), profile, note: `Норма обновлена по вашему весу: ${kcalText(x.goal.kcal)} → ${kcalText(kcal)} ккал.` };
 }

@@ -32,8 +32,8 @@ export const SUMMARY_TOOLS: readonly Tool[] = [
       if (!p?.goal) return 'Норма не задана. Её можно рассчитать в приложении («Питание → Цель»).';
       return [
         `Норма: ${macroText(p.goal)}`,
-        `Подстройка под вес: ${p.adaptive ? 'включена' : 'выключена'}`,
-        ...(p.adaptNote && p.adaptedAt ? [`Последняя подстройка ${p.adaptedAt}: ${p.adaptNote}`] : []),
+        `Синхронизация нормы по весу: ${p.adaptive ? 'включена' : 'выключена'}`,
+        ...(p.adaptNote && p.adaptedAt ? [`${p.adaptedAt}: ${p.adaptNote}`] : []),
         ...(p.profile ? [`Профиль: ${String(p.profile.weight)} кг, цель — ${p.profile.goal === 'lose' ? 'похудеть' : p.profile.goal === 'gain' ? 'набрать' : 'держать вес'}`] : []),
       ].join('\n');
     },
@@ -41,7 +41,7 @@ export const SUMMARY_TOOLS: readonly Tool[] = [
   {
     name: 'update_food_goal',
     title: 'Изменить норму питания',
-    description: 'Задать норму калорий и БЖУ на день и/или включить подстройку нормы под вес (adaptive).' + ONLY_ON_REQUEST,
+    description: 'Задать норму калорий и БЖУ на день и/или включить синхронизацию нормы по весу (adaptive): раз в неделю норма пересчитывается по весу из замеров.' + ONLY_ON_REQUEST,
     inputSchema: {
       type: 'object',
       properties: { kcal: { type: 'number' }, protein: { type: 'number' }, fat: { type: 'number' }, carbs: { type: 'number' }, adaptive: { type: 'boolean' } },
@@ -54,10 +54,10 @@ export const SUMMARY_TOOLS: readonly Tool[] = [
       const goal: Macros = { kcal: 0, protein: 0, fat: 0, carbs: 0, ...cur.goal };
       for (const k of ['kcal', 'protein', 'fat', 'carbs'] as const) if (input[k] !== undefined) goal[k] = Math.round(num(input[k], k, 0, k === 'kcal' ? 10_000 : 1000));
       if (goal.kcal <= 0) throw new ToolError('Нужна норма калорий (kcal)');
-      if (input.adaptive === true && !cur.profile) throw new ToolError('Для подстройки нужен профиль (возраст, рост, вес) — его заполняют в приложении: «Питание → Цель».');
+      if (input.adaptive === true && !cur.profile) throw new ToolError('Для синхронизации нужен профиль (возраст, рост, вес) — его заполняют в приложении: «Питание → Цель».');
       const adaptive = typeof input.adaptive === 'boolean' ? input.adaptive : cur.adaptive;
       data.put<FoodPrefs>('food_prefs', { ...cur, goal, ...(adaptive === undefined ? {} : { adaptive }), updatedAt: ctx.now });
-      return `Норма: ${macroText(goal)}; подстройка под вес ${adaptive ? 'включена' : 'выключена'}.`;
+      return `Норма: ${macroText(goal)}; синхронизация нормы по весу ${adaptive ? 'включена' : 'выключена'}.`;
     },
   },
 ];
