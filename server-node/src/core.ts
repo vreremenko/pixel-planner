@@ -117,6 +117,9 @@ const OFF_CACHE_MAX = 500;
 const OFF_WINDOW_MS = 60_000;
 const OFF_MAX_PER_IP = 30;
 const OFF_QUERY_MAX = 80;
+/** Продукт по штрихкоду (EAN-8, EAN-13, UPC). */
+const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product/';
+const BARCODE_RE = /^\d{8,14}$/;
 
 interface OffCached {
   at: number;
@@ -223,6 +226,43 @@ async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<Htt
   const body = JSON.stringify({ products: data.hits ?? [] });
   cache.delete(q);
   cache.set(q, { at: now, body });
+  if (cache.size > OFF_CACHE_MAX) for (const old of cache.keys()) {
+    cache.delete(old);
+    break;
+  }
+  return { status: 200, headers: { ...SAFE_HEADERS }, body };
+}
+
+/** Продукт по штрихкоду: { product } или { product: null }, если в базе его нет. */
+async function handleFoodBarcode(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const code = (req.query.code ?? '').trim();
+  if (!BARCODE_RE.test(code)) throw new HttpError(400, 'bad barcode');
+  const cache = d.offCache ?? defaultOffCache;
+  const key = `barcode:${code}`;
+  const hit = cache.get(key);
+  if (hit && now - hit.at < OFF_CACHE_MS) return { status: 200, headers: { ...SAFE_HEADERS }, body: hit.body };
+
+  const limiter = d.limiter ?? defaultLimiter;
+  const ipKey = `off:${req.ip ?? 'unknown'}`;
+  if (limiter.count(ipKey, OFF_WINDOW_MS, now) >= OFF_MAX_PER_IP) throw new HttpError(429, 'too many searches');
+  limiter.add(ipKey, now);
+
+  let product: unknown = null;
+  try {
+    const res = await (d.offFetch ?? fetch)(`${OFF_PRODUCT}${code}?fields=code,product_name,product_name_ru,brands,nutriments`, { headers: { 'user-agent': OFF_USER_AGENT }, signal: AbortSignal.timeout(OFF_TIMEOUT_MS) });
+    // 404 — такого продукта в базе нет: это ответ, а не сбой
+    if (res.status !== 404) {
+      if (!res.ok) throw new Error(`off ${String(res.status)}`);
+      const data = (await res.json()) as { status?: number; product?: unknown };
+      product = data.status === 1 || data.product ? (data.product ?? null) : null;
+    }
+  } catch (e) {
+    console.warn('поиск по штрихкоду не удался', e);
+    throw new HttpError(502, 'off unavailable');
+  }
+  const body = JSON.stringify({ product });
+  cache.delete(key);
+  cache.set(key, { at: now, body });
   if (cache.size > OFF_CACHE_MAX) for (const old of cache.keys()) {
     cache.delete(old);
     break;
@@ -782,6 +822,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
     return json({ vapidPublicKey: d.env.VAPID_PUBLIC_KEY, push: Boolean(d.env.VAPID_PUBLIC_KEY && d.env.VAPID_PRIVATE_KEY) });
   }
   if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'search' && parts.length === 2) return handleFoodSearch(req, d, now);
+  if (req.method === 'GET' && parts[0] === 'food' && parts[1] === 'barcode' && parts.length === 2) return handleFoodBarcode(req, d, now);
   if (parts[0] === 'auth') return handleAuth(req, d, parts);
   if (req.method === 'POST' && parts[0] === 'feedback' && parts.length === 1) return handleFeedback(req, d, now);
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);

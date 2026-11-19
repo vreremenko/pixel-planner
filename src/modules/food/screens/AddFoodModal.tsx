@@ -1,10 +1,12 @@
 /* Добавление в приём пищи: поиск → граммовка → запись. Окно остаётся открытым: обычно добавляют несколько продуктов. */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Button, Modal, toast } from '../../../core/ui';
 import type { LocalDate } from '../../../core/domain/types';
 import { macroLine } from '../domain/logic';
 import { MEALS, type FoodItem, type Meal } from '../domain/types';
 import { addEntry } from '../services/entries';
+import { lookupBarcode } from '../services/off';
+import { BarcodeScanner } from './BarcodeScanner';
 import { DishEditor, ProductEditor } from './FoodEditors';
 import { FoodSearch, type Picked } from './FoodSearch';
 import { PortionForm } from './PortionForm';
@@ -13,6 +15,23 @@ import s from './Food.module.css';
 export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: Meal; onClose: () => void }) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [editor, setEditor] = useState<{ kind: 'product' | 'dish'; item?: FoodItem } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  // Код со сканера ищем в Open Food Facts: нашли — сразу к граммовке, нет — вводим КБЖУ с упаковки
+  const onCode = useCallback((code: string) => {
+    setScanning(false);
+    const ctrl = new AbortController();
+    toast(`Ищем ${code}…`, 'search', 'var(--c-food)');
+    lookupBarcode(code, ctrl.signal).then(
+      (food) => {
+        if (food) setPicked(food);
+        else {
+          toast('Этого штрихкода нет в Open Food Facts — введите КБЖУ с упаковки', 'alert', 'var(--c-warn)');
+          setEditor({ kind: 'product' });
+        }
+      },
+      () => toast('Поиск по штрихкоду сейчас недоступен — попробуйте позже', 'alert', 'var(--c-warn)'),
+    );
+  }, []);
   const label = MEALS.find((m) => m.id === meal)?.label ?? '';
 
   const add = async (grams: number) => {
@@ -45,6 +64,9 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
         <>
           <FoodSearch date={date} meal={meal} onPick={setPicked} onEdit={(item) => setEditor({ kind: item.kind, item })} />
           <div className={s.below}>
+            <Button small icon="bars" onClick={() => setScanning(true)}>
+              Штрихкод
+            </Button>
             <Button small icon="plus" onClick={() => setEditor({ kind: 'dish' })}>
               Создать блюдо
             </Button>
@@ -57,6 +79,7 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
           </p>
         </>
       )}
+      {scanning && <BarcodeScanner onCode={onCode} onClose={() => setScanning(false)} />}
       {editor?.kind === 'product' && <ProductEditor item={editor.item} onClose={() => setEditor(null)} onSaved={setPicked} />}
       {editor?.kind === 'dish' && <DishEditor item={editor.item} date={date} meal={meal} onClose={() => setEditor(null)} onSaved={setPicked} />}
     </Modal>
