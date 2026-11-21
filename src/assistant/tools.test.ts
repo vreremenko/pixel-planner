@@ -21,6 +21,20 @@ const base = () =>
   ]);
 
 describe('действия помощника', () => {
+  it('показывает планы на несколько дней и пустые дни пропускает', () => {
+    const data = new AccountData([
+      rec('tasks', { id: 't1', title: 'Стоматолог', date: '2026-11-18', time: '10:00', priority: 'medium', done: false, order: 0, tags: [], wasInBacklog: false, postponedCount: 0 }),
+      rec('tasks', { id: 't2', title: 'Далеко', date: '2026-12-10', priority: 'medium', done: false, order: 0, tags: [], wasInBacklog: false, postponedCount: 0 }),
+    ]);
+    const week = run(data, 'get_week');
+    expect(week).toContain('10:00 Стоматолог');
+    expect(week).not.toContain('Далеко');
+    expect(run(data, 'get_week', { from: '2026-11-23' })).toContain('ничего не запланировано');
+    // 16.11.2026 — понедельник: следующая неделя с 23-го, эта — до 22-го
+    expect(run(data, 'get_week', { from: 'next_week' })).toContain('23');
+    expect(run(data, 'get_week', { from: 'this_week' })).toContain('Стоматолог');
+  });
+
   it('добавляет задачу на завтра и в бэклог, удалённые записи не видны', () => {
     const data = base();
     expect(run(data, 'add_task', { title: 'Позвонить', date: 'tomorrow', time: '13:30', tags: ['#Работа'] })).toContain('в 13:30');

@@ -4,7 +4,7 @@
  * с вызовом инструментов (MCP для Claude, ChatGPT и других; позже — бот и микрофон в приложении).
  * Действия чистые: получают данные и время, возвращают текст ответа и изменения, а отправляет их вызывающий.
  */
-import { formatDateDay } from '../core/domain/dates';
+import { addDays, formatDateDay, weekday } from '../core/domain/dates';
 import type { LocalDate } from '../core/domain/types';
 import { balances, dayPlan, livingTypical, openDues } from '../modules/finance/domain/plan';
 import { goalView, movedToday } from '../modules/finance/domain/goals';
@@ -146,6 +146,38 @@ const BASE_TOOLS: readonly Tool[] = [
         ...foodLines(data, d),
         ...(d === ctx.today ? ['', 'Финансы:', ...planLine(data, ctx)] : []),
       ].join('\n');
+    },
+  },
+  {
+    name: 'get_week',
+    title: 'Планы на несколько дней',
+    description: 'Задачи и платежи на несколько дней: «что на этой неделе» — from = "this_week", «планы на следующую неделю» — from = "next_week", иначе дата первого дня и число дней.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'this_week (с сегодня до воскресенья), next_week (с понедельника по воскресенье), today, tomorrow или ГГГГ-ММ-ДД. По умолчанию сегодня.' },
+        days: { type: 'number', description: 'Сколько дней, 1–14. По умолчанию 7 (для this_week — до воскресенья).' },
+      },
+      additionalProperties: false,
+    },
+    readOnly: true,
+    run: (data, input, ctx) => {
+      // Недели считаем сами: модели путаются, какой день — понедельник следующей недели
+      const toSunday = 7 - weekday(ctx.today);
+      const from = input.from === 'this_week' ? ctx.today : input.from === 'next_week' ? addDays(ctx.today, toSunday) : date(input.from, ctx);
+      const fallback = input.from === 'this_week' ? toSunday : 7;
+      const days = Math.min(14, Math.max(1, Math.round(typeof input.days === 'number' && input.from !== 'this_week' && input.from !== 'next_week' ? input.days : fallback)));
+      const to = addDays(from, days - 1);
+      const dues = openDues(data.all<Payment>('fin_payments'), data.all<Tx>('fin_tx'), from, days).filter((d) => d.date <= to);
+      const out: string[] = [];
+      for (let i = 0; i < days; i++) {
+        const d = addDays(from, i);
+        const items = dayItems(data, d, ctx);
+        const pays = dues.filter((p) => p.date === d);
+        if (!items.length && !pays.length) continue;
+        out.push(`${formatDateDay(d)}${d === ctx.today ? ' (сегодня)' : ''}:`, ...items.map((t) => `  ${itemLine(t)}`), ...pays.map((p) => `  платёж: ${p.name} ${rub(p.amount)}`));
+      }
+      return out.length ? out.join('\n') : `С ${formatDateDay(from)} по ${formatDateDay(to)} ничего не запланировано.`;
     },
   },
   {
