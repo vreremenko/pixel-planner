@@ -26,29 +26,6 @@
   color: var(--c-warn);
 }
 /* Помощник на компьютере: заметная кнопка под логотипом */
-.sideAssistant {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-2);
-  width: 100%;
-  padding: var(--gap-2);
-  background: var(--c-panel-2);
-  border: var(--px) solid var(--c-gold);
-  color: var(--c-text);
-  font-family: var(--font-title);
-  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
-  text-align: left;
-  cursor: pointer;
-}
-.sideAssistant:hover {
-  background: var(--c-panel-3);
-}
-.sideAssistant small {
-  display: block;
-  color: var(--c-text-dim);
-  font-family: var(--font-body);
-  font-size: var(--fs-small);
-}
 .nav {
   display: flex;
   flex-direction: column;
