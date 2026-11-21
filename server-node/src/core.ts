@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient } from './assistant.ts';
+import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type Proposal } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -555,6 +555,45 @@ async function handleAssistant(req: HttpReq, d: Deps, action: string, now: numbe
   return json({ heard: text, ...plan });
 }
 
+/**
+ * Команда iPhone «Пиксель» (Siri): по личному ключу. Шаг 1 — фраза → что сделать (список для «Выбрать из списка»);
+ * шаг 2 — отмеченные пункты → записать. Предложения ждут на сервере 10 минут: команда присылает обратно только
+ * тексты отмеченных пунктов, поэтому выполнить можно лишь то, что сервер сам предложил этому человеку.
+ */
+const SIRI_TTL_MS = 10 * 60_000;
+const siriPlans = new Map<string, { userId: string; proposals: Proposal[]; exp: number }>();
+
+async function handleSiri(req: HttpReq, d: Deps, action: string, now: number): Promise<HttpRes> {
+  const { userId } = await requireUser(req, d, true);
+  for (const [id, p] of siriPlans) if (p.exp < now) siriPlans.delete(id);
+  const b = readJson(req.body) as { text?: unknown; id?: unknown; items?: unknown };
+  if (action === 'apply') {
+    const pending = typeof b.id === 'string' ? siriPlans.get(b.id) : undefined;
+    if (!pending || pending.userId !== userId) return json({ say: 'Время вышло — скажите ещё раз.' });
+    siriPlans.delete(String(b.id));
+    // «Выбрать из списка» отдаёт отмеченное строками; вставленное в текст — через перевод строки
+    const picked = new Set((Array.isArray(b.items) ? b.items.map(String) : typeof b.items === 'string' ? b.items.split('\n') : []).map((x) => x.trim()));
+    const calls = pending.proposals.filter((p) => picked.has(p.preview.trim()));
+    if (!calls.length) return json({ say: 'Ничего не записал.' });
+    const results = await applyProposals(d.store, userId, calls, now);
+    return json({ say: results.map((r) => (r.ok ? r.text : `Не получилось: ${r.text}`)).join(' ') });
+  }
+  if (action !== 'plan') throw new HttpError(404, 'not found');
+  const ai = d.ai;
+  if (!ai) return json({ mode: 'tell', say: 'Помощник сейчас выключен.', items: [], id: '' });
+  const text = typeof b.text === 'string' ? b.text.trim().slice(0, 1000) : '';
+  if (!text) return json({ mode: 'tell', say: 'Не расслышал. Скажите ещё раз.', items: [], id: '' });
+  const limiter = d.limiter ?? defaultLimiter;
+  const key = `ai:${userId}`;
+  if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) return json({ mode: 'tell', say: `На сегодня лимит помощника исчерпан: ${String(AI_MAX_PER_DAY)} фраз в день.`, items: [], id: '' });
+  limiter.add(key, now);
+  const plan = await planAssistant(d.store, ai, userId, text, now);
+  if (!plan.proposals.length) return json({ mode: 'tell', say: plan.answer || plan.error, items: [], id: '' });
+  const id = newToken();
+  siriPlans.set(id, { userId, proposals: plan.proposals, exp: now + SIRI_TTL_MS });
+  return json({ mode: 'ask', say: plan.error ? `Что записать? ${plan.error}` : 'Что записать?', items: plan.proposals.map((p) => p.preview), id });
+}
+
 /** Голосовое: скачать, распознать, дальше — как обычная фраза. */
 async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'voice' }>, now: number): Promise<void> {
   const owner = await d.store.userByTelegram(e.telegramId);
@@ -931,6 +970,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   if (parts[0] === 'assistant' && parts.length === 2 && req.method === 'POST') return handleAssistant(req, d, parts[1] ?? '', now);
+  if (parts[0] === 'siri' && parts.length === 2 && req.method === 'POST') return handleSiri(req, d, parts[1] ?? '', now);
   // MCP в интернете и вход нейросетей через OAuth
   if (parts[0] === '.well-known' && req.method === 'GET') return wellKnown(req, req.path, d.env.TELEGRAM_RELAY_URL);
   if (parts[0] === 'oauth') return oauth(req, remoteDeps(d, now), parts);

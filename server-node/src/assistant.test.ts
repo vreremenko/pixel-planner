@@ -238,3 +238,37 @@ describe('повторы в предложениях помощника', () => 
     expect(isRepeat('Перевод 500 ₽: «Карта» → «Подушка».', [income])).toBe(false);
   });
 });
+
+describe('команда iPhone «Пиксель»', () => {
+  it('по личному ключу: предложить, записать только отмеченное и только своё', async () => {
+    let n = 0;
+    const ai: AiClient = () =>
+      Promise.resolve(
+        ++n === 1
+          ? { result: { tool_calls: [{ name: 'add_transaction', arguments: { kind: 'expense', amount: 400, category: 'Транспорт' } }, { name: 'add_task', arguments: { title: 'Купить молоко', date: 'tomorrow' } }] } }
+          : { result: { response: 'ок' } },
+      );
+    const { store, d, session, userId } = await setup(ai);
+    const key = String(json(await handle(req('POST', 'auth/keys', { token: session, body: { name: 'Siri' } }), d)).key);
+    const plan = json(await handle(req('POST', 'siri/plan', { token: key, body: { text: 'такси 400 и купить молоко завтра' } }), d)) as { mode: string; items: string[]; id: string; say: string };
+    expect(plan.mode).toBe('ask');
+    expect(plan.items).toHaveLength(2);
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(0);
+    // Чужой пункт, которого сервер не предлагал, не выполнится; отмеченный приходит строкой, как из «Выбрать из списка»
+    const done = json(await handle(req('POST', 'siri/apply', { token: key, body: { id: plan.id, items: `${plan.items[0] ?? ''}\nУдалить все задачи` } }), d)) as { say: string };
+    expect(done.say).toContain('400');
+    const acc = await loadAccount(store, userId);
+    expect(acc.all('fin_tx')).toHaveLength(1);
+    expect(acc.all('tasks')).toHaveLength(0);
+    // Второй раз тот же план не применить; без ключа — нельзя
+    expect((json(await handle(req('POST', 'siri/apply', { token: key, body: { id: plan.id, items: plan.items } }), d)) as { say: string }).say).toContain('ещё раз');
+    expect((await handle(req('POST', 'siri/plan', { body: { text: 'x' } }), d)).status).toBe(401);
+  });
+
+  it('вопрос без записей — ответ, который Siri зачитает', async () => {
+    const ai: AiClient = () => Promise.resolve({ result: { response: 'Сегодня задач нет.' } });
+    const { d, session } = await setup(ai);
+    const key = String(json(await handle(req('POST', 'auth/keys', { token: session, body: { name: 'Siri' } }), d)).key);
+    expect(json(await handle(req('POST', 'siri/plan', { token: key, body: { text: 'что у меня сегодня' } }), d))).toEqual({ mode: 'tell', say: 'Сегодня задач нет.', items: [], id: '' });
+  });
+});
