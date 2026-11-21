@@ -137,7 +137,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
               onClick={voice.finish}
               aria-label="Отправить сказанное"
             >
-              <ShieldIcon size={112} tone={tone} />
+              <ShieldIcon size={125} tone={tone} />
             </button>
             <p className={s.listenHint} aria-live="polite">
               {voice.phase === 'starting' ? 'Включаю микрофон…' : voice.phase === 'live' ? 'Слушаю…' : voice.heard ? 'Нажмите на щит — отправлю' : 'Говорите, я слушаю'}

@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 72px;
+  height: 75px;
   margin: 0 auto;
   align-self: center;
   padding: 0;
@@ -92,7 +92,31 @@
     filter: drop-shadow(0 0 6px rgb(255 204 51 / 55%));
   }
 }
+/* Точка-сканер на визоре щита (единицы — пиксели черепа): ходит туда-обратно по полосе */
+.scan,
+.scanFast {
+  animation: scan 2.8s steps(7) infinite alternate;
+}
+.scanFast {
+  animation-duration: 0.7s;
+}
+.scanHold {
+  transform: translateX(3px);
+}
+@keyframes scan {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(7px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .scan,
+  .scanFast {
+    animation: none;
+    transform: translateX(3px);
+  }
   .shield,
   .fab,
   .bigShield {

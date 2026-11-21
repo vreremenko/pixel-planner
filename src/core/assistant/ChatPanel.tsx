@@ -104,7 +104,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   return (
     <aside className={s.chat} role="dialog" aria-label="Помощник">
       <header className={s.chatHead}>
-        <ShieldIcon size={36} />
+        <ShieldIcon size={50} />
         <span className={s.grow}>Помощник</span>
         <Button small variant="ghost" icon="close" label="Закрыть помощника" onClick={onClose} />
       </header>
