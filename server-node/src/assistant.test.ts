@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseReply, planAssistant, type AiClient } from './assistant.ts';
+import { dropUnaskedReminders, parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
@@ -213,5 +213,19 @@ describe('помощник в Telegram', () => {
     expect(plan.proposals).toHaveLength(1);
     expect(plan.proposals[0]?.preview).toContain('220 ккал');
     expect(plan.error).toBe('');
+  });
+});
+
+describe('напоминания задач от помощника', () => {
+  const args = { title: 'Встреча', time: '09:20', reminders: [15] };
+  it('без просьбы смещение отбрасывается — напомню в момент начала', () => {
+    expect(dropUnaskedReminders('создай задачу на 9:20 встреча', 'add_task', args)).toEqual({ title: 'Встреча', time: '09:20' });
+    expect(dropUnaskedReminders('напомни завтра в 10 купить молоко', 'add_task', args)).not.toHaveProperty('reminders');
+  });
+  it('если человек сам сказал, за сколько, — оставляем', () => {
+    expect(dropUnaskedReminders('встреча в 9:20, напомни за 15 минут', 'add_task', args)).toEqual(args);
+    expect(dropUnaskedReminders('встреча в 9:20, напомни за час', 'add_task', args)).toEqual(args);
+    expect(dropUnaskedReminders('встреча в 9:20, предупреди заранее', 'add_task', args)).toEqual(args);
+    expect(dropUnaskedReminders('потратил 300', 'add_transaction', { amount: 300 })).toEqual({ amount: 300 });
   });
 });

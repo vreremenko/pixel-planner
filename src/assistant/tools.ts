@@ -33,7 +33,7 @@ const kopecks = (rubles: number) => Math.round(rubles * 100);
 const remindersSchema = {
   type: 'array',
   items: { type: 'number', enum: [...REMINDER_OFFSETS] },
-  description: 'За сколько минут до начала напомнить: 0 — в момент начала, 5, 15, 30, 60 — за час, 1440 — за день. Пустой список — без напоминаний. Нужно время задачи.',
+  description: 'Только если пользователь сам сказал, за сколько напомнить; иначе не передавай — напомню в момент начала. Минуты: 0 — в начале, 5, 15, 30, 60 — за час, 1440 — за день. Пустой список — без напоминаний. Нужно время задачи.',
 };
 function reminderSpecs(v: unknown): ReminderSpec[] | undefined {
   if (v === undefined) return undefined;

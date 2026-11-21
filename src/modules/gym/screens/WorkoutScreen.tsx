@@ -7,7 +7,7 @@ import { useExercises } from '../data/exercises';
 import { useAllSets, usePrefs, usePrograms, useWorkout, useWorkoutSets, useWorkouts } from '../data/hooks';
 import { durationInput, parseDuration } from '../domain/tracking';
 import { DEFAULT_WEIGHT_STEP, kgText, suggestWeight } from '../domain/progression';
-import { exerciseOrder, formatSet, lastSessionSets, programItemsFromSets, summarize, type WorkoutSummary } from '../domain/logic';
+import { exerciseOrder, lastSessionSets, programItemsFromSets, summarize, type WorkoutSummary } from '../domain/logic';
 import type { ExerciseDef, Tracking, WorkoutSet } from '../domain/types';
 import { addExercise, addSet, deleteWorkout, finishWorkout, removeExercise, removeSet, toggleSet, updateSet } from '../services/workouts';
 import { useRestTimer } from '../restTimer';
@@ -198,10 +198,10 @@ export function WorkoutScreen() {
               accent="var(--c-gym)"
               actions={active ? <Button small variant="ghost" icon="trash" label="Убрать упражнение" onClick={() => setRemoving(exId)} /> : undefined}
             >
-              <p className={s.hint}>{last.length ? `В прошлый раз: ${last.map((x) => formatSet(x, tracking)).join(', ')}` : 'Первый раз — рекорд по умолчанию'}</p>
+              {/* Прошлые подходы уже стоят в полях — повторять их строкой не нужно; подсказка только когда пора прибавить вес */}
               {tip && (
                 <p className={s.tip}>
-                  В прошлый раз все подходы по {tip.reps} — можно {kgText(tip.weight)} кг (+{kgText(tip.weight - tip.from)}).{' '}
+                  Все подходы дошли до {tip.reps} — пора прибавить: {kgText(tip.weight)} кг (+{kgText(tip.weight - tip.from)}).{' '}
                   {lighter.length > 0 && (
                     <Button small variant="ghost" onClick={() => void Promise.all(lighter.map((x) => updateSet(x, { weight: tip.weight })))}>
                       Поставить {kgText(tip.weight)}
