@@ -360,7 +360,11 @@ const BASE_TOOLS: readonly Tool[] = [
       const brand = optText(input.brand, 80);
       let food: FoodRef;
       let saved = false;
-      if (['kcal', 'protein', 'fat', 'carbs'].some((k) => input[k] !== undefined)) {
+      // Продукт с точно таким названием (и маркой) уже есть в справочнике или «Моих продуктах» — берём его значения,
+      // а не числа нейросети: она путает, например, варёную гречку с сухой
+      const known = foodList(data).find((f) => norm(f.name) === norm(name) && (!brand || norm(f.brand ?? '') === norm(brand)));
+      if (known) food = known;
+      else if (['kcal', 'protein', 'fat', 'carbs'].some((k) => input[k] !== undefined)) {
         const m = (k: string) => (input[k] === undefined ? 0 : num(input[k], k, 0, 1000));
         const [protein, fat, carbs] = [m('protein'), m('fat'), m('carbs')];
         // Калорий нет — считаем по БЖУ, как в форме своего продукта
@@ -375,7 +379,7 @@ const BASE_TOOLS: readonly Tool[] = [
         const found = searchFoods(foodList(data), brand ? `${name} ${brand}` : name, 5);
         const exact = found.find((f) => norm(f.name) === norm(name));
         const one = exact ?? (found.length === 1 ? found[0] : undefined);
-        if (!one) throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
+        if (!one) throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Выберите подходящий по смыслу (на обед обычно готовый, например варёный) и вызовите log_food снова с точным названием, или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
         food = one;
       }
       const d = date(input.date, ctx);

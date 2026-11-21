@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseReply, type AiClient } from './assistant.ts';
+import { parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
-import { mk, register, req } from './test-helpers.ts';
+import { json, mk, register, req } from './test-helpers.ts';
 import type { TelegramApi } from './telegram.ts';
 
 const NOW = Date.UTC(2026, 10, 19, 9, 0);
@@ -22,7 +22,7 @@ async function setup(ai: AiClient) {
     download: () => Promise.resolve(new Uint8Array([1, 2, 3])),
   };
   const d = mk({ now: () => NOW, telegram, ai, defer: (j) => jobs.push(j), env: { TELEGRAM_RELAY_KEY: KEY } }, store);
-  await register(d, 'a@b.ru');
+  const session = await register(d, 'a@b.ru');
   const user = await store.userByEmail('a@b.ru');
   await store.userSetTelegram(user?.id ?? '', '777');
   await store.syncPush(user?.id ?? '', [{ t: 'fin_accounts', id: 'a1', u: 1, d: JSON.stringify({ id: 'a1', name: 'Карта', start: 1_000_000, inPlan: true, createdAt: 1, updatedAt: 1 }) }]);
@@ -36,7 +36,7 @@ async function setup(ai: AiClient) {
     await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
     await Promise.all(jobs.splice(0));
   };
-  return { store, userId: user?.id ?? '', sent, say, voice };
+  return { store, d, session, userId: user?.id ?? '', sent, say, voice };
 }
 
 describe('помощник в Telegram', () => {
@@ -169,5 +169,49 @@ describe('помощник в Telegram', () => {
     expect(sent.at(-1)).toContain('длиннее');
     await voice(5, 555);
     expect(sent.at(-1)).toContain('привязан');
+  });
+
+  it('приложение: «предложить» ничего не записывает, «применить» — только выбранное и только безопасное', async () => {
+    let n = 0;
+    const ai: AiClient = () =>
+      Promise.resolve(
+        ++n === 1
+          ? { result: { tool_calls: [{ name: 'add_transaction', arguments: { kind: 'expense', amount: 320, category: 'Кафе' } }, { name: 'add_task', arguments: { title: 'Купить молоко', date: 'tomorrow', time: '10:00' } }] } }
+          : { result: { response: 'ок' } },
+      );
+    const { store, d, session, userId } = await setup(ai);
+    const plan = json(await handle(req('POST', 'assistant/plan', { token: session, body: { text: 'Потратил 320 на кофе и напомни купить молоко' } }), d)) as { heard: string; proposals: { name: string; args: unknown; preview: string }[] };
+    expect(plan.heard).toContain('320');
+    expect(plan.proposals.map((p) => p.name)).toEqual(['add_transaction', 'add_task']);
+    expect(plan.proposals[1]?.preview).toContain('Купить молоко');
+    // Ничего не записано, пока не применили
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(0);
+    // Применяем только задачу; удаление и чтение отсюда недоступны
+    const res = json(await handle(req('POST', 'assistant/apply', { token: session, body: { calls: [plan.proposals[1], { name: 'delete_task', args: { id: 'x' } }, { name: 'get_day', args: {} }] } }), d)) as { results: { ok: boolean; text: string }[] };
+    expect(res.results.map((r) => r.ok)).toEqual([true, false, false]);
+    const acc = await loadAccount(store, userId);
+    expect(acc.all('fin_tx')).toHaveLength(0);
+    expect(acc.all('tasks')).toHaveLength(1);
+    // Без входа — нельзя; ключом нейросети — тоже
+    expect((await handle(req('POST', 'assistant/plan', { body: { text: 'x' } }), d)).status).toBe(401);
+    const key = String(json(await handle(req('POST', 'auth/keys', { token: session, body: { name: 'k' } }), d)).key);
+    expect((await handle(req('POST', 'assistant/apply', { token: key, body: { calls: [] } }), d)).status).toBe(403);
+  });
+
+  it('модель исправилась после «уточните продукт» — старая ошибка не показывается', async () => {
+    let n = 0;
+    const ai: AiClient = () =>
+      Promise.resolve(
+        ++n === 1
+          ? { result: { tool_calls: [{ name: 'log_food', arguments: { name: 'гречка', grams: 200, meal: 'lunch' } }] } }
+          : n === 2
+            ? { result: { tool_calls: [{ name: 'log_food', arguments: { name: 'Гречка варёная', grams: 200, meal: 'lunch' } }] } }
+            : { result: { response: 'ок' } },
+      );
+    const { store, userId } = await setup(ai);
+    const plan = await planAssistant(store, ai, userId, 'съел гречку', NOW);
+    expect(plan.proposals).toHaveLength(1);
+    expect(plan.proposals[0]?.preview).toContain('220 ккал');
+    expect(plan.error).toBe('');
   });
 });

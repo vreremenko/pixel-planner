@@ -10,8 +10,8 @@ export const ACCOUNT: ModuleNavItem = { to: '/account', label: 'Личный к�
 export const ADMIN: ModuleNavItem = { to: '/admin', label: 'Админка', short: 'Админка', icon: 'shield', accent: 'var(--c-gold)' };
 export const SETTINGS: ModuleNavItem = { to: '/settings', label: 'Настройки', short: 'Опции', icon: 'gear', accent: 'var(--c-text-dim)' };
 export const MORE: ModuleNavItem = { to: '/more', label: 'Ещё', short: 'Ещё', icon: 'menu', accent: 'var(--c-text-dim)' };
-/** Сколько разделов помещается в нижнее меню между «Сводкой» и «Ещё». */
-export const MOBILE_SLOTS = 3;
+/** Сколько разделов закрепляется в нижнем меню: кроме них там «Сводка», кнопка помощника и «Разделы». */
+export const MOBILE_SLOTS = 2;
 
 /** Показать ли админку. Настоящая проверка прав на сервере, здесь только пункт меню. */
 export const useIsAdmin = (): boolean => useAuth((s) => Boolean(s.session?.user.admin));
@@ -22,12 +22,12 @@ export function useModules(): readonly ModuleManifest[] {
   return useMemo(() => MODULES.filter((m) => !off.includes(m.id)), [off]);
 }
 
-/** Пункты нижнего меню телефона: «Сводка», выбранные разделы (до MOBILE_SLOTS), «Ещё». */
+/** Ссылки нижнего меню телефона: «Сводка» и выбранные разделы (до MOBILE_SLOTS); кнопку помощника и «Разделы» добавляет Layout. */
 export function mobileItems(modules: readonly Pick<ModuleManifest, 'nav'>[], chosen: readonly string[]): ModuleNavItem[] {
   const all = modules.flatMap((m) => m.nav);
   // Ровно то, что выбрано в настройках: пункты выключенных разделов просто пропадают
   const picked = chosen.map((to) => all.find((n) => n.to === to)).filter((n): n is ModuleNavItem => n !== undefined);
-  return [HOME, ...picked.slice(0, MOBILE_SLOTS), MORE];
+  return [HOME, ...picked.slice(0, MOBILE_SLOTS)];
 }
 
 export function useMobileNav(): ModuleNavItem[] {

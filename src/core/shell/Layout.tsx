@@ -11,6 +11,9 @@ import { OfflineBar } from './OfflineBar';
 import { TelegramBridge } from '../telegram/TelegramBridge';
 import { TelegramWelcome } from '../telegram/TelegramWelcome';
 import { ACCOUNT, ADMIN, HOME, MORE, SETTINGS, useIsAdmin, useMobileNav, useModules } from './nav';
+import { SectionsSheet } from './SectionsSheet';
+import { ShieldMic } from '../assistant/ShieldMic';
+import { VoiceSheet } from '../assistant/VoiceSheet';
 
 function NavLinks({ items, short }: { items: readonly ModuleNavItem[]; short?: boolean }) {
   return items.map((n) => (
@@ -49,6 +52,12 @@ export function Layout() {
   const current = useCurrentItem(allItems);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const { pathname } = useLocation();
+  // Шторка помнит экран, на котором открыта: перешли на другой — она закрывается сама
+  const [opened, setOpened] = useState<{ kind: 'sections' | 'voice'; path: string } | null>(null);
+  const sheet = opened?.path === pathname ? opened.kind : null;
+  const setSheet = (kind: 'sections' | 'voice' | null) => setOpened(kind ? { kind, path: pathname } : null);
+  // Раздел из нескольких экранов: на телефоне его экраны — вкладками наверху, а не пунктами меню
+  const tabsOf = modules.find((m) => m.nav.length > 1 && current && m.nav.includes(current));
   // Новый экран открывается с начала, а не с места, где листали прошлый
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -95,6 +104,15 @@ export function Layout() {
           </NavLink>
         </div>
         <OfflineBar className={s.offlineMobile} />
+        {tabsOf && (
+          <nav className={s.moduleTabs} aria-label={`Экраны раздела «${tabsOf.title}»`}>
+            {tabsOf.nav.map((n) => (
+              <NavLink key={n.to} to={n.to} className={s.moduleTab} style={{ '--accent': n.accent } as CSSProperties}>
+                {n.short}
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </header>
       <Goida />
       <TelegramBridge />
@@ -109,8 +127,16 @@ export function Layout() {
         </TopbarSlot.Provider>
       </main>
       <nav className={s.bottom} aria-label="Нижняя навигация">
-        <NavLinks items={mobile} short />
+        <NavLinks items={mobile.slice(0, 2)} short />
+        <ShieldMic onClick={() => setSheet('voice')} />
+        <NavLinks items={mobile.slice(2)} short />
+        <button type="button" className={s.link} aria-expanded={sheet === 'sections'} onClick={() => setSheet(sheet === 'sections' ? null : 'sections')} style={{ '--accent': MORE.accent } as CSSProperties}>
+          <PixelIcon name="menu" size={24} />
+          <span>Разделы</span>
+        </button>
       </nav>
+      {sheet === 'sections' && <SectionsSheet onClose={() => setSheet(null)} />}
+      {sheet === 'voice' && <VoiceSheet onClose={() => setSheet(null)} />}
     </div>
   );
 }
