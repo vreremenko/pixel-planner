@@ -127,7 +127,8 @@ let again = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /** Один проход синхронизации. Если уже идёт — запомнит и повторит сразу после. */
-async function syncNow(): Promise<void> {
+/** Синхронизировать сейчас (например, после записи через помощника на сервере). */
+export async function syncNow(): Promise<void> {
   if (useSync.getState().running) {
     again = true;
     return;

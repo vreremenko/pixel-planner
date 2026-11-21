@@ -4,6 +4,8 @@ import { APP_VERSION } from '../changelog';
 import type { Session } from './session';
 
 const MESSAGES: Record<string, string> = {
+  ai_limit: 'На сегодня лимит команд для нейросети исчерпан. Завтра снова можно.',
+  ai_off: 'Нейросеть сейчас недоступна. Попробуйте позже.',
   invalid_email: 'Проверьте адрес почты',
   weak_password: 'Пароль должен быть не короче 8 символов',
   email_taken: 'Эта почта уже зарегистрирована. Попробуйте войти',
@@ -39,9 +41,9 @@ export class AuthError extends Error {
 
 const TIMEOUT_MS = 20_000;
 
-async function call(path: string, init: { method: string; body?: unknown; token?: string }): Promise<unknown> {
+async function call(path: string, init: { method: string; body?: unknown; token?: string; timeout?: number }): Promise<unknown> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), init.timeout ?? TIMEOUT_MS);
   try {
     const res = await fetch(apiUrl(path), {
       method: init.method,
@@ -164,3 +166,22 @@ export interface PushStatus {
 }
 
 export const pushStatus = (token: string) => call('push/status', { method: 'GET', token }) as Promise<PushStatus>;
+
+/** Действие, которое помощник предлагает сделать (ещё не сделано). */
+export interface AssistantProposal {
+  name: string;
+  args: Record<string, unknown>;
+  preview: string;
+}
+export interface AssistantPlan {
+  heard: string;
+  proposals: AssistantProposal[];
+  answer: string;
+  error: string;
+}
+/** Нейросеть бесплатная и неспешная: ответ может занять до минуты. */
+const ASSISTANT_TIMEOUT_MS = 90_000;
+export const assistantPlan = (token: string, input: { text: string } | { audio: string }) =>
+  call('assistant/plan', { method: 'POST', token, body: input, timeout: ASSISTANT_TIMEOUT_MS }) as Promise<AssistantPlan>;
+export const assistantApply = (token: string, calls: { name: string; args: Record<string, unknown> }[]) =>
+  call('assistant/apply', { method: 'POST', token, body: { calls } }) as Promise<{ results: { ok: boolean; text: string }[] }>;

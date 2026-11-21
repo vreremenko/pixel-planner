@@ -35,6 +35,7 @@ const ai = createAi(process.env);
 const deps = { store, env, ...(sendMail ? { sendMail } : {}), ...(telegram ? { telegram } : {}), ...(ai ? { ai } : {}) };
 
 const MAX_BODY = 1_000_000;
+const MAX_VOICE_BODY = 4_000_000;
 /** Как часто проверять наступившие напоминания: отправка идёт почти в момент срока. */
 const TICK_MS = 5_000;
 
@@ -59,7 +60,8 @@ const server = createServer((req, res) => {
       let size = 0;
       for await (const c of req) {
         size += (c as Buffer).length;
-        if (size > MAX_BODY) {
+        // Голосовая команда из приложения (WAV до минуты) больше обычного запроса
+        if (size > (url.pathname.endsWith('/assistant/plan') ? MAX_VOICE_BODY : MAX_BODY)) {
           res.writeHead(413).end();
           return;
         }

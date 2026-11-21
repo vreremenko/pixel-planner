@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { runAssistant, transcribe, type AiClient } from './assistant.ts';
+import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -64,6 +64,8 @@ const DAY_MS = 86_400_000;
 const AI_MAX_PER_DAY = 60;
 /** Голосовые длиннее не распознаём: обычная просьба укладывается в минуту. */
 const VOICE_MAX_SEC = 120;
+/** Голосовая команда из приложения: WAV до ~минуты в base64. */
+const VOICE_MAX_JSON = 3_800_000;
 const MAX_ITEMS = 500;
 const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
@@ -521,6 +523,38 @@ async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: st
   (d.defer ?? ((p) => void p))(job);
 }
 
+/**
+ * Помощник в приложении: «предложить» (фраза или голос → список действий, ничего не записано)
+ * и «применить» (выбранные галочками действия). Только по сессии вошедшего человека, не по ключу нейросети.
+ */
+async function handleAssistant(req: HttpReq, d: Deps, action: string, now: number): Promise<HttpRes> {
+  const { userId } = await requireUser(req, d);
+  if (action === 'apply') {
+    const b = readJson(req.body) as { calls?: unknown };
+    if (!Array.isArray(b.calls)) throw new HttpError(400, 'calls required');
+    const calls = b.calls.filter((c): c is { name: unknown; args: unknown } => typeof c === 'object' && c !== null);
+    return json({ results: await applyProposals(d.store, userId, calls, now) });
+  }
+  if (action !== 'plan') throw new HttpError(404, 'not found');
+  const ai = d.ai;
+  if (!ai) throw new HttpError(503, 'ai_off');
+  const b = readJson(req.body, VOICE_MAX_JSON) as { text?: unknown; audio?: unknown };
+  const limiter = d.limiter ?? defaultLimiter;
+  const key = `ai:${userId}`;
+  if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) throw new HttpError(429, 'ai_limit');
+  limiter.add(key, now);
+  let text = typeof b.text === 'string' ? b.text.trim().slice(0, 1000) : '';
+  if (!text && typeof b.audio === 'string') {
+    const audio = Buffer.from(b.audio, 'base64');
+    if (audio.length < 1000) throw new HttpError(400, 'audio too short');
+    text = await transcribe(ai, audio);
+    if (!text) return json({ heard: '', proposals: [], answer: '', error: 'Не расслышал. Попробуйте ещё раз или напишите текстом.' });
+  }
+  if (!text) throw new HttpError(400, 'text or audio required');
+  const plan = await planAssistant(d.store, ai, userId, text, now);
+  return json({ heard: text, ...plan });
+}
+
 /** Голосовое: скачать, распознать, дальше — как обычная фраза. */
 async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'voice' }>, now: number): Promise<void> {
   const owner = await d.store.userByTelegram(e.telegramId);
@@ -896,6 +930,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
+  if (parts[0] === 'assistant' && parts.length === 2 && req.method === 'POST') return handleAssistant(req, d, parts[1] ?? '', now);
   // MCP в интернете и вход нейросетей через OAuth
   if (parts[0] === '.well-known' && req.method === 'GET') return wellKnown(req, req.path, d.env.TELEGRAM_RELAY_URL);
   if (parts[0] === 'oauth') return oauth(req, remoteDeps(d, now), parts);

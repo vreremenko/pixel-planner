@@ -224,3 +224,111 @@
   align-items: center;
   gap: 4px;
 }
+
+/* Вкладки экранов раздела (телефон): Тренировка · Программа · Упражнения · Замеры */
+.moduleTabs {
+  display: none;
+}
+/* Шторка «Разделы» */
+.sheetBackdrop {
+  position: fixed;
+  inset: 0 0 calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  z-index: 40;
+  background: rgb(5 4 14 / 72%);
+  display: flex;
+  align-items: flex-end;
+}
+.sheet {
+  width: 100%;
+  background: var(--c-panel);
+  border-top: 3px solid var(--c-gold);
+  padding: var(--gap-3) var(--gap-4) var(--gap-4);
+}
+.sheetGrip {
+  width: 44px;
+  height: 4px;
+  background: var(--c-panel-3);
+  margin: 0 auto var(--gap-3);
+}
+.sheetTitle {
+  color: var(--c-text-dim);
+  font-size: var(--fs-small);
+  margin-bottom: var(--gap-2);
+}
+.sheetTiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-3);
+}
+.sheetTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 80px;
+  padding: var(--gap-2);
+  background: var(--c-panel-2);
+  border: var(--px) solid var(--c-panel-3);
+  color: var(--c-text);
+  text-decoration: none;
+  text-align: center;
+  font-size: max(calc(11px * var(--fs-scale)), var(--fs-min));
+  /* Слово целиком: «Планировщик» не рвётся посередине */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: auto;
+}
+.sheetTile svg,
+.sheetLink svg {
+  color: var(--accent);
+}
+.sheetTile:active {
+  border-color: var(--accent);
+}
+.sheetRow {
+  display: flex;
+  gap: var(--gap-2);
+}
+.sheetLink {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: var(--px) solid var(--c-panel-3);
+  color: var(--c-text);
+  text-decoration: none;
+  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+}
+@media (max-width: 767px) {
+  .moduleTabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 0;
+    border-top: 2px solid var(--c-panel-3);
+    scrollbar-width: none;
+  }
+  .moduleTab {
+    flex: 1 0 auto;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--gap-3);
+    color: var(--c-text-dim);
+    text-decoration: none;
+    font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+    border-bottom: 3px solid transparent;
+  }
+  .moduleTab[aria-current='page'] {
+    color: var(--accent, var(--c-gold));
+    border-bottom-color: var(--accent, var(--c-gold));
+  }
+  .bottom button.link {
+    background: none;
+    cursor: pointer;
+  }
+}

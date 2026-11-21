@@ -8,16 +8,13 @@ const gym = { nav: [item('/gym')] };
 const paths = (xs: ModuleNavItem[]) => xs.map((x) => x.to);
 
 describe('нижнее меню телефона', () => {
-  it('«Сводка», выбранные разделы в выбранном порядке и «Ещё»', () => {
-    expect(paths(mobileItems([planner, gym], ['/gym', '/day', '/stats']))).toEqual(['/', '/gym', '/day', '/stats', '/more']);
-  });
-  it('не больше трёх разделов', () => {
-    expect(paths(mobileItems([planner, gym], ['/day', '/backlog', '/habits', '/stats']))).toHaveLength(5);
+  it('«Сводка» и выбранные разделы в выбранном порядке, не больше двух', () => {
+    expect(paths(mobileItems([planner, gym], ['/gym', '/day', '/stats']))).toEqual(['/', '/gym', '/day']);
   });
   it('пункт выключенного раздела пропадает, ничем не заменяясь', () => {
-    expect(paths(mobileItems([planner], ['/gym', '/day']))).toEqual(['/', '/day', '/more']);
+    expect(paths(mobileItems([planner], ['/gym', '/day']))).toEqual(['/', '/day']);
   });
-  it('ничего не выбрано — только «Сводка» и «Ещё»', () => {
-    expect(paths(mobileItems([planner, gym], []))).toEqual(['/', '/more']);
+  it('ничего не выбрано — только «Сводка»', () => {
+    expect(paths(mobileItems([planner, gym], []))).toEqual(['/']);
   });
 });
