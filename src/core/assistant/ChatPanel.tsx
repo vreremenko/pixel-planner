@@ -3,13 +3,13 @@
  * кнопка микрофона рядом. Каждая команда — сообщение: что нейросеть предлагает сделать (галочки, по умолчанию все)
  * и «Применить»; до этого ничего не записывается. История — до закрытия панели.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
-import { Button, inputClass } from '../ui';
+import { Button, inputClass, PixelIcon } from '../ui';
 import { useAuth } from '../auth/store';
 import { assistantApply, assistantPlan, AuthError, type AssistantPlan } from '../auth/api';
 import { syncNow } from '../sync/manager';
-import { startRecording, type Recording } from './recorder';
+import { useVoice } from './useVoice';
 import { ShieldIcon } from './ShieldMic';
 import s from './Assistant.module.css';
 
@@ -31,9 +31,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState('');
-  const [recording, setRecording] = useState(false);
   const [micError, setMicError] = useState('');
-  const rec = useRef<Recording | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -50,7 +48,6 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      rec.current?.cancel();
     };
   }, [onClose]);
 
@@ -71,27 +68,20 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     send({ text: t }, t);
   };
 
+  // Голос: нажали микрофон — слушаем; замолчали — пульсирует (нажмите, чтобы отправить), долго тихо — отправляем сами
+  const voice = useVoice({
+    onAudio: (audio) => {
+      if (audio) send({ audio }, '🎤 …');
+    },
+    onError: () => setMicError('Нет доступа к микрофону — разрешите его в настройках браузера.'),
+  });
+  const recording = voice.phase !== 'off';
   const toggleMic = () => {
-    if (recording) {
-      const r = rec.current;
-      rec.current = null;
-      setRecording(false);
-      void r?.stop().then((audio) => {
-        if (audio) send({ audio }, '🎤 …');
-      });
-      return;
+    if (recording) voice.finish();
+    else {
+      setMicError('');
+      voice.start();
     }
-    setMicError('');
-    startRecording(
-      () => undefined,
-      () => toggleMic(),
-    ).then(
-      (r) => {
-        rec.current = r;
-        setRecording(true);
-      },
-      () => setMicError('Нет доступа к микрофону — разрешите его в настройках браузера.'),
-    );
   };
 
   const apply = (t: Turn) => {
@@ -114,7 +104,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   return (
     <aside className={s.chat} role="dialog" aria-label="Помощник">
       <header className={s.chatHead}>
-        <ShieldIcon size={28} />
+        <ShieldIcon size={50} />
         <span className={s.grow}>Помощник</span>
         <Button small variant="ghost" icon="close" label="Закрыть помощника" onClick={onClose} />
       </header>
@@ -205,9 +195,17 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         >
           {micError && <p className={s.bad} style={{ margin: '0 0 6px' }}>{micError}</p>}
           <div className={s.typeRow} style={{ marginTop: 0 }}>
-            <input ref={input} className={inputClass} value={text} maxLength={1000} placeholder={recording ? 'Слушаю… нажмите микрофон, чтобы отправить' : 'Напишите команду'} aria-label="Команда" onChange={(e) => setText(e.target.value)} disabled={recording} />
-            <button type="button" className={`${s.micBtn} ${recording ? s.micOn : ''}`} onClick={toggleMic} aria-label={recording ? 'Остановить и отправить' : 'Сказать голосом'} aria-pressed={recording}>
-              <ShieldIcon size={30} recording={recording} />
+            <input ref={input} className={inputClass} value={text} maxLength={1000} placeholder={!recording ? 'Напишите команду' : voice.phase === 'live' ? 'Слушаю…' : voice.heard ? 'Нажмите микрофон — отправлю' : 'Говорите, я слушаю'} aria-label="Команда" onChange={(e) => setText(e.target.value)} disabled={recording} />
+            <button
+              type="button"
+              className={`${s.micBtn} ${voice.phase === 'live' ? s.micOn : recording ? s.micWait : ''}`}
+              style={{ '--lvl': String(voice.level) } as CSSProperties}
+              onClick={toggleMic}
+              aria-label={recording ? 'Отправить сказанное' : 'Сказать голосом'}
+              aria-pressed={recording}
+              title={recording ? 'Отправить' : 'Сказать голосом'}
+            >
+              <PixelIcon name="mic" size={28} />
             </button>
             <Button type="submit" icon="right" label="Отправить" disabled={recording} />
           </div>

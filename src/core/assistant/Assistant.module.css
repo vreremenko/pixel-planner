@@ -1,12 +1,12 @@
-/* Кнопка-щит в нижнем меню: приподнята над ним, «дышит» */
+/* Кнопка-щит в нижнем меню: крупная, заметно приподнята над ним, «дышит» */
 .shield {
   position: relative;
-  top: -10px;
+  top: -18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  height: 75px;
   margin: 0 auto;
   align-self: center;
   padding: 0;
@@ -15,8 +15,73 @@
   cursor: pointer;
   animation: breathe 3.2s steps(4) infinite;
 }
-.shield:active {
+.shield:active,
+.fab:active {
   transform: translateY(2px);
+}
+/* На компьютере — щит в правом нижнем углу, как привычная кнопка чата */
+.fab {
+  position: fixed;
+  right: 24px;
+  /* выше флажка-пасхалки в углу */
+  bottom: 44px;
+  z-index: 110;
+  display: flex;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  animation: breathe 3.2s steps(4) infinite;
+}
+.fab:hover {
+  filter: drop-shadow(0 0 10px rgb(255 204 51 / 70%));
+}
+@media (max-width: 767px) {
+  .fab {
+    display: none;
+  }
+}
+/* Большой щит в шторке: неон, пока звучит голос (размер — от громкости), золото и пульс — когда замолчали */
+.bigShield {
+  display: flex;
+  margin: var(--gap-3) auto var(--gap-2);
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transform: scale(calc(1 + var(--lvl, 0) * 0.12));
+  transition: transform 90ms steps(2), filter 150ms;
+}
+.bigShield[data-tone='idle'] {
+  filter: drop-shadow(0 0 6px rgb(255 204 51 / 35%));
+}
+.bigShield[data-tone='live'] {
+  filter: drop-shadow(0 0 calc(6px + var(--lvl, 0) * 22px) rgb(94 230 255 / 85%));
+}
+.bigShield[data-tone='wait'] {
+  animation: waitPulse 1.1s steps(4) infinite;
+}
+@keyframes waitPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgb(255 204 51 / 40%));
+  }
+  50% {
+    transform: scale(1.07);
+    filter: drop-shadow(0 0 18px rgb(255 204 51 / 95%));
+  }
+}
+.listenHint {
+  text-align: center;
+  font-family: var(--font-title);
+  color: var(--c-gold);
+  margin: 0 0 var(--gap-2);
+}
+.example {
+  text-align: center;
+  color: var(--c-text-dim);
+  margin: 0;
 }
 @keyframes breathe {
   0%,
@@ -27,9 +92,36 @@
     filter: drop-shadow(0 0 6px rgb(255 204 51 / 55%));
   }
 }
+/* Точка-сканер на визоре щита (единицы — пиксели черепа): ходит туда-обратно по полосе */
+.scan,
+.scanFast {
+  animation: scan 2.8s steps(7) infinite alternate;
+}
+.scanFast {
+  animation-duration: 0.7s;
+}
+.scanHold {
+  transform: translateX(3px);
+}
+@keyframes scan {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(7px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .shield {
+  .scan,
+  .scanFast {
     animation: none;
+    transform: translateX(3px);
+  }
+  .shield,
+  .fab,
+  .bigShield {
+    animation: none;
+    transition: none;
   }
 }
 /* Шторка помощника снизу */
@@ -66,28 +158,10 @@
   top: -8px;
   right: -8px;
 }
-.listenHead {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-2);
-}
 .status {
   font-family: var(--font-title);
   color: var(--c-gold);
   margin: 0 0 var(--gap-2);
-}
-.wave {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 40px;
-  margin: var(--gap-2) 0 var(--gap-3);
-}
-.wave span {
-  flex: 1;
-  max-width: 10px;
-  background: var(--c-habit, #5ee6ff);
-  transition: height 80ms steps(2);
 }
 .heard {
   margin: 0 0 var(--gap-3);
@@ -218,17 +292,29 @@
   justify-content: center;
   width: 44px;
   height: 44px;
+  flex: none;
   padding: 0;
   background: none;
-  border: var(--px) solid var(--c-panel-3);
+  border: 0;
+  color: var(--c-gold);
   cursor: pointer;
 }
-.micOn {
-  border-color: #ff4d6d;
-  animation: rec 1s steps(2) infinite;
+.micBtn:hover {
+  filter: drop-shadow(0 0 6px rgb(255 204 51 / 70%));
 }
-@keyframes rec {
-  50% {
-    background: rgb(255 77 109 / 25%);
+/* Пишет: неон, пока звучит голос; тишина — золотой пульс «нажмите, чтобы отправить» */
+.micOn {
+  color: #5ee6ff;
+  filter: drop-shadow(0 0 calc(3px + var(--lvl, 0) * 12px) rgb(94 230 255 / 85%));
+}
+.micWait {
+  color: var(--c-gold);
+  animation: waitPulse 1.1s steps(4) infinite;
+}
+
+/* На телефоне чата нет: там щит в нижнем меню и шторка */
+@media (max-width: 767px) {
+  .chat {
+    display: none;
   }
 }

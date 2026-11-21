@@ -12,7 +12,7 @@ import { TelegramBridge } from '../telegram/TelegramBridge';
 import { TelegramWelcome } from '../telegram/TelegramWelcome';
 import { ACCOUNT, ADMIN, HOME, MORE, SETTINGS, useIsAdmin, useMobileNav, useModules } from './nav';
 import { SectionsSheet } from './SectionsSheet';
-import { ShieldIcon, ShieldMic } from '../assistant/ShieldMic';
+import { ShieldMic } from '../assistant/ShieldMic';
 import { VoiceSheet } from '../assistant/VoiceSheet';
 import { ChatPanel } from '../assistant/ChatPanel';
 
@@ -81,13 +81,6 @@ export function Layout() {
           <br />
           PLANNER
         </div>
-        <button type="button" className={s.sideAssistant} onClick={() => setChat(true)} aria-expanded={chat} aria-label="Помощник: сказать или написать команду">
-          <ShieldIcon size={36} />
-          <span>
-            Помощник
-            <small>голосом или текстом</small>
-          </span>
-        </button>
         <nav className={s.nav} aria-label="Основная навигация">
           <NavLinks items={[HOME]} current={current} />
           {modules.map((m) => (
@@ -152,7 +145,7 @@ export function Layout() {
       </nav>
       {sheet === 'sections' && <SectionsSheet onClose={() => setSheet(null)} />}
       {sheet === 'voice' && <VoiceSheet onClose={() => setSheet(null)} />}
-      {chat && <ChatPanel onClose={closeChat} />}
+      {chat ? <ChatPanel onClose={closeChat} /> : <ShieldMic floating onClick={() => setChat(true)} />}
     </div>
   );
 }

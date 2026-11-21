@@ -2,31 +2,28 @@
  * Шторка помощника: говорите (или пишите) — нейросеть предлагает действия, вы снимаете галочки с ошибочных
  * и нажимаете «Применить». До этого ничего не записывается: сервер лишь «примеряет» действия на копии данных.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, inputClass, toast, useScrollLock } from '../ui';
 import { useAuth } from '../auth/store';
 import { assistantApply, assistantPlan, AuthError, type AssistantPlan } from '../auth/api';
 import { syncNow } from '../sync/manager';
-import { startRecording, type Recording } from './recorder';
-import { ShieldIcon } from './ShieldMic';
+import { useVoice } from './useVoice';
+import { ShieldIcon, type ShieldTone } from './ShieldMic';
 import s from './Assistant.module.css';
 
 type Stage = 'recording' | 'thinking' | 'review' | 'applying' | 'done';
-const BARS = 14;
 
 export function VoiceSheet({ onClose }: { onClose: () => void }) {
   const token = useAuth((st) => st.session?.token);
   const navigate = useNavigate();
   useScrollLock();
   const [stage, setStage] = useState<Stage>('recording');
-  const [levels, setLevels] = useState<number[]>(() => Array<number>(BARS).fill(0.05));
   const [micError, setMicError] = useState('');
   const [plan, setPlan] = useState<AssistantPlan | null>(null);
   const [checked, setChecked] = useState<boolean[]>([]);
   const [results, setResults] = useState<{ ok: boolean; text: string }[]>([]);
   const [typed, setTyped] = useState('');
-  const rec = useRef<Recording | null>(null);
 
   const fail = (e: unknown) => {
     toast(e instanceof AuthError ? e.message : 'Не получилось. Попробуйте ещё раз', 'alert', 'var(--c-warn)');
@@ -44,49 +41,32 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
     }, fail);
   };
 
-  const stopAndSend = () => {
-    const r = rec.current;
-    rec.current = null;
-    if (!r) return;
-    void r.stop().then((audio) => {
+  const voice = useVoice({
+    onAudio: (audio) => {
       if (audio) send({ audio });
       else {
         setMicError('Ничего не записалось. Скажите ещё раз или напишите текстом.');
         setStage('review');
       }
-    });
+    },
+    onError: () => {
+      setMicError('Нет доступа к микрофону. Напишите команду текстом или разрешите микрофон в настройках.');
+      setStage('review');
+    },
+  });
+
+  const listen = () => {
+    setPlan(null);
+    setMicError('');
+    setStage('recording');
+    voice.start();
   };
 
   // Открыли шторку — сразу слушаем
+  const { start } = voice;
   useEffect(() => {
-    if (!token) return;
-    let alive = true;
-    startRecording(
-      (level) => {
-        setLevels((xs) => [...xs.slice(1), Math.max(0.05, level)]);
-      },
-      () => {
-        stopAndSend();
-      },
-    ).then(
-      (r) => {
-        if (alive) rec.current = r;
-        else r.cancel();
-      },
-      () => {
-        if (!alive) return;
-        setMicError('Нет доступа к микрофону. Напишите команду текстом или разрешите микрофон в настройках.');
-        setStage('review');
-      },
-    );
-    return () => {
-      alive = false;
-      rec.current?.cancel();
-      rec.current = null;
-    };
-    // Запись запускается один раз при открытии
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+    if (token) start();
+  }, [token, start]);
 
   const apply = () => {
     if (!token || !plan) return;
@@ -111,18 +91,18 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
         e.preventDefault();
         const t = typed.trim();
         if (!t) return;
-        rec.current?.cancel();
-        rec.current = null;
+        voice.cancel();
         setTyped('');
         send({ text: t });
       }}
     >
-      <input className={inputClass} value={typed} maxLength={1000} placeholder="Или напишите: потратил 450 на такси" aria-label="Команда текстом" onChange={(e) => setTyped(e.target.value)} />
+      <input className={inputClass} value={typed} maxLength={1000} placeholder="Или напишите текстом" aria-label="Команда текстом" onChange={(e) => setTyped(e.target.value)} />
       <Button type="submit" icon="right" label="Отправить" />
     </form>
   );
 
   const selected = checked.filter(Boolean).length;
+  const tone: ShieldTone = voice.phase === 'live' ? 'live' : voice.phase === 'quiet' && voice.heard ? 'wait' : 'idle';
   return (
     <div className={s.backdrop} onClick={(e) => e.target === e.currentTarget && stage !== 'applying' && onClose()}>
       <div className={s.sheet} role="dialog" aria-modal="true" aria-label="Помощник">
@@ -135,7 +115,6 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
             <p className={s.status}>Помощник</p>
             <p>Чтобы управлять приложением голосом, войдите в аккаунт: команды разбирает нейросеть на сервере.</p>
             <div className={s.row}>
-              <Button onClick={onClose}>Закрыть</Button>
               <Button
                 variant="primary"
                 onClick={() => {
@@ -149,24 +128,21 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
           </>
         ) : stage === 'recording' ? (
           <>
-            <div className={s.listenHead}>
-              <ShieldIcon size={36} recording />
-              <p className={s.status} style={{ margin: 0 }}>
-                Слушаю… скажите и нажмите «Готово»
-              </p>
-            </div>
-            <div className={s.wave} aria-hidden="true">
-              {levels.map((l, i) => (
-                <span key={i} style={{ height: `${String(Math.round(l * 100))}%` }} />
-              ))}
-            </div>
-            <p style={{ color: 'var(--c-text-dim)', marginTop: 0 }}>Например: «потратил 320 на кофе и напомни завтра в 10 купить молоко»</p>
-            <div className={s.row}>
-              <Button onClick={onClose}>Отмена</Button>
-              <Button variant="primary" icon="check" onClick={stopAndSend}>
-                Готово
-              </Button>
-            </div>
+            {/* Щит сам показывает, что происходит: горит, пока говорите; замолчали — пульсирует, нажмите — отправлю */}
+            <button
+              type="button"
+              className={s.bigShield}
+              data-tone={tone}
+              style={{ '--lvl': String(voice.phase === 'live' ? voice.level : 0) } as CSSProperties}
+              onClick={voice.finish}
+              aria-label="Отправить сказанное"
+            >
+              <ShieldIcon size={125} tone={tone} />
+            </button>
+            <p className={s.listenHint} aria-live="polite">
+              {voice.phase === 'starting' ? 'Включаю микрофон…' : voice.phase === 'live' ? 'Слушаю…' : voice.heard ? 'Нажмите на щит — отправлю' : 'Говорите, я слушаю'}
+            </p>
+            {!voice.heard && <p className={s.example}>«потратил 320 на кофе и напомни завтра в 10 купить молоко»</p>}
             {typeRow}
           </>
         ) : stage === 'thinking' || stage === 'applying' ? (
@@ -195,15 +171,20 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
             )}
             {plan?.answer && <p style={{ whiteSpace: 'pre-line' }}>{plan.answer}</p>}
             {plan?.error && <p style={{ color: 'var(--c-warn)' }}>{plan.error}</p>}
-            <div className={s.row}>
-              <Button onClick={onClose}>{plan?.proposals.length ? 'Отмена' : 'Закрыть'}</Button>
-              {plan && plan.proposals.length > 0 && (
+            {plan && plan.proposals.length > 0 ? (
+              <div className={s.row}>
                 <Button variant="primary" onClick={apply}>
                   {selected ? `Применить (${String(selected)})` : 'Ничего не записывать'}
                 </Button>
-              )}
-            </div>
-            {(!plan || plan.proposals.length === 0) && typeRow}
+              </div>
+            ) : (
+              <>
+                <div className={s.row}>
+                  <Button onClick={listen}>Сказать ещё раз</Button>
+                </div>
+                {typeRow}
+              </>
+            )}
           </>
         ) : (
           <>
@@ -217,9 +198,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
               ))}
             </ul>
             <div className={s.row}>
-              <Button variant="primary" onClick={onClose}>
-                Хорошо
-              </Button>
+              <Button onClick={listen}>Ещё команда</Button>
             </div>
           </>
         )}
