@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Button, inputClass, toast } from '../ui';
+import { Button, inputClass, toast, useScrollLock } from '../ui';
 import { useAuth } from '../auth/store';
 import { assistantApply, assistantPlan, AuthError, type AssistantPlan } from '../auth/api';
 import { syncNow } from '../sync/manager';
@@ -18,6 +18,7 @@ const BARS = 14;
 export function VoiceSheet({ onClose }: { onClose: () => void }) {
   const token = useAuth((st) => st.session?.token);
   const navigate = useNavigate();
+  useScrollLock();
   const [stage, setStage] = useState<Stage>('recording');
   const [levels, setLevels] = useState<number[]>(() => Array<number>(BARS).fill(0.05));
   const [micError, setMicError] = useState('');
@@ -125,7 +126,10 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
   return (
     <div className={s.backdrop} onClick={(e) => e.target === e.currentTarget && stage !== 'applying' && onClose()}>
       <div className={s.sheet} role="dialog" aria-modal="true" aria-label="Помощник">
-        <div className={s.grip} />
+        <div className={s.sheetTop}>
+          <div className={s.grip} />
+          {stage !== 'applying' && <Button small variant="ghost" icon="close" label="Закрыть помощника" className={s.sheetClose} onClick={onClose} />}
+        </div>
         {!token ? (
           <>
             <p className={s.status}>Помощник</p>
@@ -145,17 +149,23 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
           </>
         ) : stage === 'recording' ? (
           <>
-            <p className={s.status}>Слушаю…</p>
+            <div className={s.listenHead}>
+              <ShieldIcon size={36} recording />
+              <p className={s.status} style={{ margin: 0 }}>
+                Слушаю… скажите и нажмите «Готово»
+              </p>
+            </div>
             <div className={s.wave} aria-hidden="true">
               {levels.map((l, i) => (
                 <span key={i} style={{ height: `${String(Math.round(l * 100))}%` }} />
               ))}
             </div>
             <p style={{ color: 'var(--c-text-dim)', marginTop: 0 }}>Например: «потратил 320 на кофе и напомни завтра в 10 купить молоко»</p>
-            <div className={s.center}>
-              <button type="button" onClick={stopAndSend} aria-label="Готово, отправить" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
-                <ShieldIcon size={64} recording />
-              </button>
+            <div className={s.row}>
+              <Button onClick={onClose}>Отмена</Button>
+              <Button variant="primary" icon="check" onClick={stopAndSend}>
+                Готово
+              </Button>
             </div>
             {typeRow}
           </>

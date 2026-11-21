@@ -1,13 +1,14 @@
 /* Кнопка-щит в нижнем меню: приподнята над ним, «дышит» */
 .shield {
   position: relative;
-  top: -18px;
+  top: -10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   margin: 0 auto;
+  align-self: center;
   padding: 0;
   background: none;
   border: 0;
@@ -55,6 +56,20 @@
   height: 4px;
   background: var(--c-panel-3);
   margin: 0 auto var(--gap-3);
+}
+/* Верх шторки: полоска по центру, крестик справа */
+.sheetTop {
+  position: relative;
+}
+.sheetClose {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+}
+.listenHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
 }
 .status {
   font-family: var(--font-title);
@@ -142,4 +157,78 @@
   display: flex;
   justify-content: center;
   margin: var(--gap-2) 0;
+}
+/* Помощник на компьютере: чат справа поверх содержимого; остаётся открытым при переходах между экранами */
+.chat {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  width: min(420px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel);
+  border-left: 3px solid var(--c-gold);
+}
+.chatHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding: var(--gap-2) var(--gap-3);
+  border-bottom: 2px solid var(--c-panel-3);
+  font-family: var(--font-title);
+  color: var(--c-gold);
+}
+.grow {
+  flex: 1;
+}
+.chatBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--gap-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-3);
+}
+.bubble {
+  padding: var(--gap-3);
+  background: var(--c-panel-2);
+  border: var(--px) solid var(--c-panel-3);
+}
+.mine {
+  align-self: flex-end;
+  max-width: 85%;
+  margin: 0 0 var(--gap-2) auto;
+  padding: var(--gap-2) var(--gap-3);
+  background: var(--c-panel-3);
+  border: var(--px) solid var(--c-gold);
+  width: fit-content;
+}
+.dim {
+  color: var(--c-text-dim);
+}
+.chatInput {
+  padding: var(--gap-3);
+  border-top: 2px solid var(--c-panel-3);
+}
+.micBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: var(--px) solid var(--c-panel-3);
+  cursor: pointer;
+}
+.micOn {
+  border-color: #ff4d6d;
+  animation: rec 1s steps(2) infinite;
+}
+@keyframes rec {
+  50% {
+    background: rgb(255 77 109 / 25%);
+  }
 }

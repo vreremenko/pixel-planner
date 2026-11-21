@@ -25,6 +25,30 @@
 .logo span {
   color: var(--c-warn);
 }
+/* Помощник на компьютере: заметная кнопка под логотипом */
+.sideAssistant {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: var(--gap-2);
+  background: var(--c-panel-2);
+  border: var(--px) solid var(--c-gold);
+  color: var(--c-text);
+  font-family: var(--font-title);
+  font-size: max(calc(14px * var(--fs-scale)), var(--fs-min));
+  text-align: left;
+  cursor: pointer;
+}
+.sideAssistant:hover {
+  background: var(--c-panel-3);
+}
+.sideAssistant small {
+  display: block;
+  color: var(--c-text-dim);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+}
 .nav {
   display: flex;
   flex-direction: column;
@@ -256,10 +280,15 @@
   margin-bottom: var(--gap-2);
 }
 .sheetTiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--gap-2);
   margin-bottom: var(--gap-3);
+}
+/* Три в ряд; неполный последний ряд — по центру, а не прижат влево */
+.sheetTiles > * {
+  flex: 0 0 calc((100% - 2 * var(--gap-2)) / 3);
 }
 .sheetTile {
   display: flex;
@@ -288,12 +317,14 @@
   border-color: var(--accent);
 }
 .sheetRow {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: var(--gap-2);
 }
 .sheetLink {
-  flex: 1;
   display: flex;
+  text-align: center;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -317,10 +348,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 var(--gap-3);
+    padding: 0 6px;
     color: var(--c-text-dim);
     text-decoration: none;
-    font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+    white-space: nowrap;
+    font-size: max(calc(11px * var(--fs-scale)), var(--fs-min));
     border-bottom: 3px solid transparent;
   }
   .moduleTab[aria-current='page'] {

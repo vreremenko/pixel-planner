@@ -14,4 +14,5 @@ export { toast } from './toastStore';
 export { PixelIcon } from './PixelIcon';
 export { cx } from './cx';
 export { useSwipe } from './useSwipe';
+export { useScrollLock } from './useScrollLock';
 export type { IconName } from './icons';
