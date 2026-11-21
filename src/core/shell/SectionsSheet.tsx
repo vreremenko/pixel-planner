@@ -5,13 +5,14 @@
  */
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router';
-import { PixelIcon } from '../ui';
+import { PixelIcon, useScrollLock } from '../ui';
 import { ACCOUNT, ADMIN, SETTINGS, useIsAdmin, useModules } from './nav';
 import s from './Layout.module.css';
 
 export function SectionsSheet({ onClose }: { onClose: () => void }) {
   const modules = useModules();
   const admin = useIsAdmin();
+  useScrollLock();
   const extra = admin ? [ACCOUNT, SETTINGS, ADMIN] : [ACCOUNT, SETTINGS];
   return (
     <div className={s.sheetBackdrop} onClick={(e) => e.target === e.currentTarget && onClose()}>
