@@ -1,4 +1,4 @@
-/* Кнопка помощника — пиксельный «щит героя» с микрофоном: золото и неон (в режиме «Для мамы» — сердечко). В покое тихо «дышит»; при записи реагирует на голос. */
+/* Кнопка помощника — пиксельный «щит героя» с черепом-терминатором: золото и хром (в режиме «Для мамы» — сердечко). В покое тихо «дышит»; при записи реагирует на голос. */
 import { useSettings } from '../stores/settings';
 import s from './Assistant.module.css';
 
@@ -33,11 +33,11 @@ function HeartIcon({ size, tone }: { size: number; tone: ShieldTone }) {
   );
 }
 
-/** Цвета щита: кромка, поле, микрофон. Говорите — неон, замолчали — золото «ждёт». */
-const SHIELD: Record<ShieldTone, { rim: string; field: string; glyph: string }> = {
-  idle: { rim: '#ffcc33', field: '#1d1a3a', glyph: '#5ee6ff' },
-  live: { rim: '#5ee6ff', field: '#123447', glyph: '#ffffff' },
-  wait: { rim: '#ffcc33', field: '#3a2a10', glyph: '#fff2b8' },
+/** Цвета щита: кромка, поле, череп, глаз. Говорите — неон, замолчали — золото «ждёт». */
+const SHIELD: Record<ShieldTone, { rim: string; field: string; glyph: string; eye: string }> = {
+  idle: { rim: '#ffcc33', field: '#1d1a3a', glyph: '#c9d4e3', eye: '#ff3b3b' },
+  live: { rim: '#5ee6ff', field: '#123447', glyph: '#ffffff', eye: '#ff2020' },
+  wait: { rim: '#ffcc33', field: '#3a2a10', glyph: '#fff2b8', eye: '#ff3b3b' },
 };
 
 /** Щит без пустых полей вокруг: рисунок занимает всю высоту, ширина — 4/5 высоты. */
@@ -49,17 +49,20 @@ export function ShieldIcon({ size = 56, tone = 'idle' }: { size?: number; tone?:
     <svg width={Math.round((size * 12) / 15)} height={size} viewBox="2 1 12 15" shapeRendering="crispEdges" aria-hidden="true">
       <path d="M2 1h12v8h-1v2h-1v1h-1v1h-1v1H9v1H7v-1H6v-1H5v-1H4v-1H3V9H2z" fill={c.rim} />
       <path d="M3 2h10v7h-1v2h-1v1h-1v1H9v1H7v-1H6v-1H5v-1H4V9H3z" fill={c.field} />
-      {/* Микрофон: капсула, вокруг неё дужка с зазором, ножка и подставка — чтобы не читался как череп */}
-      <rect x="7" y="3" width="2" height="1" fill={c.glyph} />
-      <rect x="6" y="4" width="4" height="3" fill={c.glyph} />
-      <rect x="7" y="7" width="2" height="1" fill={c.glyph} />
-      <rect x="4" y="5" width="1" height="3" fill={c.glyph} />
-      <rect x="11" y="5" width="1" height="3" fill={c.glyph} />
-      <rect x="5" y="8" width="1" height="1" fill={c.glyph} />
-      <rect x="10" y="8" width="1" height="1" fill={c.glyph} />
+      {/* Череп-терминатор: хромированный, один глаз горит красным — помощник-нейросеть */}
+      <rect x="6" y="3" width="4" height="1" fill={c.glyph} />
+      <rect x="5" y="4" width="6" height="1" fill={c.glyph} />
+      <rect x="4" y="5" width="8" height="3" fill={c.glyph} />
+      <rect x="5" y="8" width="6" height="1" fill={c.glyph} />
       <rect x="6" y="9" width="4" height="1" fill={c.glyph} />
-      <rect x="7" y="10" width="2" height="1" fill={c.glyph} />
+      <rect x="6" y="10" width="1" height="1" fill={c.glyph} />
+      <rect x="8" y="10" width="1" height="1" fill={c.glyph} />
       <rect x="6" y="11" width="4" height="1" fill={c.glyph} />
+      <rect x="5" y="6" width="2" height="2" fill={c.field} />
+      <rect x="9" y="6" width="2" height="2" fill={c.eye} />
+      <rect x="7" y="8" width="2" height="1" fill={c.field} />
+      <rect x="11" y="5" width="1" height="1" fill={c.field} />
+      <rect x="4" y="5" width="1" height="1" fill={c.field} />
     </svg>
   );
 }
