@@ -139,6 +139,7 @@
   max-width: 560px;
   max-height: 88vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--c-panel);
   border-top: 3px solid var(--c-gold);
   padding: var(--gap-4) var(--gap-4) calc(var(--gap-4) + env(safe-area-inset-bottom));

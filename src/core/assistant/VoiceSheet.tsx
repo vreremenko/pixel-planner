@@ -105,7 +105,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
   const tone: ShieldTone = voice.phase === 'live' ? 'live' : voice.phase === 'quiet' && voice.heard ? 'wait' : 'idle';
   return (
     <div className={s.backdrop} onClick={(e) => e.target === e.currentTarget && stage !== 'applying' && onClose()}>
-      <div className={s.sheet} role="dialog" aria-modal="true" aria-label="Помощник">
+      <div className={s.sheet} role="dialog" aria-modal="true" aria-label="Помощник" data-scroll-lock-allow>
         <div className={s.sheetTop}>
           <div className={s.grip} />
           {stage !== 'applying' && <Button small variant="ghost" icon="close" label="Закрыть помощника" className={s.sheetClose} onClick={onClose} />}
