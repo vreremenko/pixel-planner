@@ -144,6 +144,18 @@ export interface Plan {
 const botTools = () => TOOLS.filter((t) => BOT_TOOLS.includes(t.name));
 
 /**
+ * Модели любят сами ставить напоминание «за 15 минут». По умолчанию напоминание — в момент начала задачи,
+ * поэтому смещение берём, только если человек сам сказал, за сколько: «за 10 минут», «за час», «заранее».
+ */
+const ASKED_OFFSET = /(^|[^а-яё])за\s*(\d+|пол|полчаса|час|день|сутки|минут|пару|несколько)|заранее/i;
+export function dropUnaskedReminders(text: string, name: string, args: Record<string, unknown>): Record<string, unknown> {
+  if ((name !== 'add_task' && name !== 'update_task') || !('reminders' in args) || ASKED_OFFSET.test(text)) return args;
+  const rest = { ...args };
+  delete rest.reminders;
+  return rest;
+}
+
+/**
  * Шаг 1 — предложить. Модель вызывает действия, но над копией данных: ничего не записывается.
  * Результаты примерки — это и есть то, что человек увидит и отметит галочками.
  */
@@ -194,7 +206,8 @@ export async function planAssistant(store: Store, ai: AiClient, userId: string, 
       return { proposals, answer, error: !proposals.length && !answer && !error ? fallback : error };
     }
     messages.push({ role: 'assistant', content: reply.text, tool_calls: reply.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) });
-    for (const c of reply.calls) {
+    for (const call of reply.calls) {
+      const c = { ...call, args: dropUnaskedReminders(text, call.name, call.args) };
       const tool = tools.find((t) => t.name === c.name);
       const sig = `${c.name}:${JSON.stringify(c.args)}`;
       let out: string;
