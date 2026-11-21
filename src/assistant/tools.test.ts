@@ -21,6 +21,18 @@ const base = () =>
   ]);
 
 describe('действия помощника', () => {
+  it('доход с откладыванием в копилку — перевод, связанный с доходом, а не расход', () => {
+    const data = base();
+    expect(run(data, 'add_transaction', { kind: 'income', amount: 2733.3, category: 'Работа', save_percent: 10 })).toContain('отложено 273,33');
+    const txs = data.changes().map((c) => JSON.parse(c.d) as { id: string; kind: string; amount: number; toAccountId?: string; fromTxId?: string });
+    const income = txs.find((t) => t.kind === 'income');
+    expect(txs.find((t) => t.kind === 'transfer')).toEqual(expect.objectContaining({ amount: 27333, toAccountId: 'a2', fromTxId: income?.id }));
+    expect(txs.some((t) => t.kind === 'expense')).toBe(false);
+    // «и отложи» без процента — процент из настроек, по умолчанию 10%
+    expect(run(base(), 'add_transaction', { kind: 'income', amount: 1000, category: 'Работа', save: true })).toContain('отложено 100');
+    expect(run(base(), 'add_transfer', { amount: 500, to: 'Копилка' })).toContain('«Карта» → «Копилка»');
+  });
+
   it('показывает планы на несколько дней и пустые дни пропускает', () => {
     const data = new AccountData([
       rec('tasks', { id: 't1', title: 'Стоматолог', date: '2026-11-18', time: '10:00', priority: 'medium', done: false, order: 0, tags: [], wasInBacklog: false, postponedCount: 0 }),

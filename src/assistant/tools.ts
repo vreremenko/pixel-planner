@@ -8,6 +8,8 @@ import { addDays, formatDateDay, weekday } from '../core/domain/dates';
 import type { LocalDate } from '../core/domain/types';
 import { balances, dayPlan, livingTypical, openDues } from '../modules/finance/domain/plan';
 import { goalView, movedToday } from '../modules/finance/domain/goals';
+import { defaultSaveAccount, saveAmount, savingAccounts } from '../modules/finance/domain/save';
+import { DEFAULT_SAVE_PERCENT } from '../modules/finance/domain/tips';
 import { rub } from '../modules/finance/domain/money';
 import { ALL_DAYS, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
@@ -78,6 +80,20 @@ function habitLines(data: AccountData, d: LocalDate): string[] {
 
 function categories(data: AccountData): Category[] {
   return allCategories(data).filter((c) => !c.archived && !c.deletedAt);
+}
+
+/** Куда откладывать: копилка по названию (или цель — тогда её счёт), без названия — копилка из настроек. */
+function savingTarget(data: AccountData, name: string | undefined): Account {
+  const accounts = data.all<Account>('fin_accounts').filter((a) => !a.archived);
+  if (name) {
+    const goal = data.all<Goal>('fin_goals').find((g) => norm(g.name) === norm(name));
+    const byGoal = goal && accounts.find((a) => a.id === goal.accountId);
+    return byGoal ?? pick(accounts, name, (a) => a.name, 'копилку');
+  }
+  const id = defaultSaveAccount(accounts, data.get<FinPrefs>('fin_prefs', 'prefs') ?? {});
+  const found = accounts.find((a) => a.id === id);
+  if (!found) throw new ToolError(`Не знаю, куда откладывать: назовите копилку (${savingAccounts(accounts).map((a) => a.name).join(', ') || 'копилок нет — добавьте счёт вне плана'})`);
+  return found;
 }
 
 function financePlan(data: AccountData, ctx: ToolContext) {
@@ -291,12 +307,16 @@ const BASE_TOOLS: readonly Tool[] = [
       properties: {
         kind: { type: 'string', enum: ['expense', 'income'] },
         amount: { type: 'number', description: 'Сумма в рублях' },
-        category: { type: 'string', description: 'Например: Продукты, Кафе, Транспорт, Работа' },
+        category: { type: 'string', description: 'Например: Продукты, Кафе, Транспорт; зарплата и доход с работы — Работа. Не знаешь — не передавай, будет «Другое»' },
         account: { type: 'string', description: 'Название счёта, необязательно' },
         note: { type: 'string' },
         date: dateSchema,
+        save_percent: { type: 'number', description: 'Только для дохода: сколько процентов отложить в копилку («отложи 10% на подушку»). Это перевод, а не расход; отдельный add_transfer тогда не нужен.' },
+        save_amount: { type: 'number', description: 'Только для дохода: сколько рублей отложить в копилку.' },
+        save_to: { type: 'string', description: 'Куда отложить: название копилки или цели. Без него — копилка из настроек.' },
+        save: { type: 'boolean', description: 'Только для дохода: «и отложи», процент не назван — отложить процент из настроек финансов (как галочка при записи дохода).' },
       },
-      required: ['kind', 'amount', 'category'],
+      required: ['kind', 'amount'],
       additionalProperties: false,
     },
     readOnly: false,
@@ -304,7 +324,11 @@ const BASE_TOOLS: readonly Tool[] = [
       const kind = input.kind === 'income' ? 'income' : input.kind === 'expense' ? 'expense' : null;
       if (!kind) throw new ToolError('kind: expense или income');
       const amount = kopecks(num(input.amount, 'amount', 0.01, 100_000_000));
-      const category = pick(categories(data).filter((c) => c.kind === kind), text(input.category, 'category'), (c) => c.name, 'категорию');
+      // Категорию модель иногда не называет — тогда «Другое», а не ошибка
+      const kindCats = categories(data).filter((c) => c.kind === kind);
+      const catName = optText(input.category);
+      const category = catName ? pick(kindCats, catName, (c) => c.name, 'категорию') : (kindCats.find((c) => norm(c.name) === 'другое') ?? kindCats[0]);
+      if (!category) throw new ToolError('Нет ни одной категории');
       const accounts = data.all<Account>('fin_accounts').filter((a) => !a.archived);
       if (accounts.length === 0) throw new ToolError('В финансах нет ни одного счёта. Добавьте счёт в приложении.');
       const accountName = optText(input.account);
@@ -312,8 +336,51 @@ const BASE_TOOLS: readonly Tool[] = [
       if (!account) throw new ToolError('Счёт не найден');
       const note = optText(input.note, 200);
       const d = date(input.date, ctx);
-      data.put<Tx>('fin_tx', { ...meta(ctx), date: d, kind, amount, accountId: account.id, categoryId: category.id, ...(note ? { note } : {}) });
-      return `${kind === 'income' ? 'Доход' : 'Расход'} ${rub(amount)}, ${category.name}, счёт «${account.name}»${d !== ctx.today ? `, ${d}` : ''}.`;
+      // Откладывание с дохода — как в приложении: перевод в копилку, связанный с доходом
+      const pct = input.save_percent === undefined ? undefined : num(input.save_percent, 'save_percent', 0.1, 100);
+      const fixed = input.save_amount === undefined ? undefined : kopecks(num(input.save_amount, 'save_amount', 0.01, 100_000_000));
+      // «и отложи» без процента — как галочка в приложении: процент из настроек (по умолчанию 10%)
+      const usePct = pct ?? (input.save === true ? (data.get<FinPrefs>('fin_prefs', 'prefs')?.savePercent || DEFAULT_SAVE_PERCENT) : undefined);
+      const saved = kind === 'income' ? (fixed ?? (usePct ? saveAmount(amount, usePct) : 0)) : 0;
+      if (kind === 'expense' && (pct !== undefined || fixed !== undefined || input.save === true)) throw new ToolError('Откладывать можно только с дохода; для перевода есть add_transfer');
+      if (saved > amount) throw new ToolError('Отложить можно не больше дохода');
+      const to = saved > 0 ? savingTarget(data, optText(input.save_to)) : undefined;
+      if (to && to.id === account.id) throw new ToolError('Копилка совпадает со счётом дохода');
+      const tx: Tx = { ...meta(ctx), date: d, kind, amount, accountId: account.id, categoryId: category.id, ...(note ? { note } : {}) };
+      data.put<Tx>('fin_tx', tx);
+      if (to) data.put<Tx>('fin_tx', { ...meta(ctx), date: d, kind: 'transfer', amount: saved, accountId: account.id, toAccountId: to.id, note: 'Отложено с дохода', fromTxId: tx.id });
+      return `${kind === 'income' ? 'Доход' : 'Расход'} ${rub(amount)}, ${category.name}, счёт «${account.name}»${d !== ctx.today ? `, ${d}` : ''}${to ? `; отложено ${rub(saved)} в «${to.name}»` : ''}.`;
+    },
+  },
+  {
+    name: 'add_transfer',
+    title: 'Перевод между счетами',
+    description: 'Перевести деньги между своими счетами: «перевёл 5000 в копилку», «отложил 2000 на подушку». Это не расход. Без from — основной счёт плана.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Сумма в рублях' },
+        to: { type: 'string', description: 'Куда: название счёта, копилки или цели' },
+        from: { type: 'string', description: 'Откуда: название счёта, необязательно' },
+        note: { type: 'string' },
+        date: dateSchema,
+      },
+      required: ['amount', 'to'],
+      additionalProperties: false,
+    },
+    readOnly: false,
+    run: (data, input, ctx) => {
+      const amount = kopecks(num(input.amount, 'amount', 0.01, 100_000_000));
+      const accounts = data.all<Account>('fin_accounts').filter((a) => !a.archived);
+      const fromName = optText(input.from);
+      const from = fromName ? pick(accounts, fromName, (a) => a.name, 'счёт') : (accounts.find((a) => a.inPlan) ?? accounts[0]);
+      if (!from) throw new ToolError('В финансах нет ни одного счёта. Добавьте счёт в приложении.');
+      const to = savingTarget(data, text(input.to, 'to'));
+      if (to.id === from.id) throw new ToolError('Счёт «откуда» и «куда» совпадают');
+      const note = optText(input.note, 200);
+      const d = date(input.date, ctx);
+      data.put<Tx>('fin_tx', { ...meta(ctx), date: d, kind: 'transfer', amount, accountId: from.id, toAccountId: to.id, ...(note ? { note } : {}) });
+      return `Перевод ${rub(amount)}: «${from.name}» → «${to.name}»${d !== ctx.today ? `, ${d}` : ''}.`;
     },
   },
   {
