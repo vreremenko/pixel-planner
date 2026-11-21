@@ -8,6 +8,39 @@
 
 export const MAX_RECORD_SEC = 60;
 const RATE = 16_000;
+/** Сколько держать микрофон открытым после записи: iPhone (особенно в приложении с экрана «Домой») спрашивает
+ * разрешение заново почти при каждом новом включении, поэтому команды подряд идут через тот же поток. */
+const KEEP_MIC_MS = 2 * 60_000;
+
+let shared: MediaStream | null = null;
+let idle: ReturnType<typeof setTimeout> | undefined;
+
+function closeMic() {
+  clearTimeout(idle);
+  shared?.getTracks().forEach((t) => {
+    t.stop();
+  });
+  shared = null;
+}
+
+async function openMic(): Promise<MediaStream> {
+  clearTimeout(idle);
+  if (shared?.getAudioTracks().some((t) => t.readyState === 'live')) return shared;
+  shared = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+  return shared;
+}
+
+/** Запись закончена: микрофон гаснет через пару минут — или сразу, если приложение свернули. */
+function parkMic() {
+  clearTimeout(idle);
+  idle = setTimeout(closeMic, KEEP_MIC_MS);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') closeMic();
+  });
+}
 
 export interface Recording {
   /** Остановить и получить WAV в base64; пусто — ничего не записалось. */
@@ -18,7 +51,7 @@ export interface Recording {
 
 /** Уровень громкости 0…1 приходит в onLevel ~20 раз в секунду — для «волны». */
 export async function startRecording(onLevel: (level: number) => void, onLimit: () => void): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+  const stream = await openMic();
   const ctx = new AudioContext();
   await ctx.resume();
   const source = ctx.createMediaStreamSource(stream);
@@ -45,9 +78,7 @@ export async function startRecording(onLevel: (level: number) => void, onLimit: 
     stopped = true;
     proc.disconnect();
     source.disconnect();
-    stream.getTracks().forEach((t) => {
-      t.stop();
-    });
+    parkMic();
     void ctx.close();
   };
   return {

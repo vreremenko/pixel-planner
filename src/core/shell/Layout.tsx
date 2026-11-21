@@ -59,6 +59,8 @@ export function Layout() {
   const { pathname } = useLocation();
   // Шторка помнит экран, на котором открыта: перешли на другой — она закрывается сама
   const [opened, setOpened] = useState<{ kind: 'sections' | 'voice'; path: string } | null>(null);
+  // Ушли с экрана — шторка забывается совсем, чтобы не всплыть снова при возврате (сброс прямо при отрисовке, без эффекта)
+  if (opened && opened.path !== pathname) setOpened(null);
   const sheet = opened?.path === pathname ? opened.kind : null;
   const setSheet = (kind: 'sections' | 'voice' | null) => setOpened(kind ? { kind, path: pathname } : null);
   // Чат помощника на компьютере не закрывается при переходах: в нём пишут, глядя на нужный экран
