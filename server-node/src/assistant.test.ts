@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropUnaskedReminders, parseReply, planAssistant, type AiClient } from './assistant.ts';
+import { dropUnaskedReminders, isRepeat, parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
@@ -227,5 +227,14 @@ describe('напоминания задач от помощника', () => {
     expect(dropUnaskedReminders('встреча в 9:20, напомни за час', 'add_task', args)).toEqual(args);
     expect(dropUnaskedReminders('встреча в 9:20, предупреди заранее', 'add_task', args)).toEqual(args);
     expect(dropUnaskedReminders('потратил 300', 'add_transaction', { amount: 300 })).toEqual({ amount: 300 });
+  });
+});
+
+describe('повторы в предложениях помощника', () => {
+  const income = { preview: 'Доход 2 733,30 ₽, Другое, счёт «Карта»; отложено 273,33 ₽ в «Подушка».' };
+  it('не предлагает тот же доход дважды и перевод, уже отложенный с дохода', () => {
+    expect(isRepeat(income.preview, [income])).toBe(true);
+    expect(isRepeat('Перевод 273,33 ₽: «Карта» → «Подушка».', [income])).toBe(true);
+    expect(isRepeat('Перевод 500 ₽: «Карта» → «Подушка».', [income])).toBe(false);
   });
 });
