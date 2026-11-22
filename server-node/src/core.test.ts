@@ -116,6 +116,15 @@ describe('защита', () => {
     expect(a).not.toBe(c);
   });
 
+  it('пачка одновременных попыток входа не проскакивает лимит', async () => {
+    const d = mk();
+    await register(d, 'a@b.ru');
+    const tries = await Promise.all(Array.from({ length: 30 }, () => handle(req('POST', 'auth/login', { body: { email: 'a@b.ru', password: 'неверный пароль 123' } }), d)));
+    // Пароль проверяется не больше 8 раз (лимит на почту), остальные сразу получают «слишком много попыток»
+    expect(tries.filter((r) => r.status === 401).length).toBeLessThanOrEqual(8);
+    expect(tries.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(22);
+  });
+
   it('токены на сервере хранятся только в виде хеша', async () => {
     const store = new MemoryStore();
     const d = mk({}, store);

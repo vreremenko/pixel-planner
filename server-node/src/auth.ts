@@ -7,7 +7,37 @@ const R = 8;
 const P = 1;
 const KEYLEN = 64;
 
+/**
+ * Не больше двух scrypt одновременно: каждый берёт 64 МБ и поток libuv (в тех же потоках — DNS для fetch).
+ * Пачка параллельных входов иначе съела бы память сервера. Очередь тоже ограничена: при переполнении — «занято».
+ */
+const MAX_PARALLEL = 2;
+const MAX_WAITING = 64;
+let running = 0;
+const waiting: (() => void)[] = [];
+export class PasswordBusyError extends Error {}
+
+async function inSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running < MAX_PARALLEL) running++;
+  else {
+    if (waiting.length >= MAX_WAITING) throw new PasswordBusyError('busy');
+    // Место передаётся из рук в руки (см. finally), поэтому счётчик здесь не растёт
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  try {
+    return await fn();
+  } finally {
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
+  }
+}
+
 function derive(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {
+  return inSlot(() => rawDerive(password, salt, n, r, p));
+}
+
+function rawDerive(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scrypt(password, salt, KEYLEN, { N: n, r, p, maxmem: 256 * n * r }, (err, key) => {
       if (err) reject(err);
