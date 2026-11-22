@@ -168,6 +168,7 @@ export function buildStats({ now, admins, users, activity, records, ai = [], aiP
       .map((u) => ({
         email: u.email,
         admin: admins.includes(u.email),
+        sanctions: u.sanctions,
         verified: u.emailVerified,
         telegram: u.telegram,
         createdAt: u.createdAt,

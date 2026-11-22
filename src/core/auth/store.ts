@@ -76,7 +76,7 @@ async function linkThisTelegram(): Promise<void> {
 /** Сообщаем серверу версию приложения и сверяем роль: её могли поменять, а без связи работает сохранённая. */
 async function refreshRole(session: Session): Promise<void> {
   const fresh = await api.currentUser(session.token).catch(() => null);
-  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram) && Boolean(fresh.user.telegramReminders) === Boolean(session.user.telegramReminders) && Boolean(fresh.user.telegramOnly) === Boolean(session.user.telegramOnly))) return;
+  if (!fresh || (Boolean(fresh.user.admin) === Boolean(session.user.admin) && fresh.user.emailVerified === session.user.emailVerified && Boolean(fresh.user.telegram) === Boolean(session.user.telegram) && Boolean(fresh.user.telegramReminders) === Boolean(session.user.telegramReminders) && Boolean(fresh.user.telegramOnly) === Boolean(session.user.telegramOnly) && Boolean(fresh.user.sanctions) === Boolean(session.user.sanctions))) return;
   const current = await loadSession();
   if (current?.token === session.token) await saveSession({ ...current, user: fresh.user });
 }

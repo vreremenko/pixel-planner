@@ -55,6 +55,8 @@ export interface User {
   passHash: string;
   emailVerified?: boolean;
   telegramId?: string | null;
+  /** Шуточные «санкции» от админа: звук на каждое нажатие в меню и особый патчноут. */
+  sanctions?: boolean;
 }
 
 /** Одноразовый код бота: человек открывает ссылку с ним в Telegram и подтверждает кнопкой. */
@@ -155,6 +157,7 @@ export interface AdminUserRow {
   pushDevices: number;
   /** Версия приложения на самом свежем устройстве; null — приложение ещё не сообщало её. */
   appVersion: string | null;
+  sanctions: boolean;
 }
 
 /** Количество записей пользователя в таблице, без содержимого; удалённые не считаются. */
@@ -215,6 +218,7 @@ export interface Store {
   userByTelegram(telegramId: string): Promise<User | null>;
   /** null отвязывает. */
   userSetTelegram(id: string, telegramId: string | null): Promise<void>;
+  userSetSanctions(id: string, on: boolean): Promise<void>;
   /** Удалить пользователя со всеми его данными: синхронизацией, устройствами, напоминаниями, сессиями. */
   userDelete(id: string): Promise<void>;
 

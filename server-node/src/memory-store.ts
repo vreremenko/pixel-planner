@@ -195,6 +195,12 @@ export class MemoryStore implements Store {
     return Promise.resolve([...this.users.values()].find((x) => x.telegramId === telegramId) ?? null);
   }
 
+  userSetSanctions(id: string, on: boolean): Promise<void> {
+    const u = this.users.get(id);
+    if (u) u.sanctions = on;
+    return Promise.resolve();
+  }
+
   userSetTelegram(id: string, telegramId: string | null): Promise<void> {
     const u = this.users.get(id);
     if (u) u.telegramId = telegramId;
@@ -361,7 +367,7 @@ export class MemoryStore implements Store {
       [...this.users.values()].map((u) => {
         const mine = sessions.filter((s) => s.userId === u.id);
         const appVersion = mine.filter((s) => s.version !== undefined).sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.version ?? null;
-        return { id: u.id, email: u.email, createdAt: u.createdAt, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
+        return { id: u.id, email: u.email, createdAt: u.createdAt, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), sanctions: Boolean(u.sanctions), lastSeen: mine.length > 0 ? Math.max(...mine.map((s) => s.lastUsedAt)) : null, sessions: mine.length, pushDevices: devices.filter((d) => d.userId === u.id).length, appVersion };
       }),
     );
   }

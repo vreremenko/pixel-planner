@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Sanctions } from '../sanctions/Sanctions';
 import s from './Layout.module.css';
 import { PixelIcon } from '../ui';
 import type { ModuleNavItem } from '../module';
@@ -124,6 +125,7 @@ export function Layout() {
         )}
       </header>
       <TelegramBridge />
+      <Sanctions />
       <TelegramWelcome />
       <main id="main" className={s.main}>
         <OfflineBar className={s.offlineDesktop} />

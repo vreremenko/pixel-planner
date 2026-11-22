@@ -441,6 +441,22 @@ describe('админка', () => {
     expect((await stats(d, boss)).status).toBe(200);
   });
 
+  it('санкции: включает только админ, человек видит их в auth/me, снимаются обратно', async () => {
+    const d = mk({ env });
+    const user = await register(d, 'a@b.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
+    const set = (token: string, on: boolean) => handle(req('POST', 'admin/sanctions', { token, body: { email: 'a@b.ru', on } }), d);
+    const me = async () => (json(await handle(req('GET', 'auth/me', { token: user }), d)).user as { sanctions?: boolean }).sanctions;
+    expect((await set(user, true)).status).toBe(403);
+    expect(await me()).toBeUndefined();
+    expect((await set(boss, true)).status).toBe(200);
+    expect(await me()).toBe(true);
+    expect((json(await stats(d, boss)).list as { email: string; sanctions: boolean }[]).find((u) => u.email === 'a@b.ru')?.sanctions).toBe(true);
+    await set(boss, false);
+    expect(await me()).toBeUndefined();
+    expect((await handle(req('POST', 'admin/sanctions', { token: boss, body: { email: 'nobody@x.ru', on: true } }), d)).status).toBe(404);
+  });
+
   it('без настройки админов нет ни у кого', async () => {
     const d = mk();
     expect((await stats(d, await registerVerified(d, 'boss@site.ru'))).status).toBe(403);
