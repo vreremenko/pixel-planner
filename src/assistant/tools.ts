@@ -14,7 +14,7 @@ import { rub } from '../modules/finance/domain/money';
 import { ALL_DAYS, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
 import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, type BodyValues } from '../modules/gym/domain/body';
-import { kcalFromMacros, portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
+import { bestFood, kcalFromMacros, portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
 import { MEALS, type FoodEntry, type FoodItem, type FoodRef, type Macros, type Meal } from '../modules/food/domain/types';
 import { buildOccurrences, overrideId } from '../modules/planner/domain/recurrence';
 import { normalizeReminders, remindersOf } from '../modules/planner/domain/reminderSpecs';
@@ -439,7 +439,8 @@ const BASE_TOOLS: readonly Tool[] = [
       properties: {
         name: { type: 'string', description: 'Что съели, как назвал пользователь (без марки)' },
         brand: { type: 'string', description: 'Марка или производитель, если известны' },
-        grams: { type: 'number', description: 'Сколько граммов' },
+        grams: { type: 'number', description: 'Сколько граммов. Не знаете — не передавайте: возьму обычную порцию или вес штуки' },
+        pieces: { type: 'number', description: 'Сколько штук, если сказали штуками: «2 яйца», «3 печенья», «банан» — 1' },
         meal: { type: 'string', enum: [...MEAL_IDS], description: 'Приём пищи' },
         date: dateSchema,
         kcal: { type: 'number', description: 'Ккал на 100 г, если продукта нет в справочнике (найдите в интернете); не указаны — посчитаются по БЖУ' },
@@ -447,14 +448,18 @@ const BASE_TOOLS: readonly Tool[] = [
         fat: { type: 'number' },
         carbs: { type: 'number' },
       },
-      required: ['name', 'grams', 'meal'],
+      required: ['name', 'meal'],
       additionalProperties: false,
     },
     readOnly: false,
     run: (data, input, ctx) => {
-      const name = text(input.name, 'name', 120);
-      const grams = Math.round(num(input.grams, 'grams', 1, 5000));
-      const meal = MEAL_IDS.find((m) => m === input.meal);
+      // «2 яйца», «тарелка борща», «пачка чипсов»: число — это штуки, а посуда и упаковка — не часть названия
+      const said = foodWords(text(input.name, 'name', 120));
+      const name = said.name;
+      const pieces = input.pieces === undefined ? said.count : num(input.pieces, 'pieces', 0.25, 50);
+      // Приём пищи не назвали — по времени суток, как сказал бы человек
+      const byHour = (h: number): Meal => (h < 11 ? 'breakfast' : h < 16 ? 'lunch' : h < 21 ? 'dinner' : 'snack');
+      const meal = MEAL_IDS.find((m) => m === input.meal) ?? (input.meal === undefined && ctx.hour !== undefined ? byHour(ctx.hour) : undefined);
       if (!meal) throw new ToolError(`meal: ${MEAL_IDS.join(', ')}`);
       const brand = optText(input.brand, 80);
       let food: FoodRef;
@@ -462,8 +467,30 @@ const BASE_TOOLS: readonly Tool[] = [
       // Продукт с точно таким названием (и маркой) уже есть в справочнике или «Моих продуктах» — берём его значения,
       // а не числа нейросети: она путает, например, варёную гречку с сухой
       const known = foodList(data).find((f) => norm(f.name) === norm(name) && (!brand || norm(f.brand ?? '') === norm(brand)));
+      const hasMacros = ['kcal', 'protein', 'fat', 'carbs'].some((k) => input[k] !== undefined);
+      // Без интернета: справочник важнее цифр нейросети, кроме продукта с маркой (его нашёл в базе сервер)
+      // Жирность и прочие цифры нейросеть иногда кладёт в марку («Простоквашино 20%») — для справочника они часть названия
+      const withNumbers = [name, ...(brand?.split(/\s+/).filter((w) => /\d/.test(w)) ?? [])].join(' ');
+      const fromCatalog = !known && ctx.noWeb && !(hasMacros && brand) ? (bestFood(foodList(data), withNumbers) ?? bestFood(foodList(data), name)) : undefined;
+      // «Рис с котлетой», «творог и банан»: целиком нет — записываем по продуктам из справочника
+      if (!known && !fromCatalog && ctx.noWeb && !brand) {
+        const parts = name.split(/\s+(?:с|со|и)\s+/i).filter(Boolean);
+        const foods = parts.length > 1 ? parts.map((p) => bestFood(foodList(data), p)) : [];
+        if (foods.length > 1 && foods.every(Boolean)) {
+          const d = date(input.date, ctx);
+          const given = input.grams === undefined ? undefined : Math.round(num(input.grams, 'grams', 1, 5000) / foods.length);
+          const lines = (foods as FoodRef[]).map((f, i) => {
+            // Добавка («с молоком») — небольшая: не больше 50 г
+            const g = given ?? (i === 0 ? (f.portion ?? 100) : Math.min(f.portion ?? 50, 50));
+            data.put<FoodEntry>('food_entries', { ...meta(ctx), date: d, meal, grams: g, foodId: f.id, name: f.name, kcal: f.kcal, protein: f.protein, fat: f.fat, carbs: f.carbs, ...(f.brand ? { brand: f.brand } : {}), ...(f.portion ? { portion: f.portion } : {}) });
+            return `${f.name} ${String(g)} г — ${macroText(portionOf(f, g))}`;
+          });
+          return `${mealLabel(meal)}: ${lines.join('; ')}.`;
+        }
+      }
       if (known) food = known;
-      else if (['kcal', 'protein', 'fat', 'carbs'].some((k) => input[k] !== undefined)) {
+      else if (fromCatalog) food = fromCatalog;
+      else if (hasMacros) {
         const m = (k: string) => (input[k] === undefined ? 0 : num(input[k], k, 0, 1000));
         const [protein, fat, carbs] = [m('protein'), m('fat'), m('carbs')];
         // Калорий нет — считаем по БЖУ, как в форме своего продукта
@@ -478,13 +505,21 @@ const BASE_TOOLS: readonly Tool[] = [
         const found = searchFoods(foodList(data), brand ? `${name} ${brand}` : name, 5);
         const exact = found.find((f) => norm(f.name) === norm(name));
         const one = exact ?? (found.length === 1 ? found[0] : undefined);
-        if (!one) throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Выберите подходящий по смыслу (на обед обычно готовый, например варёный) и вызовите log_food снова с точным названием, или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
-        food = one;
+        // Совсем не нашлось — хотя бы по первому слову («сырок б.ю. александров» → сырок из справочника)
+        const firstWord = ctx.noWeb && !one ? bestFood(foodList(data), name.split(/\s+/)[0] ?? '') : undefined;
+        if (one) food = one;
+        else if (firstWord) food = firstWord;
+        else if (ctx.noWeb) throw new ToolError('Нет в справочнике. Найдите продукт через search_food_online и передайте его КБЖУ на 100 г.');
+        else throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Выберите подходящий по смыслу (на обед обычно готовый, например варёный) и вызовите log_food снова с точным названием, или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
       }
+      // Граммы: названы — их; иначе штуки × вес штуки; иначе обычная порция
+      const each = pieceWeight(food.name) ?? food.portion;
+      const grams = input.grams !== undefined ? Math.round(num(input.grams, 'grams', 1, 5000)) : pieces !== undefined && each ? Math.round(pieces * each) : (each ?? 100);
       const d = date(input.date, ctx);
       const { id: foodId, name: foodName, brand: foodBrand, portion, kcal, protein, fat, carbs } = food;
       data.put<FoodEntry>('food_entries', { ...meta(ctx), date: d, meal, grams, foodId, name: foodName, kcal, protein, fat, carbs, ...(foodBrand ? { brand: foodBrand } : {}), ...(portion ? { portion } : {}) });
-      return `${mealLabel(meal)}: ${foodName}${foodBrand ? ` (${foodBrand})` : ''} ${String(grams)} г — ${macroText(portionOf(food, grams))}.${saved ? ' Продукт сохранён в «Мои продукты».' : ''}`;
+      const count = pieces !== undefined && input.grams === undefined && each ? `${String(pieces)} шт, ` : '';
+      return `${mealLabel(meal)}: ${foodName}${foodBrand ? ` (${foodBrand})` : ''} ${count}${String(grams)} г — ${macroText(portionOf(food, grams))}.${saved ? ' Продукт сохранён в «Мои продукты».' : ''}`;
     },
   },
 ];
@@ -737,6 +772,33 @@ const EDIT_TOOLS: readonly Tool[] = [
 ];
 
 /** Справочник и свои продукты пользователя. */
+const MEASURE = /^(тарелк\S*|стакан\S*|чашк\S*|кружк\S*|пачк\S*|упаковк\S*|кус\S*|ломтик\S*|порци\S*|штук\S*|шт\.?|горст\S*|ложк\S*|банк\S*|бутылк\S*)$/i;
+/** Вес одной штуки там, где обычная порция в справочнике — это тарелка: «15 пельменей» — не 15 тарелок. */
+const PIECE_WEIGHT: readonly [RegExp, number][] = [
+  [/пельмен/i, 12], [/вареник/i, 25], [/хинкал/i, 70], [/манты/i, 50], [/печень/i, 15], [/конфет/i, 10], [/блин/i, 50], [/сырник/i, 50],
+  [/оладь/i, 40], [/мандарин/i, 80], [/клубник/i, 15], [/черри/i, 15], [/ролл/i, 30], [/суши/i, 30], [/наггетс/i, 18], [/фрикадел/i, 20],
+];
+const pieceWeight = (name: string) => PIECE_WEIGHT.find(([re]) => re.test(name))?.[1];
+
+/** Название еды без количества: «2 яйца» → яйца ×2, «тарелка борща» → борща. */
+export function foodWords(raw: string): { name: string; count?: number } {
+  const words = raw.trim().split(/\s+/);
+  let count: number | undefined;
+  const lead = words[0] ? /^(\d+(?:[.,]\d+)?)$/.exec(words[0]) : null;
+  if (lead?.[1] && words.length > 1) {
+    count = Number(lead[1].replace(',', '.'));
+    words.shift();
+  }
+  while (words.length > 1 && MEASURE.test(words[0] ?? '')) words.shift();
+  return { name: words.join(' '), ...(count ? { count } : {}) };
+}
+
+/** Есть ли еда с таким названием в справочнике или своих продуктах (для помощника: брать ли цифры из базы продуктов). */
+export function catalogMatch(data: AccountData, name: string): boolean {
+  const n = foodWords(name).name;
+  return foodList(data).some((f) => norm(f.name) === norm(n)) || bestFood(foodList(data), n) !== undefined;
+}
+
 function foodList(data: AccountData): FoodRef[] {
   const own = data.all<FoodItem>('food_items').map(({ id, name, brand, portion, kcal, protein, fat, carbs }) => ({ id, name, kcal, protein, fat, carbs, ...(brand ? { brand } : {}), ...(portion ? { portion } : {}) }));
   return [...own, ...CATALOG];

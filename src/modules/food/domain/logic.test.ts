@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bmr, calcGoal, dishPer100, frequentFoods, kcalFromMacros, kcalMismatch, macroLine, portionOf, recentFoods, searchFoods, sumEntries } from './logic';
+import { bestFood, bmr, calcGoal, dishPer100, frequentFoods, kcalFromMacros, kcalMismatch, macroLine, portionOf, recentFoods, searchFoods, sumEntries } from './logic';
 import type { FoodEntry, Meal } from './types';
 
 const m = { kcal: 100, protein: 10, fat: 5, carbs: 20 };
@@ -73,5 +73,19 @@ describe('калории по БЖУ', () => {
     expect(kcalMismatch(25, 250)).toBe(true);
     // Вода и чай: малые значения не проверяем
     expect(kcalMismatch(0, 4)).toBe(false);
+  });
+});
+
+describe('поиск еды в любом падеже', () => {
+  const list = [{ name: 'Яйцо куриное варёное' }, { name: 'Яичница' }, { name: 'Яйцо перепелиное' }, { name: 'Гречка варёная' }, { name: 'Куриная грудка варёная' }, { name: 'Банан' }];
+  it('«яйца», «гречку», «бананы» находят продукт', () => {
+    expect(searchFoods(list, 'яйца').map((x) => x.name)).toContain('Яйцо куриное варёное');
+    expect(searchFoods(list, 'гречку')).toHaveLength(1);
+    expect(searchFoods(list, 'бананы')).toHaveLength(1);
+  });
+  it('лучшее совпадение — самое обычное', () => {
+    expect(bestFood(list, 'яйца')?.name).toBe('Яйцо куриное варёное');
+    expect(bestFood(list, 'гречка')?.name).toBe('Гречка варёная');
+    expect(bestFood(list, 'шаурма')).toBeUndefined();
   });
 });

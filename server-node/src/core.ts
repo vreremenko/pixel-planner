@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient } from './assistant.ts';
+import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -211,19 +211,14 @@ async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes>
 }
 
 /** Ответ Open Food Facts без лишних полей; одинаковые запросы разных пользователей уходят туда один раз в сутки. */
-async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+/** Поиск в Open Food Facts с кэшем: для поиска в приложении и для помощника. Ответ — строка JSON {products}. */
+async function offSearch(d: Deps, rawQuery: string, now: number): Promise<string> {
   // Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
-  const q = (req.query.q ?? '').replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
+  const q = rawQuery.replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
   if (q.length < 2) throw new HttpError(400, 'bad query');
   const cache = d.offCache ?? defaultOffCache;
   const hit = cache.get(q);
-  if (hit && now - hit.at < OFF_CACHE_MS) return { status: 200, headers: { ...SAFE_HEADERS }, body: hit.body };
-
-  const limiter = d.limiter ?? defaultLimiter;
-  const key = `off:${req.ip ?? 'unknown'}`;
-  if (limiter.count(key, OFF_WINDOW_MS, now) >= OFF_MAX_PER_IP) throw new HttpError(429, 'too many searches');
-  limiter.add(key, now);
-
+  if (hit && now - hit.at < OFF_CACHE_MS) return hit.body;
   const params = new URLSearchParams({ q, langs: 'ru', page_size: '20', fields: 'code,product_name,brands,nutriments' });
   let data: { hits?: unknown[] };
   try {
@@ -241,7 +236,36 @@ async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<Htt
     cache.delete(old);
     break;
   }
-  return { status: 200, headers: { ...SAFE_HEADERS }, body };
+  return body;
+}
+
+async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
+  const cache = d.offCache ?? defaultOffCache;
+  const q = req.query.q ?? '';
+  const cached = cache.get(q.trim().toLowerCase());
+  if (!cached || now - cached.at >= OFF_CACHE_MS) {
+    const limiter = d.limiter ?? defaultLimiter;
+    const key = `off:${req.ip ?? 'unknown'}`;
+    if (limiter.count(key, OFF_WINDOW_MS, now) >= OFF_MAX_PER_IP) throw new HttpError(429, 'too many searches');
+    limiter.add(key, now);
+  }
+  return { status: 200, headers: { ...SAFE_HEADERS }, body: await offSearch(d, q, now) };
+}
+
+/** Для помощника: продукты с КБЖУ на 100 г из Open Food Facts (без названия или калорий — пропускаем). */
+export function foodOnline(d: Deps, now: number): FoodOnline {
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10) / 10 : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 : null);
+  return async (query) => {
+    const { products } = JSON.parse(await offSearch(d, query, now)) as { products: { product_name?: unknown; brands?: unknown; nutriments?: Record<string, unknown> }[] };
+    return products.flatMap((p) => {
+      const nu = p.nutriments ?? {};
+      const kcal = n(nu['energy-kcal_100g']);
+      const name = typeof p.product_name === 'string' ? p.product_name.trim().slice(0, 120) : '';
+      if (!name || kcal === null) return [];
+      const brand = Array.isArray(p.brands) ? String(p.brands[0] ?? '') : typeof p.brands === 'string' ? p.brands.split(',')[0]?.trim() ?? '' : '';
+      return [{ name, ...(brand ? { brand: brand.slice(0, 80) } : {}), kcal, protein: n(nu.proteins_100g) ?? 0, fat: n(nu.fat_100g) ?? 0, carbs: n(nu.carbohydrates_100g) ?? 0 }];
+    });
+  };
 }
 
 /** Продукт по штрихкоду: { product } или { product: null }, если в базе его нет. */
@@ -508,7 +532,7 @@ async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: st
   const job = (async () => {
     const text = await phrase();
     if (!text) return 'Не расслышал. Попробуйте ещё раз или напишите текстом.';
-    const reply = await runAssistant(d.store, ai, userId, text, now);
+    const reply = await runAssistant(d.store, ai, userId, text, now, foodOnline(d, now));
     // Для голосового показываем, что услышали: так видно, если распознало не то
     return heard ? `🎤 «${text.slice(0, 300)}»\n${reply}` : reply;
   })()
@@ -551,7 +575,7 @@ async function handleAssistant(req: HttpReq, d: Deps, action: string, now: numbe
     if (!text) return json({ heard: '', proposals: [], answer: '', error: 'Не расслышал. Попробуйте ещё раз или напишите текстом.' });
   }
   if (!text) throw new HttpError(400, 'text or audio required');
-  const plan = await planAssistant(d.store, ai, userId, text, now);
+  const plan = await planAssistant(d.store, ai, userId, text, now, foodOnline(d, now));
   return json({ heard: text, ...plan });
 }
 

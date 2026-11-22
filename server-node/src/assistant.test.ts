@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropUnaskedReminders, isRepeat, parseReply, planAssistant, type AiClient } from './assistant.ts';
+import { dropUnaskedBrand, dropUnaskedReminders, isRepeat, mealFromText, unasked, parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
@@ -236,5 +236,25 @@ describe('повторы в предложениях помощника', () => 
     expect(isRepeat(income.preview, [income])).toBe(true);
     expect(isRepeat('Перевод 273,33 ₽: «Карта» → «Подушка».', [income])).toBe(true);
     expect(isRepeat('Перевод 500 ₽: «Карта» → «Подушка».', [income])).toBe(false);
+  });
+});
+
+describe('помощник и еда', () => {
+  it('вызов, написанный текстом (GLM), тоже понимаем и человеку его не показываем', () => {
+    const r = parseReply({ result: { response: 'Запишу. <tool_call>log_food<arg_key>name</arg_key><arg_value>Гречка</arg_value><arg_key>grams</arg_key><arg_value>200</arg_value></tool_call>' } });
+    expect(r.calls).toEqual([{ id: 'call_text_0', name: 'log_food', args: { name: 'Гречка', grams: 200 } }]);
+    expect(r.text).toBe('Запишу.');
+  });
+  it('приём пищи — из фразы, иначе по времени; марка — только названная', () => {
+    expect(mealFromText('на обед гречка', { name: 'гречка', meal: 'dinner' }).meal).toBe('lunch');
+    expect(mealFromText('съел 2 яйца', { name: 'яйца', meal: 'dinner' })).not.toHaveProperty('meal');
+    expect(dropUnaskedBrand('творог 5%', 'log_food', { name: 'творог', brand: '(из справочника)' })).not.toHaveProperty('brand');
+    expect(dropUnaskedBrand('сметана простоквашино', 'log_food', { name: 'сметана', brand: 'Простоквашино' })).toHaveProperty('brand');
+    expect(dropUnaskedBrand('150 г грудки', 'log_food', { name: 'грудка', brand: 'порция 150 г' })).not.toHaveProperty('brand');
+  });
+  it('замер и тренировку не придумывает, если о них не говорили', () => {
+    expect(unasked('тарелка борща на ужин', 'log_measurement')).toBe(true);
+    expect(unasked('вешу 82 кг', 'log_measurement')).toBe(false);
+    expect(unasked('потратил 400', 'add_transaction')).toBe(false);
   });
 });

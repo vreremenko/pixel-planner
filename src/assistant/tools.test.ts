@@ -21,6 +21,19 @@ const base = () =>
   ]);
 
 describe('действия помощника', () => {
+  it('еда для помощника без интернета: справочник важнее выдуманных цифр, штуки, блюда по частям', () => {
+    const data = base();
+    const noWeb = { ...ctx, noWeb: true, hour: 9 };
+    const log = (input: Record<string, unknown>) => TOOLS.find((t) => t.name === 'log_food')?.run(data, input, noWeb) ?? '';
+    // «2 яйца» с выдуманными КБЖУ — всё равно яйцо из справочника, 2 × 55 г, завтрак по времени
+    expect(log({ name: '2 яйца', kcal: 155, protein: 12.6, fat: 11, carbs: 1 })).toBe('Завтрак: Яйцо куриное варёное 2 шт, 110 г — 171 ккал, Б14 Ж12 У1.');
+    expect(log({ name: 'тарелка борща', meal: 'dinner' })).toContain('Борщ 300 г');
+    expect(log({ name: 'пельмени', pieces: 15, meal: 'lunch' })).toContain('180 г');
+    expect(log({ name: 'рис с котлетой', meal: 'dinner' })).toMatch(/Рис белый варёный 200 г.*; Котлета/);
+    // С маркой и цифрами из базы продуктов — берём их и сохраняем в «Мои продукты»
+    expect(log({ name: 'сметана', brand: 'Простоквашино', kcal: 204, protein: 2.5, fat: 20, carbs: 3.4, grams: 100, meal: 'snack' })).toContain('204 ккал');
+  });
+
   it('доход с откладыванием в копилку — перевод, связанный с доходом, а не расход', () => {
     const data = base();
     expect(run(data, 'add_transaction', { kind: 'income', amount: 2733.3, category: 'Работа', save_percent: 10 })).toContain('отложено 273,33');
