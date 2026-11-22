@@ -5,24 +5,34 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/store';
 import { Button, Modal } from '../ui';
-import { fartSamples } from './fartSound';
+import fartUrl from './fart.wav';
 
 const SEEN_KEY = 'pp-sanctions-seen';
 
+/**
+ * Звук — запись (файл прислал автор), а не синтез. Играем через Web Audio: политика безопасности сайта не пускает
+ * <audio>, а загрузка файла с нашего же адреса разрешена. Файл грузим один раз.
+ */
 let ctx: AudioContext | null = null;
+let buffer: Promise<AudioBuffer | null> | null = null;
 
 function fart(): void {
   try {
     ctx ??= new AudioContext();
-    const data = fartSamples(ctx.sampleRate);
-    const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
-    buf.getChannelData(0).set(data);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.6;
-    src.connect(gain).connect(ctx.destination);
-    src.start();
+    const c = ctx;
+    buffer ??= fetch(fartUrl)
+      .then((r) => r.arrayBuffer())
+      .then((data) => c.decodeAudioData(data))
+      .catch(() => null);
+    void buffer.then((b) => {
+      if (!b) return;
+      const src = c.createBufferSource();
+      src.buffer = b;
+      // Чуть разная высота — каждый раз звучит по-своему
+      src.playbackRate.value = 0.85 + Math.random() * 0.3;
+      src.connect(c.destination);
+      src.start();
+    });
   } catch {
     // Без звука санкции не действуют — и ладно
   }
