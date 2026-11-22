@@ -8,7 +8,7 @@ import { isTimeZone, weeklyBody } from './schedule.ts';
 import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
-import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
+import { PASSWORD_MAX, PasswordBusyError, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
 import type { SendMail } from './mail.ts';
 import { parseUpdate, type BotEvent, type Keyboard, type TelegramApi } from './telegram.ts';
@@ -765,14 +765,14 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     if (limiter.count(keyEmail, LOGIN_WINDOW_MS, now) >= LOGIN_MAX_PER_EMAIL || limiter.count(keyIp, LOGIN_WINDOW_MS, now) >= LOGIN_MAX_PER_IP) {
       throw bad(429, 'too_many_attempts');
     }
+    // Попытку записываем до проверки пароля: проверка асинхронная, и пачка параллельных запросов иначе
+    // вся проскочила бы лимит, пока первый ещё считает scrypt. Удачный вход снимает счётчик почты
+    limiter.add(keyEmail, now);
+    limiter.add(keyIp, now);
     const user = await d.store.userByEmail(email);
     // Пароль проверяем и когда почты нет (по заготовленному хешу), чтобы по времени ответа нельзя было узнать, есть ли такая почта
     const ok = user ? await verifyPassword(password, user.passHash) : (await verifyPassword(password, await dummyHash), false);
-    if (!user || !ok) {
-      limiter.add(keyEmail, now);
-      limiter.add(keyIp, now);
-      throw bad(401, 'bad_credentials');
-    }
+    if (!user || !ok) throw bad(401, 'bad_credentials');
     limiter.reset(keyEmail);
     const token = await openSession(d, user.id, typeof b.device === 'string' ? b.device : '');
     return json({ token, user: publicUser(user, d.env) });
@@ -1163,6 +1163,7 @@ export async function handle(raw: HttpReq, d: Deps): Promise<HttpRes> {
     return { ...res, headers: { ...res.headers, ...cors } };
   } catch (e) {
     if (e instanceof HttpError) return { ...json({ error: e.message }, e.status), headers: { ...SAFE_HEADERS, ...cors } };
+    if (e instanceof PasswordBusyError) return { ...json({ error: 'too_many_attempts' }, 429), headers: { ...SAFE_HEADERS, ...cors } };
     console.error(e);
     return { ...json({ error: 'internal' }, 500), headers: { ...SAFE_HEADERS, ...cors } };
   }
