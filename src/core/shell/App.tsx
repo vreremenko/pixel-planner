@@ -48,18 +48,17 @@ const router = createHashRouter([
 const globals = MODULES.flatMap((m) => m.globals ?? []);
 
 export function App() {
-  const crt = useSettings((s) => s.settings.crtEffect);
   const mom = useSettings((s) => s.settings.momMode);
-  const pixelFont = useSettings((s) => s.settings.pixelFont);
+  const retro = useSettings((s) => s.settings.retro);
   const loaded = useSettings((s) => s.loaded);
   useEffect(() => {
-    // Сканлайны не сочетаются со светлой темой
-    document.body.classList.toggle('crt', crt && !mom);
-  }, [crt, mom]);
+    // Ретро-режим: полоски старого монитора; со светлой темой «Для мамы» они не сочетаются
+    document.body.classList.toggle('crt', retro && !mom);
+  }, [retro, mom]);
   useEffect(() => {
     // До загрузки настроек ничего не трогаем: тему уже выставил скрипт в index.html
-    if (loaded) applyMode(mom, pixelFont);
-  }, [mom, pixelFont, loaded]);
+    if (loaded) applyMode(mom, retro);
+  }, [mom, retro, loaded]);
   useEffect(() => startNotifications(), []);
   useEffect(() => startAuth(), []);
   useEffect(() => startSync(), []);

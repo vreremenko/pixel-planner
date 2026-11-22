@@ -1,5 +1,5 @@
 /**
- * Оформление на <html>: режим «Для мамы» (data-mode) и пиксельный шрифт (data-font). Выбор запоминается,
+ * Оформление на <html>: режим «Для мамы» (data-mode) и пиксельный шрифт ретро-режима (data-font). Выбор запоминается,
  * чтобы следующий запуск сразу открылся как надо (см. скрипт в index.html). В режиме «Для мамы» шрифт всегда читаемый.
  */
 const MODE_KEY = 'pp-mode';
@@ -15,14 +15,14 @@ function remember(key: string, value: string | null) {
   }
 }
 
-export function applyMode(mom: boolean, pixelFont = false): void {
+export function applyMode(mom: boolean, retro = false): void {
   const root = document.documentElement;
   if (mom) root.dataset.mode = 'mom';
   else delete root.dataset.mode;
-  if (pixelFont && !mom) root.dataset.font = 'pixel';
+  if (retro && !mom) root.dataset.font = 'pixel';
   else delete root.dataset.font;
   root.style.background = ''; // убираем подложку, которую мог поставить скрипт в index.html
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mom ? THEME_COLOR.mom : THEME_COLOR.normal);
   remember(MODE_KEY, mom ? 'mom' : null);
-  remember(FONT_KEY, pixelFont ? 'pixel' : null);
+  remember(FONT_KEY, retro ? 'pixel' : null);
 }

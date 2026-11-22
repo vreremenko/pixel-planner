@@ -158,6 +158,8 @@ const botTools = () => TOOLS.filter((t) => BOT_TOOLS.includes(t.name));
 const SKIP = 'Об этом не просили — не записывай';
 /** Человек рассказывает, что ел или пил. */
 const ATE = /(^|[^а-яё])(съел|съела|поел|поела|выпил|выпила|перекусил|перекусила|позавтракал|пообедал|поужинал|на завтрак|на обед|на ужин|на перекус)|^\s*\d+\s*(г|гр|грамм\S*)\s+[а-яё]/i;
+/** Вопрос, а не рассказ: «что я съел сегодня?», «сколько калорий я съел». */
+const QUESTION = /\?|(^|[^а-яё])(что|сколько|какие|какой|когда|где|покажи|расскажи)([^а-яё]|$)/i;
 const hourIn = (now: number, tz: string): number => Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(now)) % 24;
 
 /** Поиск продукта в базе Open Food Facts — делает сервер: сама нейросеть в интернет не ходит. */
@@ -292,6 +294,7 @@ export async function planAssistant(store: Store, ai: AiClient, userId: string, 
   // Ошибки по действиям: если модель исправилась и повтор удался, старая ошибка не показывается
   const errors = new Map<string, string>();
   let nudged = false;
+  let readSomething = false;
   const seen = new Set<string>();
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const reply = parseReply(await ask(ai, { messages, tools: [...tools.map(toolSpec), ...(online ? [toolSpec(ONLINE_TOOL)] : [])], max_tokens: 600 }));
@@ -299,7 +302,8 @@ export async function planAssistant(store: Store, ai: AiClient, userId: string, 
       // Модель уверяет, что записала, а действия не было: один раз просим действительно вызвать
       const error = [...errors.values()][0] ?? '';
       // То же, если человек рассказал, что съел, а модель лишь переспросила или пересказала
-      const ateNothingLogged = ATE.test(text) && !proposals.some((p) => p.name === 'log_food');
+      // Но не на вопрос («что я съел сегодня?») и не после того, как модель смотрела данные, чтобы ответить
+      const ateNothingLogged = ATE.test(text) && !QUESTION.test(text) && !readSomething && !proposals.some((p) => p.name === 'log_food');
       if (!proposals.length && !error && (CLAIM.test(reply.text) || ateNothingLogged) && !nudged && round < MAX_ROUNDS - 1) {
         nudged = true;
         messages.push({ role: 'assistant', content: reply.text });
@@ -337,6 +341,7 @@ export async function planAssistant(store: Store, ai: AiClient, userId: string, 
         if (!tool.readOnly && proposals.length >= MAX_WRITES) throw new ToolError(`За одну фразу можно сделать не больше ${String(MAX_WRITES)} записей`);
         seen.add(sig);
         out = tool.run(data, c.args, ctx);
+        if (tool.readOnly) readSomething = true;
         if (!tool.readOnly) {
           const preview = asPlan(out);
           // Повтор той же записи другими словами (или перевод, который уже отложен с дохода) — не предлагаем дважды

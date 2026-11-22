@@ -471,11 +471,11 @@ const BASE_TOOLS: readonly Tool[] = [
       // Без интернета: справочник важнее цифр нейросети, кроме продукта с маркой (его нашёл в базе сервер)
       // Жирность и прочие цифры нейросеть иногда кладёт в марку («Простоквашино 20%») — для справочника они часть названия
       const withNumbers = [name, ...(brand?.split(/\s+/).filter((w) => /\d/.test(w)) ?? [])].join(' ');
-      const fromCatalog = !known && ctx.noWeb && !(hasMacros && brand) ? (bestFood(foodList(data), withNumbers) ?? bestFood(foodList(data), name)) : undefined;
+      const fromCatalog = !known && ctx.noWeb && !(hasMacros && brand) ? (bestFood(guessList(data), withNumbers) ?? bestFood(guessList(data), name)) : undefined;
       // «Рис с котлетой», «творог и банан»: целиком нет — записываем по продуктам из справочника
       if (!known && !fromCatalog && ctx.noWeb && !brand) {
         const parts = name.split(/\s+(?:с|со|и)\s+/i).filter(Boolean);
-        const foods = parts.length > 1 ? parts.map((p) => bestFood(foodList(data), p)) : [];
+        const foods = parts.length > 1 ? parts.map((p) => bestFood(guessList(data), p)) : [];
         if (foods.length > 1 && foods.every(Boolean)) {
           const d = date(input.date, ctx);
           const given = input.grams === undefined ? undefined : Math.round(num(input.grams, 'grams', 1, 5000) / foods.length);
@@ -506,7 +506,7 @@ const BASE_TOOLS: readonly Tool[] = [
         const exact = found.find((f) => norm(f.name) === norm(name));
         const one = exact ?? (found.length === 1 ? found[0] : undefined);
         // Совсем не нашлось — хотя бы по первому слову («сырок б.ю. александров» → сырок из справочника)
-        const firstWord = ctx.noWeb && !one ? bestFood(foodList(data), name.split(/\s+/)[0] ?? '') : undefined;
+        const firstWord = ctx.noWeb && !one ? bestFood(guessList(data), name.split(/\s+/)[0] ?? '') : undefined;
         if (one) food = one;
         else if (firstWord) food = firstWord;
         else if (ctx.noWeb) throw new ToolError('Нет в справочнике. Найдите продукт через search_food_online и передайте его КБЖУ на 100 г.');
@@ -514,11 +514,12 @@ const BASE_TOOLS: readonly Tool[] = [
       }
       // Граммы: названы — их; иначе штуки × вес штуки; иначе обычная порция
       const each = pieceWeight(food.name) ?? food.portion;
-      const grams = input.grams !== undefined ? Math.round(num(input.grams, 'grams', 1, 5000)) : pieces !== undefined && each ? Math.round(pieces * each) : (each ?? 100);
+      // Вес штуки неизвестен — считаем по 100 г, но штуки не теряем: «3 сырка» — 300 г, человек увидит и поправит
+      const grams = input.grams !== undefined ? Math.round(num(input.grams, 'grams', 1, 5000)) : Math.round((pieces ?? 1) * (each ?? 100));
       const d = date(input.date, ctx);
       const { id: foodId, name: foodName, brand: foodBrand, portion, kcal, protein, fat, carbs } = food;
       data.put<FoodEntry>('food_entries', { ...meta(ctx), date: d, meal, grams, foodId, name: foodName, kcal, protein, fat, carbs, ...(foodBrand ? { brand: foodBrand } : {}), ...(portion ? { portion } : {}) });
-      const count = pieces !== undefined && input.grams === undefined && each ? `${String(pieces)} шт, ` : '';
+      const count = pieces !== undefined && input.grams === undefined ? `${String(pieces)} шт, ` : '';
       return `${mealLabel(meal)}: ${foodName}${foodBrand ? ` (${foodBrand})` : ''} ${count}${String(grams)} г — ${macroText(portionOf(food, grams))}.${saved ? ' Продукт сохранён в «Мои продукты».' : ''}`;
     },
   },
@@ -776,7 +777,7 @@ const MEASURE = /^(тарелк\S*|стакан\S*|чашк\S*|кружк\S*|п�
 /** Вес одной штуки там, где обычная порция в справочнике — это тарелка: «15 пельменей» — не 15 тарелок. */
 const PIECE_WEIGHT: readonly [RegExp, number][] = [
   [/пельмен/i, 12], [/вареник/i, 25], [/хинкал/i, 70], [/манты/i, 50], [/печень/i, 15], [/конфет/i, 10], [/блин/i, 50], [/сырник/i, 50],
-  [/оладь/i, 40], [/мандарин/i, 80], [/клубник/i, 15], [/черри/i, 15], [/ролл/i, 30], [/суши/i, 30], [/наггетс/i, 18], [/фрикадел/i, 20],
+  [/оладь/i, 40], [/сырок|сырк/i, 45], [/мандарин/i, 80], [/клубник/i, 15], [/черри/i, 15], [/ролл/i, 30], [/суши/i, 30], [/наггетс/i, 18], [/фрикадел/i, 20],
 ];
 const pieceWeight = (name: string) => PIECE_WEIGHT.find(([re]) => re.test(name))?.[1];
 
@@ -796,7 +797,16 @@ export function foodWords(raw: string): { name: string; count?: number } {
 /** Есть ли еда с таким названием в справочнике или своих продуктах (для помощника: брать ли цифры из базы продуктов). */
 export function catalogMatch(data: AccountData, name: string): boolean {
   const n = foodWords(name).name;
-  return foodList(data).some((f) => norm(f.name) === norm(n)) || bestFood(foodList(data), n) !== undefined;
+  return foodList(data).some((f) => norm(f.name) === norm(n)) || bestFood(guessList(data), n) !== undefined;
+}
+
+/**
+ * Для догадки «что за еда» без точного названия: свои продукты с порцией, потом справочник, потом свои без порции.
+ * Без порции обычно то, что когда-то сохранила нейросеть («яйца куриные (2 шт)», 100 г), — справочник надёжнее.
+ */
+function guessList(data: AccountData): FoodRef[] {
+  const own = foodList(data).slice(0, foodList(data).length - CATALOG.length);
+  return [...own.filter((f) => f.portion), ...CATALOG, ...own.filter((f) => !f.portion)];
 }
 
 function foodList(data: AccountData): FoodRef[] {

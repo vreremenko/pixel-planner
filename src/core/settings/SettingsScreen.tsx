@@ -396,20 +396,12 @@ export function SettingsScreen() {
         </Panel>
         <Panel title="Оформление" icon="sun" accent="var(--c-warn)">
           {!settings.momMode && (
-            <>
-              <ToggleRow
-                label="Пиксельный шрифт"
-                hint="Шрифт в стиле 8-битных игр. Выключен — обычный, самый читаемый."
-                checked={settings.pixelFont}
-                onChange={(v) => void update({ pixelFont: v })}
-              />
-              <ToggleRow
-                label="Эффект старого монитора"
-                hint="Полоски-сканлайны и лёгкое свечение, как на экране CRT"
-                checked={settings.crtEffect}
-                onChange={(v) => void update({ crtEffect: v })}
-              />
-            </>
+            <ToggleRow
+              label="Ретро-режим"
+              hint="Пиксельный шрифт и полоски старого монитора — как в 8-битных играх. Выключен — обычный, самый читаемый вид."
+              checked={settings.retro}
+              onChange={(v) => void update({ retro: v })}
+            />
           )}
           <ToggleRow
             label="Режим «Для мамы»"

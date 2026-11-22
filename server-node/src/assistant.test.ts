@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropUnaskedBrand, dropUnaskedReminders, isRepeat, mealFromText, unasked, parseReply, planAssistant, type AiClient } from './assistant.ts';
+import { type FoodOnline, dropUnaskedBrand, dropUnaskedReminders, isRepeat, mealFromText, unasked, parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
@@ -256,5 +256,50 @@ describe('помощник и еда', () => {
     expect(unasked('тарелка борща на ужин', 'log_measurement')).toBe(true);
     expect(unasked('вешу 82 кг', 'log_measurement')).toBe(false);
     expect(unasked('потратил 400', 'add_transaction')).toBe(false);
+  });
+});
+
+describe('вопросы про еду', () => {
+  it('«что я съел сегодня?» не превращается в запись', async () => {
+    // Модель читает день и отвечает; если её подтолкнуть «запиши еду» — запишет банан
+    const ai: AiClient = (_m, input) => {
+      const msgs = (input as { messages: { role: string; content?: string }[] }).messages;
+      if (msgs.at(-1)?.content?.includes('запиши еду')) return Promise.resolve({ result: { tool_calls: [{ name: 'log_food', arguments: { name: 'банан' } }] } });
+      if (msgs.some((m) => m.role === 'tool')) return Promise.resolve({ result: { response: 'Сегодня вы ещё ничего не ели.' } });
+      return Promise.resolve({ result: { tool_calls: [{ name: 'get_day', arguments: {} }] } });
+    };
+    const { store, userId } = await setup(ai);
+    const plan = await planAssistant(store, ai, userId, 'что я съел сегодня?', NOW);
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.answer).toContain('ничего не ели');
+  });
+});
+
+describe('еда из базы продуктов', () => {
+  const onlyLog = (args: Record<string, unknown>): AiClient => {
+    let n = 0;
+    return () => Promise.resolve(++n === 1 ? { result: { tool_calls: [{ name: 'log_food', arguments: args }] } } : { result: { response: 'ок' } });
+  };
+  // База отдаёт сначала кефир той же марки, потом нужную сметану
+  const online: FoodOnline = () =>
+    Promise.resolve([
+      { name: 'Кефир', brand: 'Простоквашино', kcal: 37, protein: 3, fat: 1, carbs: 4 },
+      { name: 'Сметана Простоквашино 20%', kcal: 204, protein: 2.5, fat: 20, carbs: 3.4 },
+    ]);
+
+  it('берёт тот же продукт, а не первый попавшийся той же марки', async () => {
+    const ai = onlyLog({ name: 'сметана', brand: 'Простоквашино', grams: 100 });
+    const { store, userId } = await setup(ai);
+    const plan = await planAssistant(store, ai, userId, 'съел 100 г сметаны простоквашино', NOW, online);
+    expect(plan.proposals[0]?.preview).toContain('204 ккал');
+  });
+
+  it('нужного продукта в базе нет — справочник, а не чужие цифры', async () => {
+    const ai = onlyLog({ name: 'сметана', brand: 'Простоквашино', grams: 100 });
+    const { store, userId } = await setup(ai);
+    const none: FoodOnline = () => Promise.resolve([{ name: 'Кефир', brand: 'Простоквашино', kcal: 37, protein: 3, fat: 1, carbs: 4 }]);
+    const plan = await planAssistant(store, ai, userId, 'съел 100 г сметаны простоквашино', NOW, none);
+    expect(plan.proposals[0]?.preview).toContain('Сметана 15%');
+    expect(plan.proposals[0]?.preview).not.toContain('37 ккал');
   });
 });
