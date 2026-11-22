@@ -48,7 +48,7 @@ describe('пауза привычки', () => {
   });
 
   it('на неделю — по шестой день включительно; вернуть — прошлое остаётся паузой, будущее отменяется', () => {
-    const habit = { ...daily, pauses: withPause({}, '2026-01-10', 7) };
+    const habit = { ...daily, pauses: withPause({}, '2026-01-10', '2026-01-16') };
     expect(habit.pauses).toEqual([{ from: '2026-01-10', to: '2026-01-16' }]);
     const back = { ...daily, pauses: withoutPause(habit, '2026-01-13') };
     expect(back.pauses).toEqual([{ from: '2026-01-10', to: '2026-01-12' }]);
@@ -58,8 +58,14 @@ describe('пауза привычки', () => {
     expect(withoutPause(habit, '2026-01-10')).toEqual([]);
   });
 
+  it('только сегодня: пауза на один день, завтра снова ждём', () => {
+    const habit = { ...daily, pauses: withPause({}, '2026-01-10', '2026-01-10') };
+    expect(isDue(habit, '2026-01-10')).toBe(false);
+    expect(isDue(habit, '2026-01-11')).toBe(true);
+  });
+
   it('новая пауза заменяет текущую, но хранит прошлые', () => {
     const old = { ...daily, pauses: [{ from: '2026-01-01', to: '2026-01-03' }, { from: '2026-01-10' }] };
-    expect(withPause(old, '2026-01-12', 3)).toEqual([{ from: '2026-01-01', to: '2026-01-03' }, { from: '2026-01-12', to: '2026-01-14' }]);
+    expect(withPause(old, '2026-01-12', '2026-01-14')).toEqual([{ from: '2026-01-01', to: '2026-01-03' }, { from: '2026-01-12', to: '2026-01-14' }]);
   });
 });

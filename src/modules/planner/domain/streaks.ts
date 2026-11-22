@@ -23,10 +23,10 @@ export function isDue(habit: Pick<Habit, 'schedule' | 'pauses'>, d: LocalDate): 
   return isScheduled(habit.schedule, d) && !isPaused(habit, d);
 }
 
-/** Поставить на паузу с `from` на `days` дней (без `days` — пока не вернут). Прошлые паузы сохраняются: по ним считается серия. */
-export function withPause(habit: Pick<Habit, 'pauses'>, from: LocalDate, days?: number): HabitPause[] {
+/** Поставить на паузу с `from` по `to` включительно (без `to` — пока не вернут). Прошлые паузы сохраняются: по ним считается серия. */
+export function withPause(habit: Pick<Habit, 'pauses'>, from: LocalDate, to?: LocalDate): HabitPause[] {
   const kept = (habit.pauses ?? []).filter((p) => p.to !== undefined && p.to < from);
-  return [...kept, days === undefined ? { from } : { from, to: addDays(from, days - 1) }];
+  return [...kept, to === undefined ? { from } : { from, to: to < from ? from : to }];
 }
 
 /** Снять паузу с сегодняшнего дня: прошедшие дни паузы остаются паузой, будущие отменяются. */

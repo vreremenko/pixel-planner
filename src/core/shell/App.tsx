@@ -50,11 +50,12 @@ const globals = MODULES.flatMap((m) => m.globals ?? []);
 export function App() {
   const mom = useSettings((s) => s.settings.momMode);
   const retro = useSettings((s) => s.settings.retro);
+  const lines = useSettings((s) => s.settings.crtLines ?? s.settings.retro);
   const loaded = useSettings((s) => s.loaded);
   useEffect(() => {
-    // Ретро-режим: полоски старого монитора; со светлой темой «Для мамы» они не сочетаются
-    document.body.classList.toggle('crt', retro && !mom);
-  }, [retro, mom]);
+    // Полоски старого монитора; со светлой темой «Для мамы» они не сочетаются
+    document.body.classList.toggle('crt', lines && !mom);
+  }, [lines, mom]);
   useEffect(() => {
     // До загрузки настроек ничего не трогаем: тему уже выставил скрипт в index.html
     if (loaded) applyMode(mom, retro);

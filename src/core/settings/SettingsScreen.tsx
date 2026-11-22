@@ -399,12 +399,21 @@ export function SettingsScreen() {
         </Panel>
         <Panel title="Оформление" icon="sun" accent="var(--c-warn)">
           {!settings.momMode && (
-            <ToggleRow
-              label="Ретро-режим"
-              hint="Пиксельный шрифт и полоски старого монитора — как в 8-битных играх. Выключен — обычный, самый читаемый вид."
-              checked={settings.retro}
-              onChange={(v) => void update({ retro: v })}
-            />
+            <>
+              <ToggleRow
+                label="Пиксельный шрифт"
+                hint="Как в 8-битных играх. Выключен — обычный, самый читаемый шрифт."
+                checked={settings.retro}
+                // Полоски фиксируем как есть: раньше они включались вместе со шрифтом, теперь — отдельно
+                onChange={(v) => void update({ retro: v, crtLines: settings.crtLines ?? settings.retro })}
+              />
+              <ToggleRow
+                label="Полоски старого монитора"
+                hint="Лёгкие горизонтальные полосы и мерцание, как на ламповом экране."
+                checked={settings.crtLines ?? settings.retro}
+                onChange={(v) => void update({ crtLines: v })}
+              />
+            </>
           )}
           <ToggleRow
             label="Режим «Для мамы»"

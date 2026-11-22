@@ -23,6 +23,9 @@ describe('пауза привычки через помощника', () => {
     expect(run(data, 'pause_habit', { habit: 'Бег', resume: true })).toContain('и так не на паузе');
     expect(run(data, 'pause_habit', { habit: 'Бег' })).toContain('без срока');
     expect(() => run(data, 'pause_habit', { habit: 'Бег', days: 0 })).toThrow(ToolError);
+    expect(run(data, 'pause_habit', { habit: 'Бег', resume: true })).toContain('Вернул');
+    expect(run(data, 'pause_habit', { habit: 'Бег', until: '2026-11-18' })).toContain('по 2026-11-18 включительно');
+    expect(() => run(data, 'pause_habit', { habit: 'Бег', until: '2026-11-01' })).toThrow('не раньше сегодня');
   });
 });
 
