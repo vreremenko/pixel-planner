@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SyncMeta } from '../../src/core/domain/types.ts';
 import { type FoodOnline, dropUnaskedBrand, dropUnaskedReminders, isRepeat, mealFromText, unasked, parseReply, planAssistant, type AiClient } from './assistant.ts';
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
@@ -193,6 +194,29 @@ describe('помощник в Telegram', () => {
     expect(rows[0]?.tokensIn).toBe(n === 1 ? 1200 : 2000);
   });
 
+  it('приложение: «Отменить» возвращает как было, но не трогает то, что уже поправили руками', async () => {
+    const ai: AiClient = () => Promise.resolve({ result: { response: 'ок' } });
+    const { store, d, session, userId } = await setup(ai);
+    const apply = async (calls: unknown[]) => json(await handle(req('POST', 'assistant/apply', { token: session, body: { calls } }), d)) as { results: { ok: boolean }[]; undo: string | null };
+    const undo = (token: string | null) => handle(req('POST', 'assistant/undo', { token: session, body: { undo: token } }), d);
+
+    const first = await apply([{ name: 'add_task', args: { title: 'Купить молоко' } }]);
+    expect(first.undo).toBeTruthy();
+    expect(json(await undo(first.undo)).text).toContain('всё как было');
+    expect((await loadAccount(store, userId)).all('tasks')).toHaveLength(0);
+    expect((await undo(first.undo)).status).toBe(410);
+
+    // Поправили запись после помощника — отмена её не трогает
+    const second = await apply([{ name: 'add_task', args: { title: 'Хлеб' } }]);
+    const task = (await loadAccount(store, userId)).all<SyncMeta & { title: string }>('tasks')[0];
+    await store.syncPush(userId, [{ t: 'tasks', id: task?.id ?? '', u: (task?.updatedAt ?? 0) + 1, d: JSON.stringify({ ...task, title: 'Хлеб чёрный', updatedAt: (task?.updatedAt ?? 0) + 1 }) }]);
+    expect(json(await undo(second.undo)).text).toContain('уже изменили');
+    expect((await loadAccount(store, userId)).all<SyncMeta & { title: string }>('tasks')[0]?.title).toBe('Хлеб чёрный');
+
+    // Ничего не записалось — и отменять нечего
+    expect((await apply([{ name: 'delete_task', args: { id: 'x' } }])).undo).toBeNull();
+  });
+
   it('приложение: «предложить» ничего не записывает, «применить» — только выбранное и только безопасное', async () => {
     let n = 0;
     const ai: AiClient = () =>
@@ -385,6 +409,26 @@ describe('подтверждение в боте', () => {
     // Повторное «Применить» ничего не делает
     await press(ok);
     expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(1);
+  });
+
+  it('после записи — «Отменить»: запись пропадает, второй раз отменить нельзя', async () => {
+    const bot = menuBot();
+    const { store, userId, say, press } = await setup(twoThings(), bot.extra);
+    await say('Потратил 300 на кофе и купить молоко завтра');
+    await press(bot.menus[0]?.keyboard.at(-1)?.[0]?.data ?? '');
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(1);
+    const undo = bot.edits.at(-1)?.keyboard?.[0]?.[0];
+    expect(undo?.text).toContain('Отменить');
+    // Чужой Telegram отменить не может
+    await press(undo?.data ?? '', 555);
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(1);
+    await press(undo?.data ?? '');
+    const acc = await loadAccount(store, userId);
+    expect(acc.all('fin_tx')).toHaveLength(0);
+    expect(acc.all('tasks')).toHaveLength(0);
+    expect(bot.edits.at(-1)?.text).toContain('всё как было');
+    await press(undo?.data ?? '');
+    expect(bot.edits.at(-1)?.text).toContain('нельзя');
   });
 
   it('«Отмена» ничего не записывает', async () => {

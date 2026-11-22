@@ -1,4 +1,4 @@
-/* Настройки раздела в «Настройках»: что включено в тренировках. Общие для всех устройств аккаунта. */
+/* Настройки тренировок — внизу главной раздела, рядом с самими тренировками. Общие для всех устройств аккаунта. */
 import { Field, Panel, Segmented } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { usePrefs } from '../data/hooks';
@@ -10,7 +10,7 @@ export function GymSettings() {
   const prefs = usePrefs();
   if (!prefs) return null;
   return (
-    <Panel title="Тренировки" icon="dumbbell" accent="var(--c-gym)">
+    <Panel title="Настройки тренировок" icon="gear" accent="var(--c-gym)">
       <ToggleRow
         label="Таймер отдыха"
         hint="После отметки подхода запускается отсчёт; в конце — звук и вибрация"

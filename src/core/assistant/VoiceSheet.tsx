@@ -2,6 +2,7 @@
  * Шторка помощника: говорите (или пишите) — нейросеть предлагает действия, вы снимаете галочки с ошибочных
  * и нажимаете «Применить». До этого ничего не записывается: сервер лишь «примеряет» действия на копии данных.
  */
+import { UndoButton } from './UndoButton';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, inputClass, toast, useScrollLock } from '../ui';
@@ -23,6 +24,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
   const [plan, setPlan] = useState<AssistantPlan | null>(null);
   const [checked, setChecked] = useState<boolean[]>([]);
   const [results, setResults] = useState<{ ok: boolean; text: string }[]>([]);
+  const [undo, setUndo] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
 
   const fail = (e: unknown) => {
@@ -78,6 +80,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
     setStage('applying');
     assistantApply(token, calls).then((r) => {
       setResults(r.results);
+      setUndo(r.undo ?? null);
       setStage('done');
       // Записи сделал сервер — забираем их сразу, чтобы они появились на экране
       void syncNow();
@@ -199,6 +202,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
             </ul>
             <div className={s.row}>
               <Button onClick={listen}>Ещё команда</Button>
+              {undo && token && <UndoButton token={token} undo={undo} />}
             </div>
           </>
         )}

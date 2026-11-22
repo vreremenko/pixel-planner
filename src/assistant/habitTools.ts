@@ -1,7 +1,8 @@
-/* Действия помощника с самими привычками: список, создать, изменить, в архив, удалить. Отметки — mark_habit в tools.ts. */
+/* Действия помощника с самими привычками: список, создать, изменить, пауза, в архив, удалить. Отметки — mark_habit в tools.ts. */
 import { addDays } from '../core/domain/dates';
 import { HABIT_ICONS } from '../core/ui/icons';
 import { isCountHabit, type Habit, type HabitLog, type HabitSchedule, type HabitTracking } from '../modules/planner/domain/types';
+import { currentPause, withPause, withoutPause } from '../modules/planner/domain/streaks';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, TIME_RE, ToolError, WEEKDAY_NAMES, daysSchema, meta, optText, pick, text, weekdays, type Tool, type ToolContext } from './toolkit';
 
@@ -38,7 +39,9 @@ export const HABIT_TOOLS: readonly Tool[] = [
         const mine = logs.filter((l) => l.habitId === h.id);
         const in7 = mine.filter((l) => l.date >= since(7) && l.date <= ctx.today).length;
         const in30 = mine.filter((l) => l.date >= since(30) && l.date <= ctx.today).length;
-        return `${h.name}: ${scheduleText(h.schedule)}, ${trackingText(h)}${h.reminderTime ? `, напоминание в ${h.reminderTime}` : ''}; выполнено ${String(in7)} из 7 и ${String(in30)} из 30 дней`;
+        const p = currentPause(h, ctx.today);
+        const paused = p ? `, на паузе${p.from > ctx.today ? ` с ${p.from}` : ''}${p.to ? ` по ${p.to}` : ' без срока'}` : '';
+        return `${h.name}: ${scheduleText(h.schedule)}, ${trackingText(h)}${h.reminderTime ? `, напоминание в ${h.reminderTime}` : ''}${paused}; выполнено ${String(in7)} из 7 и ${String(in30)} из 30 дней`;
       };
       const active = habits.filter((h) => !h.archived);
       const archived = habits.filter((h) => h.archived);
@@ -112,6 +115,37 @@ export const HABIT_TOOLS: readonly Tool[] = [
       if (icon) next.icon = icon;
       data.put('habits', next);
       return `«${next.name}»: ${scheduleText(next.schedule)}, ${trackingText(next)}${next.reminderTime ? `, напоминание в ${next.reminderTime}` : ', без напоминания'}${next.archived ? ', в архиве' : ''}.`;
+    },
+  },
+  {
+    name: 'pause_habit',
+    title: 'Пауза привычки',
+    description:
+      'Поставить привычку на паузу (отпуск, болезнь) с сегодняшнего дня: на days дней или без срока. В паузу привычка не ждёт отметок и не напоминает, серия не сгорает. resume: true — снять паузу с сегодня.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        habit: { type: 'string', description: 'Название привычки' },
+        days: { type: 'integer', minimum: 1, maximum: 365, description: 'На сколько дней, включая сегодня; без поля — пока не вернут' },
+        resume: { type: 'boolean', description: 'true — вернуть с паузы' },
+      },
+      required: ['habit'],
+      additionalProperties: false,
+    },
+    readOnly: false,
+    run: (data, input, ctx) => {
+      const h = findHabit(data, input.habit);
+      if (input.resume === true) {
+        if (!currentPause(h, ctx.today)) return `«${h.name}» и так не на паузе.`;
+        data.put('habits', { ...h, pauses: withoutPause(h, ctx.today), updatedAt: ctx.now });
+        return `Вернул «${h.name}» с паузы — с сегодня снова ждёт отметок.`;
+      }
+      const days = input.days === undefined ? undefined : Number(input.days);
+      if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 365)) throw new ToolError('days: от 1 до 365');
+      const pauses = withPause(h, ctx.today, days);
+      data.put('habits', { ...h, pauses, updatedAt: ctx.now });
+      const until = pauses.at(-1)?.to;
+      return `«${h.name}» на паузе ${until ? `по ${until} включительно` : 'без срока'}; серия сохранится.`;
     },
   },
   {

@@ -30,7 +30,7 @@ async function plan(from: Date, to: Date, account = false): Promise<PlannedRemin
     foodPrefsRepo.get(),
     bodyRepo.all(),
   ]);
-  const data: DigestData = { tasks, series, overrides, habits, habitLogs, txs, categories, workouts, sets, food, foodGoalKcal: foodPrefs.goal?.kcal, body, modulesOff: stored.modulesOff };
+  const data: DigestData = { tasks, series, overrides, habits, habitLogs, txs, categories, workouts, sets, food, foodGoalKcal: foodPrefs.goal?.kcal, body };
   return planWeekly(stored, from, to, (d) => digestText(data, d));
 }
 

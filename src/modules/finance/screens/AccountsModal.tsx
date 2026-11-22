@@ -14,11 +14,13 @@ export function AccountForm({ account, onDone }: { account: Account | null; onDo
 
   const save = async () => {
     const k = toKopecks(start || '0');
-    if (!name.trim() || k === null) {
-      toast('Укажите название и сумму', 'alert', 'var(--c-warn)');
+    // Серую подсказку «Карта» новичок принимает за уже заполненное поле — так пусть и будет
+    const title = name.trim() || (account ? '' : 'Карта');
+    if (!title || k === null) {
+      toast(k === null ? 'Сумма — числом, например 15 000' : 'Укажите название', 'alert', 'var(--c-warn)');
       return;
     }
-    await accountRepo.save({ ...account, name: name.trim(), start: k, inPlan });
+    await accountRepo.save({ ...account, name: title, start: k, inPlan });
     onDone();
   };
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { digestText, planWeekly, weekLabel, type DigestData } from './weeklyDigest';
 
 const m = { createdAt: 0, updatedAt: 0 };
-const empty: DigestData = { tasks: [], series: [], overrides: [], habits: [], habitLogs: [], txs: [], categories: [], workouts: [], sets: [], food: [], body: [], modulesOff: [] };
+const empty: DigestData = { tasks: [], series: [], overrides: [], habits: [], habitLogs: [], txs: [], categories: [], workouts: [], sets: [], food: [], body: [] };
 // Неделя 16–22 ноября 2026 (Пн–Вс)
 const END = '2026-11-22';
 
@@ -49,9 +49,6 @@ describe('итоги недели', () => {
     expect(text).toContain('🏋 Тренировки: 1, подходов 2');
     expect(text).toContain('⚖ Вес: 82,6 кг (−0,6 за неделю)');
     expect(text).toContain('🍎 Питание: в среднем 165 ккал в день (цель 2 300), записано дней: 2 из 7');
-    const off = digestText({ ...data, modulesOff: ['finance', 'food'] }, END);
-    expect(off).not.toContain('Расходы');
-    expect(off).not.toContain('Питание');
     expect(digestText(empty, END)).toBe('');
   });
 

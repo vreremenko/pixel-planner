@@ -14,7 +14,6 @@ import { play } from '../sfx';
 import { useInstallPrompt } from '../pwa/useInstallPrompt';
 import { APP_VERSION, CHANGELOG } from '../changelog';
 import { ChangelogModal } from '../whatsnew/ChangelogModal';
-import { ModulesPanel } from './ModulesPanel';
 import { ToggleRow } from './ToggleRow';
 import { useModules } from '../shell/nav';
 import { sendFeedback, setTelegramReminders, useAuth } from '../auth/store';
@@ -24,7 +23,7 @@ import { DeliveryCheck } from '../notifications/DeliveryCheck';
 
 const PERM_TEXT: Record<string, string> = {
   granted: 'разрешены',
-  denied: 'запрещены в браузере',
+  denied: 'запрещены',
   default: 'ещё не запрошены',
   unsupported: 'не поддерживаются этим браузером',
 };
@@ -241,46 +240,46 @@ function NotificationsPanel() {
               {PERM_TEXT[perm]}
             </b>
           </p>
-          {perm !== 'granted' && perm !== 'unsupported' && (
+          {perm === 'default' && (
             <div style={{ marginBottom: 16, padding: 12, border: '4px dashed var(--c-border)' }}>
               <p style={{ marginTop: 0 }}>
                 Разрешение нужно, чтобы присылать напоминания о задачах и привычках в момент их
                 начала и утреннюю сводку. Мы спросим браузер только после нажатия кнопки.
               </p>
-              <Button
-                variant="gold"
-                icon="bell"
-                disabled={perm === 'denied'}
-                onClick={() => void allow()}
-              >
+              <Button variant="gold" icon="bell" onClick={() => void allow()}>
                 Разрешить уведомления
               </Button>
-              {perm === 'denied' && (
-                <p style={{ color: 'var(--c-warn)' }}>
-                  Разрешение отклонено — включите его в настройках сайта в браузере.
-                </p>
-              )}
             </div>
           )}
-          <ToggleRow
-            label="Напоминания включены"
-            rowRef={rowRef}
-            hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
-            hint={
-              blocked && perm !== 'granted'
-                ? blockedHint
-                : busy
-                  ? 'Подключаем…'
-                  : pushError
-                    ? `Не удалось включить push при закрытом приложении: ${pushError}`
-                    : pushOn
-                      ? 'Приходят и при закрытом приложении'
-                      : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
-            }
-            checked={settings.notificationsEnabled && perm === 'granted'}
-            onChange={(v) => void enable(v)}
-            color="var(--c-gold)"
-          />
+          {perm === 'denied' && (
+            <p style={{ color: 'var(--c-warn)' }}>
+              Чтобы получать напоминания, разрешите уведомления для этого сайта в настройках
+              браузера (значок слева от адреса) и обновите страницу.
+            </p>
+          )}
+          {/* Без разрешения браузера флажок не показываем: «Запрещены» рядом с «Напоминания включены» сбивало с толку */}
+          {perm !== 'denied' && perm !== 'unsupported' && (
+            <ToggleRow
+              label="Присылать напоминания"
+              rowRef={rowRef}
+              hintColor={blocked && perm !== 'granted' ? 'var(--c-warn)' : undefined}
+              hint={
+                blocked && perm !== 'granted'
+                  ? blockedHint
+                  : busy
+                    ? 'Подключаем…'
+                    : pushError
+                      ? `Не удалось включить push при закрытом приложении: ${pushError}`
+                      : pushOn
+                        ? 'Приходят и при закрытом приложении'
+                        : (pushReason ?? 'Глобальный выключатель всех напоминаний и сводки')
+              }
+              checked={settings.notificationsEnabled && perm === 'granted'}
+              onChange={(v) => void enable(v)}
+              color="var(--c-gold)"
+            />
+          )}
+          {perm === 'unsupported' && <p style={{ color: 'var(--c-text-dim)' }}>{blockedHint}</p>}
         </>
       )}
       <TelegramRemindersRow />
@@ -319,7 +318,10 @@ function NotificationsPanel() {
             label="Время итогов (воскресенье)"
             type="time"
             value={settings.weeklyDigest.time}
-            onChange={(e) => e.target.value && void update({ weeklyDigest: { ...settings.weeklyDigest, time: e.target.value } })}
+            onChange={(e) =>
+              e.target.value &&
+              void update({ weeklyDigest: { ...settings.weeklyDigest, time: e.target.value } })
+            }
           />
         </div>
       )}
@@ -369,13 +371,14 @@ export function SettingsScreen() {
   const { settings, update } = useSettings();
   const install = useInstallPrompt();
   const [showLog, setShowLog] = useState(false);
+  // На телефоне клавиатурных сокращений нет — список только мешает
+  const [touchOnly] = useState(() => matchMedia('(hover: none) and (pointer: coarse)').matches);
   return (
     <>
       <h1 className="glow pageTitle" style={{ marginBottom: 16 }}>
         Настройки
       </h1>
       <div style={{ display: 'grid', gap: 24 }}>
-        <ModulesPanel />
         {panels.map((P, i) => (
           <Suspense key={i} fallback={null}>
             <P />
@@ -445,29 +448,31 @@ export function SettingsScreen() {
             Что нового
           </Button>
         </Panel>
-        <Panel title="Управление" icon="menu" accent="var(--c-text-dim)">
-          <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-            <li>
-              <b>N</b> — новая задача (на экране привычек — новая привычка)
-            </li>
-            <li>
-              <b>← / →</b> — предыдущий / следующий день (месяц в привычках)
-            </li>
-            <li>
-              <b>T</b> — вернуться к сегодня
-            </li>
-            <li>
-              <b>/</b> — поиск в бэклоге
-            </li>
-            <li>
-              <b>Esc</b> — закрыть окно
-            </li>
-            <li>
-              Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до ручки,
-              Пробел, стрелки, Пробел.
-            </li>
-          </ul>
-        </Panel>
+        {!touchOnly && (
+          <Panel title="Клавиши" icon="menu" accent="var(--c-text-dim)">
+            <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
+              <li>
+                <b>N</b> — новая задача (на экране привычек — новая привычка)
+              </li>
+              <li>
+                <b>← / →</b> — предыдущий / следующий день (месяц в привычках)
+              </li>
+              <li>
+                <b>T</b> — вернуться к сегодня
+              </li>
+              <li>
+                <b>/</b> — поиск в бэклоге
+              </li>
+              <li>
+                <b>Esc</b> — закрыть окно
+              </li>
+              <li>
+                Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до
+                ручки, Пробел, стрелки, Пробел.
+              </li>
+            </ul>
+          </Panel>
+        )}
       </div>
       {showLog && (
         <ChangelogModal

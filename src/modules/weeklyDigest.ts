@@ -12,7 +12,7 @@ import type { FoodEntry } from './food/domain/types';
 import type { BodyEntry } from './gym/domain/body';
 import type { Workout, WorkoutSet } from './gym/domain/types';
 import { buildOccurrences } from './planner/domain/recurrence';
-import { isScheduled } from './planner/domain/streaks';
+import { isDue } from './planner/domain/streaks';
 import type { Habit, HabitLog, OccurrenceOverride, RecurringSeries, Task } from './planner/domain/types';
 
 export const WEEKLY_KIND = 'weekly';
@@ -30,7 +30,6 @@ export interface DigestData {
   food: readonly FoodEntry[];
   foodGoalKcal?: number | undefined;
   body: readonly BodyEntry[];
-  modulesOff: readonly string[];
 }
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -49,10 +48,9 @@ const kg = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 export function digestText(data: DigestData, end: LocalDate): string {
   const start = addDays(end, -6);
   const inWeek = (d: string | null | undefined) => !!d && d >= start && d <= end;
-  const on = (id: string) => !data.modulesOff.includes(id);
   const lines: string[] = [];
 
-  if (on('planner')) {
+  {
     const tasks = data.tasks.filter((t) => inWeek(t.date));
     const occ = buildOccurrences(data.series, data.overrides, start, end, addDays(end, 1));
     const total = tasks.length + occ.filter((o) => o.status !== 'skipped').length;
@@ -65,7 +63,7 @@ export function digestText(data: DigestData, end: LocalDate): string {
     let hit = 0;
     for (const h of habits) {
       for (const d of rangeDates(start, end)) {
-        if (!isScheduled(h.schedule, d)) continue;
+        if (!isDue(h, d)) continue;
         planned++;
         if (doneSet.has(`${h.id}:${d}`)) hit++;
       }
@@ -73,7 +71,7 @@ export function digestText(data: DigestData, end: LocalDate): string {
     if (planned > 0) lines.push(`⭐ Привычки: ${String(Math.round((hit / planned) * 100))}% (${String(hit)} из ${String(planned)})`);
   }
 
-  if (on('finance')) {
+  {
     const txs = data.txs.filter((t) => inWeek(t.date));
     const spent = txs.filter((t) => t.kind === 'expense').reduce((a, t) => a + t.amount, 0);
     const earned = txs.filter((t) => t.kind === 'income').reduce((a, t) => a + t.amount, 0);
@@ -87,7 +85,7 @@ export function digestText(data: DigestData, end: LocalDate): string {
     }
   }
 
-  if (on('gym')) {
+  {
     const ws = data.workouts.filter((w) => w.finishedAt && inWeek(w.date));
     if (ws.length > 0) {
       const ids = new Set(ws.map((w) => w.id));
@@ -103,7 +101,7 @@ export function digestText(data: DigestData, end: LocalDate): string {
     }
   }
 
-  if (on('food')) {
+  {
     const entries = data.food.filter((e) => inWeek(e.date));
     const days = new Set(entries.map((e) => e.date));
     if (days.size > 0) {

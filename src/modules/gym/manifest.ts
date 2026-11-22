@@ -1,6 +1,5 @@
 /* Тренировки: программа по дням, свободные тренировки, подходы, таймер отдыха, справочник упражнений, замеры тела. */
 import { lazyScreen, type ModuleManifest } from '../../core/module';
-import { GymSettings } from './screens/GymSettings';
 
 export const gymModule: ModuleManifest = {
   id: 'gym',
@@ -25,6 +24,5 @@ export const gymModule: ModuleManifest = {
     { id: 'gym', title: 'Тренировки', icon: 'dumbbell', accent: 'var(--c-gym)', to: '/gym', Component: lazyScreen(() => import('./screens/GymWidget'), (m) => m.GymWidget) },
   ],
   // Без отложенной загрузки: панель маленькая, а подгружаясь позже, она сдвигала «Настройки» уже после открытия
-  settingsPanel: GymSettings,
   globals: [lazyScreen(() => import('./screens/RestTimerBar'), (m) => m.RestTimerBar), lazyScreen(() => import('./screens/AutoFinish'), (m) => m.AutoFinish)],
 };

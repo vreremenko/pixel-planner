@@ -12,6 +12,20 @@ const run = (data: AccountData, name: string, input: Record<string, unknown> = {
 };
 const rows = (data: AccountData, t: string) => data.changes().filter((c) => c.t === t).map((c) => JSON.parse(c.d) as Record<string, unknown>);
 
+describe('пауза привычки через помощника', () => {
+  it('ставит на паузу на срок и без срока, показывает в списке и снимает', () => {
+    const data = new AccountData([]);
+    run(data, 'add_habit', { name: 'Бег' });
+    expect(run(data, 'pause_habit', { habit: 'бег', days: 7 })).toBe('«Бег» на паузе по 2026-11-24 включительно; серия сохранится.');
+    expect(run(data, 'list_habits')).toContain('на паузе по 2026-11-24');
+    expect(run(data, 'pause_habit', { habit: 'Бег', resume: true })).toContain('Вернул «Бег» с паузы');
+    expect(rows(data, 'habits').at(-1)?.pauses).toEqual([]);
+    expect(run(data, 'pause_habit', { habit: 'Бег', resume: true })).toContain('и так не на паузе');
+    expect(run(data, 'pause_habit', { habit: 'Бег' })).toContain('без срока');
+    expect(() => run(data, 'pause_habit', { habit: 'Бег', days: 0 })).toThrow(ToolError);
+  });
+});
+
 describe('привычки через помощника', () => {
   it('создаёт, меняет, архивирует и удаляет привычку', () => {
     const data = new AccountData([]);

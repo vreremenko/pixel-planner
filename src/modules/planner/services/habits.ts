@@ -3,6 +3,7 @@ import type { Habit, HabitSchedule, HabitTracking } from '../domain/types';
 import { stamp } from '../../../core/data/repo';
 import { habitLogRepo, habitRepo } from '../data/repo';
 import { play } from '../../../core/sfx';
+import { withPause, withoutPause } from '../domain/streaks';
 
 export interface HabitDraft {
   name: string;
@@ -24,6 +25,16 @@ export async function updateHabit(h: Habit, d: HabitDraft): Promise<void> {
 
 export async function setArchived(h: Habit, archived: boolean): Promise<void> {
   await habitRepo.put({ ...h, archived });
+}
+
+/** Пауза с сегодняшнего дня на `days` дней или без срока: серия не рвётся, напоминаний нет. */
+export async function pauseHabit(h: Habit, today: LocalDate, days?: number): Promise<void> {
+  await habitRepo.put({ ...h, pauses: withPause(h, today, days) });
+}
+
+/** Вернуть с паузы с сегодняшнего дня. */
+export async function resumeHabit(h: Habit, today: LocalDate): Promise<void> {
+  await habitRepo.put({ ...h, pauses: withoutPause(h, today) });
 }
 
 export async function deleteHabit(id: string): Promise<void> {

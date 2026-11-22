@@ -45,12 +45,12 @@ export function planAccount(rows: AccountRows, from: Date, to: Date): PlannedRem
     ),
     ...planGym(rows.all<Workout>('gym_workouts'), rows.allWithDeleted<WorkoutSet>('gym_sets'), from, to),
     ...planFinance(rows.all<Payment>('fin_payments'), rows.all<Tx>('fin_tx'), from, to),
-    ...planWeekly(settings, from, to, (end) => digestText(digestData(rows, settings), end)),
+    ...planWeekly(settings, from, to, (end) => digestText(digestData(rows), end)),
   ].sort((a, b) => a.fireAt - b.fireAt);
 }
 
 /** Данные для «Итогов недели» из записей аккаунта. */
-export function digestData(rows: AccountRows, settings: Pick<Settings, 'modulesOff'> = accountSettings(rows)): DigestData {
+export function digestData(rows: AccountRows): DigestData {
   return {
     tasks: rows.all<Task>('tasks'),
     series: rows.all<RecurringSeries>('series'),
@@ -64,6 +64,5 @@ export function digestData(rows: AccountRows, settings: Pick<Settings, 'modulesO
     food: rows.all<FoodEntry>('food_entries'),
     foodGoalKcal: rows.all<FoodPrefs>('food_prefs')[0]?.goal?.kcal,
     body: rows.all<BodyEntry>('gym_body'),
-    modulesOff: settings.modulesOff,
   };
 }

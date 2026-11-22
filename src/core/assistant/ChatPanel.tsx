@@ -3,6 +3,7 @@
  * кнопка микрофона рядом. Каждая команда — сообщение: что нейросеть предлагает сделать (галочки, по умолчанию все)
  * и «Применить»; до этого ничего не записывается. История — до закрытия панели.
  */
+import { UndoButton } from './UndoButton';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, inputClass, PixelIcon } from '../ui';
@@ -21,6 +22,8 @@ interface Turn {
   plan?: AssistantPlan;
   checked: boolean[];
   results?: { ok: boolean; text: string }[];
+  /** Токен «Отменить» от сервера; нет — отменять нечего. */
+  undo?: string | null;
   error?: string;
 }
 
@@ -94,7 +97,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     patch(t.id, { status: 'applying' });
     assistantApply(token, calls).then(
       (r) => {
-        patch(t.id, { status: 'done', results: r.results });
+        patch(t.id, { status: 'done', results: r.results, undo: r.undo ?? null });
         void syncNow();
       },
       (e: unknown) => patch(t.id, { status: 'review', error: e instanceof AuthError ? e.message : 'Не получилось записать' }),
@@ -175,6 +178,11 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                           <span>{r.ok ? r.text : `Не получилось: ${r.text}`}</span>
                         </li>
                       ))}
+                      {t.undo && token && (
+                        <li>
+                          <UndoButton token={token} undo={t.undo} />
+                        </li>
+                      )}
                     </ul>
                   ) : (
                     <span className={s.dim}>Ничего не записано.</span>

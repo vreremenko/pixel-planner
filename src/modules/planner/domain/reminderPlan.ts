@@ -8,7 +8,7 @@ import type { Settings } from '../../../core/domain/types';
 import type { PlannedReminder } from '../../../core/notifications/types';
 import { buildOccurrences } from './recurrence';
 import { planReminders, summaryText } from './reminders';
-import { isScheduled } from './streaks';
+import { isDue } from './streaks';
 import type { Habit, HabitLog, OccurrenceOverride, RecurringSeries, Task } from './types';
 
 export interface PlannerRows {
@@ -35,7 +35,7 @@ export function planPlanner(rows: PlannerRows, settings: Settings, from: Date, t
   return planned.map((r) => {
     if (r.kind !== 'summary') return r;
     const open = tasks.filter((t) => t.date === r.date && !t.done).length + occurrences.filter((o) => o.date === r.date && o.status === 'pending').length;
-    const habits = rows.habits.filter((h) => !h.archived && isScheduled(h.schedule, r.date)).length;
+    const habits = rows.habits.filter((h) => !h.archived && isDue(h, r.date)).length;
     return { ...r, body: summaryText(open, habits) };
   });
 }

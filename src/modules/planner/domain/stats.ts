@@ -1,5 +1,5 @@
 import { dateOf, rangeDates, weekday } from '../../../core/domain/dates';
-import { isScheduled } from './streaks';
+import { isDue } from './streaks';
 import type { LocalDate } from '../../../core/domain/types';
 import type { Habit, HabitLog, Occurrence, Task } from './types';
 
@@ -77,7 +77,7 @@ export function computeStats(input: StatsInput): PeriodStats {
     const created = dateOf(new Date(h.createdAt));
     for (const d of rangeDates(from > created ? from : created, end)) {
       const done = logSet.has(`${h.id}:${d}`);
-      const scheduled = isScheduled(h.schedule, d);
+      const scheduled = isDue(h, d);
       // Сегодняшний невыполненный день ещё не провален
       if (scheduled && (d < todayDate || done)) habitsScheduled++;
       if (done) {
