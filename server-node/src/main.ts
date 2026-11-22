@@ -49,6 +49,11 @@ const server = createServer((req, res) => {
   void (async () => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      // Пустые части пути («/api//telegram/update») — только попытка обойти проверки посредника
+      if (url.pathname.includes('//')) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
+        return;
+      }
       // Описания входа для нейросетей лежат в корне сайта (/.well-known/…), остальное — под /api/
       const wk = url.pathname.startsWith('/.well-known/');
       const i = wk ? -4 : url.pathname.indexOf('/api/');

@@ -709,7 +709,8 @@ async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { 
 /** Обновление от посредника. Отвечаем 200 и при ошибке, иначе Telegram будет повторять его снова и снова. */
 async function handleTelegramUpdate(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
   const key = d.env.TELEGRAM_RELAY_KEY;
-  if (!key || !safeEqual(req.headers['x-relay-key'] ?? '', key)) throw bad(403, 'forbidden');
+  // Только заголовок обновлений: x-relay-key посредник ставит и запросам приложения через запасной вход /api/
+  if (!key || !safeEqual(req.headers['x-relay-update'] ?? '', key)) throw bad(403, 'forbidden');
   const event = parseUpdate(readJson(req.body));
   if (event && d.telegram) {
     const tg = d.telegram;

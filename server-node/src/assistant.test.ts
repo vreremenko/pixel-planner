@@ -29,17 +29,17 @@ async function setup(ai: AiClient, extra: Partial<TelegramApi> = {}) {
   await store.syncPush(user?.id ?? '', [{ t: 'fin_accounts', id: 'a1', u: 1, d: JSON.stringify({ id: 'a1', name: 'Карта', start: 1_000_000, inPlan: true, createdAt: 1, updatedAt: 1 }) }]);
   const say = async (text: string, from = 777) => {
     const r = req('POST', 'telegram/update', { body: { message: { text, chat: { id: from, type: 'private' }, from: { id: from } } } });
-    await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
+    await handle({ ...r, headers: { ...r.headers, 'x-relay-update': KEY } }, d);
     await Promise.all(jobs.splice(0));
   };
   const voice = async (duration = 5, from = 777) => {
     const r = req('POST', 'telegram/update', { body: { message: { voice: { file_id: 'f1', duration }, chat: { id: from, type: 'private' }, from: { id: from } } } });
-    await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
+    await handle({ ...r, headers: { ...r.headers, 'x-relay-update': KEY } }, d);
     await Promise.all(jobs.splice(0));
   };
   const press = async (data: string, from = 777, messageId = 5) => {
     const r = req('POST', 'telegram/update', { body: { callback_query: { id: 'cb', data, from: { id: from }, message: { message_id: messageId, chat: { id: from } } } } });
-    await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
+    await handle({ ...r, headers: { ...r.headers, 'x-relay-update': KEY } }, d);
   };
   return { store, d, session, userId: user?.id ?? '', sent, say, voice, press };
 }

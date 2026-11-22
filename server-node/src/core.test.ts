@@ -601,7 +601,7 @@ describe('Telegram', () => {
     });
     return { d, sent };
   };
-  const update = (d: Deps, body: unknown, key = KEY) => handle({ ...req('POST', 'telegram/update', { body }), headers: { 'x-relay-key': key } }, d);
+  const update = (d: Deps, body: unknown, key = KEY, header = 'x-relay-update') => handle({ ...req('POST', 'telegram/update', { body }), headers: { [header]: key } }, d);
   const text = (d: Deps, value: string, from = TG) => update(d, { message: { text: value, chat: { id: from, type: 'private' }, from: { id: from } } });
   const press = (d: Deps, data: string, from = TG) => update(d, { callback_query: { id: 'c', data, from: { id: from }, message: { chat: { id: from } } } });
   const post = async (d: Deps, path: string, body: unknown = {}, token?: string) => json(await handle(req('POST', path, { body, ...(token ? { token } : {}) }), d));
@@ -615,6 +615,8 @@ describe('Telegram', () => {
   it('обновление принимается только с ключом посредника', async () => {
     const { d, sent } = setup();
     expect((await update(d, {}, 'чужой')).status).toBe(403);
+    // Настоящий ключ, но в заголовке запасного входа /api/ (его посредник ставит любому запросу приложения) — нельзя
+    expect((await update(d, {}, KEY, 'x-relay-key')).status).toBe(403);
     expect((await text(d, 'привет')).status).toBe(200);
     expect(sent).toHaveLength(1);
   });
