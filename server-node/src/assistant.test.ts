@@ -3,7 +3,7 @@ import { type FoodOnline, dropUnaskedBrand, dropUnaskedReminders, isRepeat, meal
 import { handle } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { loadAccount } from './schedule.ts';
-import { json, mk, register, req } from './test-helpers.ts';
+import { json, mk, registerVerified as register, req } from './test-helpers.ts';
 import type { TelegramApi } from './telegram.ts';
 
 const NOW = Date.UTC(2026, 10, 19, 9, 0);

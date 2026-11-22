@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { handle, type Deps } from './core.ts';
-import { json, mk, register, req } from './test-helpers.ts';
+import { json, mk, registerVerified as register, req } from './test-helpers.ts';
 import type { HttpReq } from './types.ts';
 
 const HOST = 'pp.test';

@@ -3,7 +3,7 @@ import { toInstant } from '../../src/core/domain/dates.ts';
 import { handle, sendDue } from './core.ts';
 import { MemoryStore } from './memory-store.ts';
 import { isTimeZone, refreshSchedule, todayIn, withTimeZone } from './schedule.ts';
-import { json, mk, register, req } from './test-helpers.ts';
+import { json, mk, registerVerified as register, req } from './test-helpers.ts';
 
 // 2026-11-19 20:30 UTC: в Москве ещё 19-е (23:30), в Екатеринбурге уже 20-е (01:30)
 const NOW = Date.UTC(2026, 10, 19, 20, 30);
