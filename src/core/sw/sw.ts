@@ -18,7 +18,7 @@ void self.skipWaiting();
 clientsClaim();
 
 // Навигация (в т.ч. запуск установленного приложения): сначала сеть, кэш — только офлайн.
-// Так iOS всегда получает свежую страницу, а ответ без редиректов. Файл команды iPhone (.shortcut) идёт мимо — как есть.
+// Так iOS всегда получает свежую страницу, а ответ без редиректов.
 // Маршрут ОБЯЗАН быть зарегистрирован раньше precacheAndRoute: иначе precache отдаёт закэшированный
 // index.html старой версии, и новая версия появляется только со второго запуска.
 async function cleanCopy(r: Response): Promise<Response> {
@@ -39,7 +39,7 @@ registerRoute(
     const cached = await matchPrecache('index.html');
     if (cached) return await cleanCopy(cached);
     return fetch(request.url);
-  }, { denylist: [/\.shortcut$/] }),
+  }),
 );
 
 precacheAndRoute(self.__WB_MANIFEST);
