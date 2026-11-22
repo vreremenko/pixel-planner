@@ -9,7 +9,7 @@ import type { TelegramApi } from './telegram.ts';
 const NOW = Date.UTC(2026, 10, 19, 9, 0);
 const KEY = 'relay-key';
 
-async function setup(ai: AiClient) {
+async function setup(ai: AiClient, extra: Partial<TelegramApi> = {}) {
   const store = new MemoryStore();
   const sent: string[] = [];
   const jobs: Promise<void>[] = [];
@@ -20,6 +20,7 @@ async function setup(ai: AiClient) {
     },
     answer: () => Promise.resolve(),
     download: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+    ...extra,
   };
   const d = mk({ now: () => NOW, telegram, ai, defer: (j) => jobs.push(j), env: { TELEGRAM_RELAY_KEY: KEY } }, store);
   const session = await register(d, 'a@b.ru');
@@ -36,7 +37,11 @@ async function setup(ai: AiClient) {
     await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
     await Promise.all(jobs.splice(0));
   };
-  return { store, d, session, userId: user?.id ?? '', sent, say, voice };
+  const press = async (data: string, from = 777, messageId = 5) => {
+    const r = req('POST', 'telegram/update', { body: { callback_query: { id: 'cb', data, from: { id: from }, message: { message_id: messageId, chat: { id: from } } } } });
+    await handle({ ...r, headers: { ...r.headers, 'x-relay-key': KEY } }, d);
+  };
+  return { store, d, session, userId: user?.id ?? '', sent, say, voice, press };
 }
 
 describe('помощник в Telegram', () => {
@@ -301,5 +306,69 @@ describe('еда из базы продуктов', () => {
     const plan = await planAssistant(store, ai, userId, 'съел 100 г сметаны простоквашино', NOW, none);
     expect(plan.proposals[0]?.preview).toContain('Сметана 15%');
     expect(plan.proposals[0]?.preview).not.toContain('37 ккал');
+  });
+});
+
+describe('подтверждение в боте', () => {
+  const twoThings = (): AiClient => {
+    let n = 0;
+    return () =>
+      Promise.resolve(
+        ++n === 1
+          ? { result: { tool_calls: [{ name: 'add_transaction', arguments: { kind: 'expense', amount: 300, category: 'Кафе' } }, { name: 'add_task', arguments: { title: 'Купить молоко', date: 'tomorrow' } }] } }
+          : { result: { response: 'ок' } },
+      );
+  };
+  const menuBot = () => {
+    const menus: { text: string; keyboard: { text: string; data: string }[][] }[] = [];
+    const edits: { text: string; keyboard?: { text: string; data: string }[][] }[] = [];
+    return {
+      menus,
+      edits,
+      extra: {
+        menu: (_c: number, text: string, keyboard: { text: string; data: string }[][]) => {
+          menus.push({ text, keyboard });
+          return Promise.resolve(5);
+        },
+        edit: (_c: number, _m: number, text: string, keyboard?: { text: string; data: string }[][]) => {
+          edits.push({ text, ...(keyboard ? { keyboard } : {}) });
+          return Promise.resolve();
+        },
+      },
+    };
+  };
+
+  it('сначала галочки, записывается только отмеченное после «Применить»', async () => {
+    const bot = menuBot();
+    const { store, userId, say, press } = await setup(twoThings(), bot.extra);
+    await say('Потратил 300 на кофе и купить молоко завтра');
+    const menu = bot.menus[0];
+    expect(menu?.text).toContain('☑');
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(0);
+    const [taskToggle] = menu?.keyboard[1] ?? [];
+    const ok = menu?.keyboard.at(-1)?.[0]?.data ?? '';
+    // Чужой Telegram нажать не может
+    await press(taskToggle?.data ?? '', 555);
+    expect(bot.edits).toHaveLength(0);
+    // Снимаем задачу и применяем
+    await press(taskToggle?.data ?? '');
+    expect(bot.edits.at(-1)?.text).toContain('☐');
+    await press(ok);
+    const acc = await loadAccount(store, userId);
+    expect(acc.all('fin_tx')).toHaveLength(1);
+    expect(acc.all('tasks')).toHaveLength(0);
+    expect(bot.edits.at(-1)?.text).toMatch(/✓ Расход 300/);
+    // Повторное «Применить» ничего не делает
+    await press(ok);
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(1);
+  });
+
+  it('«Отмена» ничего не записывает', async () => {
+    const bot = menuBot();
+    const { store, userId, say, press } = await setup(twoThings(), bot.extra);
+    await say('Потратил 300 на кофе и купить молоко завтра');
+    await press(bot.menus[0]?.keyboard.at(-1)?.[1]?.data ?? '');
+    expect(bot.edits.at(-1)?.text).toContain('Отменено');
+    expect((await loadAccount(store, userId)).all('fin_tx')).toHaveLength(0);
   });
 });
