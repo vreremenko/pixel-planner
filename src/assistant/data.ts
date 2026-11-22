@@ -12,9 +12,19 @@ export interface WireRecord {
   d: string;
 }
 
+/** Одна запись для отмены: если с тех пор её не меняли (updatedAt === written), возвращаем prev или удаляем. */
+export interface UndoRecord {
+  t: string;
+  id: string;
+  written: number;
+  prev: SyncMeta | null;
+}
+
 export class AccountData {
   private readonly tables = new Map<string, Map<string, SyncMeta>>();
   private readonly changed = new Map<string, { table: string; row: SyncMeta }>();
+  /** Какой была запись до первого изменения (null — её не было): по этому помощник умеет «Отменить». */
+  private readonly originals = new Map<string, SyncMeta | null>();
 
   constructor(records: readonly WireRecord[]) {
     for (const r of records) {
@@ -53,9 +63,16 @@ export class AccountData {
 
   /** Записать строку; она уйдёт на сервер вместе с остальными изменениями. */
   put<T extends SyncMeta>(name: string, row: T): T {
+    const key = `${name}|${row.id}`;
+    if (!this.originals.has(key)) this.originals.set(key, this.table(name).get(row.id) ?? null);
     this.table(name).set(row.id, row);
     this.changed.set(`${name}|${row.id}`, { table: name, row });
     return row;
+  }
+
+  /** Что вернуть при отмене: для каждой изменённой записи — записанная версия и прежняя (null — записи не было). */
+  undoList(): UndoRecord[] {
+    return [...this.changed.entries()].map(([key, { table, row }]) => ({ t: table, id: row.id, written: row.updatedAt, prev: this.originals.get(key) ?? null }));
   }
 
   /** Изменения в виде записей синхронизации. */

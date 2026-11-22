@@ -185,4 +185,6 @@ const ASSISTANT_TIMEOUT_MS = 90_000;
 export const assistantPlan = (token: string, input: { text: string } | { audio: string }) =>
   call('assistant/plan', { method: 'POST', token, body: input, timeout: ASSISTANT_TIMEOUT_MS }) as Promise<AssistantPlan>;
 export const assistantApply = (token: string, calls: { name: string; args: Record<string, unknown> }[]) =>
-  call('assistant/apply', { method: 'POST', token, body: { calls } }) as Promise<{ results: { ok: boolean; text: string }[] }>;
+  call('assistant/apply', { method: 'POST', token, body: { calls } }) as Promise<{ results: { ok: boolean; text: string }[]; undo?: string | null }>;
+/** Отменить записанное помощником (10 минут после записи). */
+export const assistantUndo = (token: string, undo: string) => call('assistant/undo', { method: 'POST', token, body: { undo } }) as Promise<{ text: string }>;

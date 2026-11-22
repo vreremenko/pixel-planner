@@ -5,7 +5,8 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { SPEECH_MODEL, applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
+import type { UndoRecord } from '../../src/assistant/data.ts';
+import { SPEECH_MODEL, applyWithUndo, undoApplied, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, PasswordBusyError, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -586,6 +587,31 @@ interface BotPlan {
 }
 const botPlans = new Map<string, BotPlan>();
 
+/**
+ * «Отменить» после записи помощником: что вернуть, хранится 10 минут в памяти сервера (после перезапуска — пропадает,
+ * это допустимо). Отменить может только тот же пользователь, один раз.
+ */
+const UNDO_TTL_MS = 10 * 60_000;
+const undoBatches = new Map<string, { userId: string; records: UndoRecord[]; exp: number }>();
+
+function rememberUndo(userId: string, records: UndoRecord[], now: number): string | null {
+  if (!records.length) return null;
+  for (const [k, u] of undoBatches) if (u.exp < now) undoBatches.delete(k);
+  const token = newToken().slice(0, 12);
+  undoBatches.set(token, { userId, records, exp: now + UNDO_TTL_MS });
+  return token;
+}
+
+/** Отменить по токену; null — отменять нечего (время вышло, чужое или уже отменено). */
+async function runUndo(d: Deps, userId: string, token: string, now: number): Promise<string | null> {
+  const u = undoBatches.get(token);
+  if (!u || u.userId !== userId || u.exp < now) return null;
+  undoBatches.delete(token);
+  const { restored, skipped } = await undoApplied(d.store, userId, u.records, now);
+  if (restored === 0) return 'Отменять нечего: эти записи уже изменили.';
+  return skipped ? `Отменил. Часть записей уже изменили после этого — их не трогал.` : 'Отменил — всё как было.';
+}
+
 function botPlanView(id: string, p: BotPlan): { text: string; keyboard: Keyboard } {
   const lines = p.proposals.map((x, i) => `${p.checked[i] ? '☑' : '☐'} ${x.preview}`);
   const count = p.checked.filter(Boolean).length;
@@ -625,8 +651,14 @@ async function handleAssistantButton(d: Deps, tg: TelegramApi, e: Extract<BotEve
       await tg.edit(e.chatId, messageId, `${p.said}Ничего не записал.`);
       return;
     }
-    const results = await applyProposals(d.store, p.userId, calls, now);
-    await tg.edit(e.chatId, messageId, `${p.said}${results.map((r) => (r.ok ? `✓ ${r.text}` : `✗ Не получилось: ${r.text}`)).join('\n')}`);
+    const { results, undo } = await applyWithUndo(d.store, p.userId, calls, now);
+    const token = rememberUndo(p.userId, undo, now);
+    await tg.edit(
+      e.chatId,
+      messageId,
+      `${p.said}${results.map((r) => (r.ok ? `✓ ${r.text}` : `✗ Не получилось: ${r.text}`)).join('\n')}`,
+      token ? [[{ text: '↩️ Отменить', data: `au:${token}` }]] : undefined,
+    );
     return;
   }
   const i = Number(act);
@@ -634,6 +666,15 @@ async function handleAssistantButton(d: Deps, tg: TelegramApi, e: Extract<BotEve
   p.checked[i] = !p.checked[i];
   const view = botPlanView(id, p);
   await tg.edit(e.chatId, messageId, view.text, view.keyboard);
+}
+
+async function handleUndoButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
+  await tg.answer(e.callbackId);
+  const owner = await d.store.userByTelegram(e.telegramId);
+  if (!owner) return;
+  const text = (await runUndo(d, owner.id, e.data.slice(3), now)) ?? 'Отменить уже нельзя: прошло больше 10 минут.';
+  if (e.messageId && tg.edit) await tg.edit(e.chatId, e.messageId, text);
+  else await tg.send(e.chatId, text);
 }
 
 /**
@@ -718,7 +759,15 @@ async function handleAssistant(req: HttpReq, d: Deps, action: string, now: numbe
     const b = readJson(req.body) as { calls?: unknown };
     if (!Array.isArray(b.calls)) throw new HttpError(400, 'calls required');
     const calls = b.calls.filter((c): c is { name: unknown; args: unknown } => typeof c === 'object' && c !== null);
-    return json({ results: await applyProposals(d.store, userId, calls, now) });
+    const { results, undo } = await applyWithUndo(d.store, userId, calls, now);
+    return json({ results, undo: rememberUndo(userId, undo, now) });
+  }
+  if (action === 'undo') {
+    const b = readJson(req.body) as { undo?: unknown };
+    if (typeof b.undo !== 'string') throw new HttpError(400, 'undo required');
+    const text = await runUndo(d, userId, b.undo, now);
+    if (text === null) throw new HttpError(410, 'undo_expired');
+    return json({ text });
   }
   if (action !== 'plan') throw new HttpError(404, 'not found');
   const ai = meteredAi(d, userId, now);
@@ -759,6 +808,7 @@ async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { k
 
 async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
   if (e.data.startsWith('as:')) return handleAssistantButton(d, tg, e, now);
+  if (e.data.startsWith('au:')) return handleUndoButton(d, tg, e, now);
   await tg.answer(e.callbackId);
   const hash = tokenHash(e.data.replace(/^ok:/, ''));
   const row = await d.store.tgCodeGet(hash);

@@ -20,6 +20,7 @@ import { stem } from '../../src/modules/food/domain/logic.ts';
 import { formatDateDay } from '../../src/core/domain/dates.ts';
 import { DEFAULT_TZ, isTimeZone, loadAccount, refreshSchedule, todayIn } from './schedule.ts';
 import type { Store } from './types.ts';
+import type { UndoRecord } from '../../src/assistant/data.ts';
 
 /** Модели по порядку: лучшая по проверке на русских фразах, затем запасная. */
 export const AI_MODELS = ['@cf/zai-org/glm-4.7-flash', '@cf/openai/gpt-oss-20b'] as const;
@@ -388,6 +389,11 @@ export interface Applied {
  * только безопасные действия бота, не больше MAX_WRITES, без повторов; выполняем над свежими данными.
  */
 export async function applyProposals(store: Store, userId: string, calls: readonly { name: unknown; args: unknown }[], now: number): Promise<Applied[]> {
+  return (await applyWithUndo(store, userId, calls, now)).results;
+}
+
+/** То же, плюс что вернуть, если человек нажмёт «Отменить». */
+export async function applyWithUndo(store: Store, userId: string, calls: readonly { name: unknown; args: unknown }[], now: number): Promise<{ results: Applied[]; undo: UndoRecord[] }> {
   const tools = botTools();
   const savedTz = (await store.scheduleMetaGet(userId)).tz;
   const tz = isTimeZone(savedTz) ? savedTz : DEFAULT_TZ;
@@ -410,7 +416,30 @@ export async function applyProposals(store: Store, userId: string, calls: readon
     }
   }
   await save(store, userId, data, now);
-  return out;
+  return { results: out, undo: data.undoList() };
+}
+
+/**
+ * Отменить записанное помощником. Запись, которую после этого меняли (в приложении, вручную), не трогаем —
+ * иначе отмена стёрла бы чужую правку. Возвращает, сколько вернули и сколько пропустили.
+ */
+export async function undoApplied(store: Store, userId: string, records: readonly UndoRecord[], now: number): Promise<{ restored: number; skipped: number }> {
+  const data = await loadAccount(store, userId);
+  let restored = 0;
+  let skipped = 0;
+  for (const r of records) {
+    const current = data.allWithDeleted(r.t).find((x) => x.id === r.id);
+    if (!current || current.updatedAt !== r.written) {
+      skipped++;
+      continue;
+    }
+    // Синхронизация принимает только более новую версию — отмена должна быть позже записи
+    const at = Math.max(now, r.written + 1);
+    data.put(r.t, r.prev ? { ...r.prev, updatedAt: at } : { ...current, deletedAt: at, updatedAt: at });
+    restored++;
+  }
+  await save(store, userId, data, now);
+  return { restored, skipped };
 }
 
 /** Для бота: предложить и сразу применить всё; ответ — короткий текст для чата. */
