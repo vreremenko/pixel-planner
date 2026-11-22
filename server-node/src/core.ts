@@ -123,6 +123,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OFF_SEARCH = 'https://search.openfoodfacts.org/search';
 const OFF_USER_AGENT = 'PixelPlanner/1.0 (https://github.com/vreremenko/pixel-planner)';
 const OFF_TIMEOUT_MS = 8_000;
+const ASSISTANT_OFF_TIMEOUT_MS = 4_000;
 const OFF_CACHE_MS = 86_400_000;
 const OFF_CACHE_MAX = 500;
 const OFF_WINDOW_MS = 60_000;
@@ -210,11 +211,16 @@ async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes>
   return json(buildStats({ now, admins, users, activity, records }));
 }
 
-/** Ответ Open Food Facts без лишних полей; одинаковые запросы разных пользователей уходят туда один раз в сутки. */
-/** Поиск в Open Food Facts с кэшем: для поиска в приложении и для помощника. Ответ — строка JSON {products}. */
-async function offSearch(d: Deps, rawQuery: string, now: number): Promise<string> {
-  // Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
-  const q = rawQuery.replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
+// Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
+const offQuery = (raw: string) => raw.replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
+
+/**
+ * Поиск в Open Food Facts с кэшем: для поиска в приложении и для помощника; одинаковые запросы разных людей уходят
+ * туда раз в сутки. Ответ — строка JSON {products}. Помощнику ждать дольше нельзя (в фразе бывает несколько продуктов),
+ * поэтому ему — свой, короткий таймаут.
+ */
+async function offSearch(d: Deps, rawQuery: string, now: number, timeoutMs = OFF_TIMEOUT_MS): Promise<string> {
+  const q = offQuery(rawQuery);
   if (q.length < 2) throw new HttpError(400, 'bad query');
   const cache = d.offCache ?? defaultOffCache;
   const hit = cache.get(q);
@@ -222,7 +228,7 @@ async function offSearch(d: Deps, rawQuery: string, now: number): Promise<string
   const params = new URLSearchParams({ q, langs: 'ru', page_size: '20', fields: 'code,product_name,brands,nutriments' });
   let data: { hits?: unknown[] };
   try {
-    const res = await (d.offFetch ?? fetch)(`${OFF_SEARCH}?${params.toString()}`, { headers: { 'user-agent': OFF_USER_AGENT }, signal: AbortSignal.timeout(OFF_TIMEOUT_MS) });
+    const res = await (d.offFetch ?? fetch)(`${OFF_SEARCH}?${params.toString()}`, { headers: { 'user-agent': OFF_USER_AGENT }, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`off ${String(res.status)}`);
     data = (await res.json()) as { hits?: unknown[] };
   } catch (e) {
@@ -242,7 +248,8 @@ async function offSearch(d: Deps, rawQuery: string, now: number): Promise<string
 async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<HttpRes> {
   const cache = d.offCache ?? defaultOffCache;
   const q = req.query.q ?? '';
-  const cached = cache.get(q.trim().toLowerCase());
+  // Ответ из кэша лимит не тратит: ключ тот же, что у самого поиска
+  const cached = cache.get(offQuery(q));
   if (!cached || now - cached.at >= OFF_CACHE_MS) {
     const limiter = d.limiter ?? defaultLimiter;
     const key = `off:${req.ip ?? 'unknown'}`;
@@ -256,7 +263,7 @@ async function handleFoodSearch(req: HttpReq, d: Deps, now: number): Promise<Htt
 export function foodOnline(d: Deps, now: number): FoodOnline {
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10) / 10 : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 : null);
   return async (query) => {
-    const { products } = JSON.parse(await offSearch(d, query, now)) as { products: { product_name?: unknown; brands?: unknown; nutriments?: Record<string, unknown> }[] };
+    const { products } = JSON.parse(await offSearch(d, query, now, ASSISTANT_OFF_TIMEOUT_MS)) as { products: { product_name?: unknown; brands?: unknown; nutriments?: Record<string, unknown> }[] };
     return products.flatMap((p) => {
       const nu = p.nutriments ?? {};
       const kcal = n(nu['energy-kcal_100g']);

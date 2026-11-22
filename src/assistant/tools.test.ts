@@ -23,6 +23,8 @@ const base = () =>
 describe('действия помощника', () => {
   it('еда для помощника без интернета: справочник важнее выдуманных цифр, штуки, блюда по частям', () => {
     const data = base();
+    // Мусор от старой версии: «яйца куриные (2 шт)» без порции
+    data.put('food_items', { id: 'junk', createdAt: 1, updatedAt: 1, name: 'яйца куриные (2 шт)', kind: 'product', kcal: 155, protein: 12.6, fat: 11, carbs: 1 });
     const noWeb = { ...ctx, noWeb: true, hour: 9 };
     const log = (input: Record<string, unknown>) => TOOLS.find((t) => t.name === 'log_food')?.run(data, input, noWeb) ?? '';
     // «2 яйца» с выдуманными КБЖУ — всё равно яйцо из справочника, 2 × 55 г, завтрак по времени
@@ -30,6 +32,9 @@ describe('действия помощника', () => {
     expect(log({ name: 'тарелка борща', meal: 'dinner' })).toContain('Борщ 300 г');
     expect(log({ name: 'пельмени', pieces: 15, meal: 'lunch' })).toContain('180 г');
     expect(log({ name: 'рис с котлетой', meal: 'dinner' })).toMatch(/Рис белый варёный 200 г.*; Котлета/);
+    // Штуки не теряются и у продукта без порции; старый «мусорный» свой продукт без порции не перебивает справочник
+    expect(log({ name: 'конфеты Мишка', brand: 'Мишка', kcal: 500, protein: 5, fat: 25, carbs: 60, pieces: 3, meal: 'snack' })).toContain('3 шт, 30 г');
+    expect(log({ name: 'зефир', brand: 'Шармель', kcal: 320, protein: 1, fat: 0, carbs: 80, pieces: 2, meal: 'snack' })).toContain('2 шт, 200 г');
     // С маркой и цифрами из базы продуктов — берём их и сохраняем в «Мои продукты»
     expect(log({ name: 'сметана', brand: 'Простоквашино', kcal: 204, protein: 2.5, fat: 20, carbs: 3.4, grams: 100, meal: 'snack' })).toContain('204 ккал');
   });

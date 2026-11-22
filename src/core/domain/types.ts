@@ -38,9 +38,8 @@ export interface Settings {
   /** «Итоги недели» в воскресенье вечером. */
   weeklyDigest: { enabled: boolean; time: LocalTime };
   soundEnabled: boolean;
-  crtEffect: boolean;
-  /** Пиксельный шрифт Monocraft вместо обычного читаемого. Свой на каждом устройстве. */
-  pixelFont: boolean;
+  /** «Ретро-режим»: пиксельный шрифт Monocraft и полоски старого монитора вместо обычного вида. Свой на каждом устройстве. */
+  retro: boolean;
   /** Режим «Для мамы»: светлая тема, крупный читаемый шрифт. Свой на каждом устройстве. */
   momMode: boolean;
   timeZone: string;
@@ -52,7 +51,7 @@ export interface Settings {
 
 /**
  * Что из настроек общее для аккаунта и синхронизируется. Остальное — своё на каждом устройстве:
- * уведомления, звук, CRT, шрифт, режим «Для мамы», часовой пояс.
+ * уведомления, звук, ретро-режим, режим «Для мамы», часовой пояс.
  */
 export const ACCOUNT_SETTINGS = ['mobileNav', 'modulesOff', 'quietHours', 'morningSummary', 'weeklyDigest'] as const;
 export type AccountSettings = Pick<Settings, (typeof ACCOUNT_SETTINGS)[number]>;
@@ -71,8 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   morningSummary: { enabled: false, time: '08:00' },
   weeklyDigest: { enabled: true, time: '19:00' },
   soundEnabled: false,
-  crtEffect: true,
-  pixelFont: false,
+  retro: false,
   momMode: false,
   timeZone: 'UTC',
   modulesOff: [],
