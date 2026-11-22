@@ -94,6 +94,21 @@ export function parseReply(raw: unknown): { text: string; calls: Call[] } {
     }
     text = text.replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, '');
   }
+  // …или как вызов функции: log_food(name="пицца", grams=200)
+  if (!calls.length && text.length <= 2000) {
+    // Аргументы строго через запятую: без неоднозначности регулярка не перебирает варианты на длинном тексте
+    const VAL = `(?:"[^"]*"|'[^']*'|-?\\d+(?:\\.\\d+)?|true|false)`;
+    const CALL = new RegExp(`\\b([a-z]+_[a-z_]+)\\(\\s*((?:\\w+\\s*=\\s*${VAL}(?:\\s*,\\s*\\w+\\s*=\\s*${VAL})*)?)\\s*\\)`, 'g');
+    for (const [i, m] of [...text.matchAll(CALL)].entries()) {
+      const args: Record<string, unknown> = {};
+      for (const [, k, v] of (m[2] ?? '').matchAll(/(\w+)\s*=\s*("[^"]*"|'[^']*'|-?\d+(?:\.\d+)?|true|false)/g)) {
+        const raw = v ?? '';
+        args[k ?? ''] = /^["']/.test(raw) ? raw.slice(1, -1) : raw === 'true' ? true : raw === 'false' ? false : Number(raw);
+      }
+      calls.push({ id: `call_fn_${String(i)}`, name: m[1] ?? '', args });
+    }
+    if (calls.length) text = text.replace(CALL, '');
+  }
   return { text: text.trim(), calls };
 }
 
