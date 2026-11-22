@@ -646,6 +646,7 @@ describe('Telegram', () => {
           return Promise.resolve();
         },
         answer: () => Promise.resolve(),
+        who: (id) => Promise.resolve(id === 4242 ? { username: 'brother', name: 'Брат' } : null),
       },
     });
     return { d, sent };
@@ -758,6 +759,16 @@ describe('Telegram', () => {
     for (let i = 0; i < 4; i++) await post(admin, 'feedback', { text: 'ещё' }, token);
     expect((await post(admin, 'feedback', { text: 'шестой' }, token)).error).toBe('too_many_attempts');
     expect((await post(mk(), 'feedback', { text: 'x' })).error).toBe('unauthorized');
+  });
+
+  it('в отзыве — Telegram автора, если он привязан', async () => {
+    const { d, sent } = setup();
+    const admin = { ...d, env: { ...d.env, ADMIN_EMAILS: 'boss@site.ru' } };
+    await link(admin, await registerVerified(admin, 'boss@site.ru'));
+    const token = await registerVerified(admin, 'a@b.ru');
+    await link(admin, token, 4242);
+    await post(admin, 'feedback', { text: 'Привет' }, token);
+    expect(sent.at(-1)?.text).toContain('От: a@b.ru\nTelegram: @brother (Брат)\n');
   });
 
   it('без настроек бота вход честно недоступен', async () => {

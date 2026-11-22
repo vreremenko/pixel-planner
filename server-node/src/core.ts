@@ -481,7 +481,14 @@ async function handleFeedback(req: HttpReq, d: Deps, now: number): Promise<HttpR
   const user = await d.store.userById(userId);
   if (!user) throw bad(401, 'unauthorized');
   const version = typeof b.version === 'string' && VERSION_RE.test(b.version) ? b.version : '?';
-  const message = `Отзыв из PIXEL PLANNER\nОт: ${user.email}\nВерсия: ${version}\n\n${text}`;
+  // Если у автора привязан Telegram — подсказываем, где ему ответить
+  let tgLine = '';
+  if (user.telegramId) {
+    const who = await d.telegram?.who?.(Number(user.telegramId)).catch(() => null);
+    const name = who?.name ? ` (${who.name})` : '';
+    tgLine = who?.username ? `\nTelegram: @${who.username}${name}` : `\nTelegram: id ${user.telegramId}${name}`;
+  }
+  const message = `Отзыв из PIXEL PLANNER\nОт: ${user.email}${tgLine}\nВерсия: ${version}\n\n${text}`;
   let delivered = false;
   for (const email of adminEmails(d.env)) {
     const admin = await d.store.userByEmail(email);
