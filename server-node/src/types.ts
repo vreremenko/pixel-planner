@@ -175,6 +175,8 @@ export interface Store {
   syncDelete(space: string): Promise<void>;
   /** Сколько записей хранит пространство (для ограничения объёма). */
   syncCount(space: string): Promise<number>;
+  /** Сколько символов занимают все записи аккаунта (для квоты объёма). */
+  syncBytes(space: string): Promise<number>;
   /** Номер последней записи пространства (0 — записей нет): по нему видно, свежие ли данные у устройства. */
   syncSeq(space: string): Promise<number>;
 
