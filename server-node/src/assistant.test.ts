@@ -250,6 +250,13 @@ describe('помощник и еда', () => {
     expect(r.calls).toEqual([{ id: 'call_text_0', name: 'log_food', args: { name: 'Гречка', grams: 200 } }]);
     expect(r.text).toBe('Запишу.');
   });
+  it('и вызов в виде функции: log_food(name="пицца", grams=200)', () => {
+    const r = parseReply({ result: { response: 'log_food(name="пицца", grams=200)' } });
+    expect(r.calls).toEqual([{ id: 'call_fn_0', name: 'log_food', args: { name: 'пицца', grams: 200 } }]);
+    expect(r.text).toBe('');
+    // Обычный текст со скобками — не вызов
+    expect(parseReply({ result: { response: 'Сегодня (воскресенье) задач нет.' } }).calls).toEqual([]);
+  });
   it('приём пищи — из фразы, иначе по времени; марка — только названная', () => {
     expect(mealFromText('на обед гречка', { name: 'гречка', meal: 'dinner' }).meal).toBe('lunch');
     expect(mealFromText('съел 2 яйца', { name: 'яйца', meal: 'dinner' })).not.toHaveProperty('meal');

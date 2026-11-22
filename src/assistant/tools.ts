@@ -488,8 +488,11 @@ const BASE_TOOLS: readonly Tool[] = [
           return `${mealLabel(meal)}: ${lines.join('; ')}.`;
         }
       }
+      // Блюдо не делится — пробуем без прилагательных: «два красных яблока» → яблоко
+      const loose = !known && !fromCatalog && ctx.noWeb && !(hasMacros && brand) ? withoutAdjectives(guessList(data), name) : undefined;
       if (known) food = known;
       else if (fromCatalog) food = fromCatalog;
+      else if (loose) food = loose;
       else if (hasMacros) {
         const m = (k: string) => (input[k] === undefined ? 0 : num(input[k], k, 0, 1000));
         const [protein, fat, carbs] = [m('protein'), m('fat'), m('carbs')];
@@ -509,7 +512,7 @@ const BASE_TOOLS: readonly Tool[] = [
         const firstWord = ctx.noWeb && !one ? bestFood(guessList(data), name.split(/\s+/)[0] ?? '') : undefined;
         if (one) food = one;
         else if (firstWord) food = firstWord;
-        else if (ctx.noWeb) throw new ToolError('Нет в справочнике. Найдите продукт через search_food_online и передайте его КБЖУ на 100 г.');
+        else if (ctx.noWeb) throw new ToolError(`не нашёл «${name}» в справочнике — запишите в приложении или назовите иначе`);
         else throw new ToolError(found.length ? `Уточните продукт: ${found.map((f) => f.name).join(', ')}. Выберите подходящий по смыслу (на обед обычно готовый, например варёный) и вызовите log_food снова с точным названием, или передайте КБЖУ на 100 г.` : 'Продукт не найден в справочнике. Передайте КБЖУ на 100 г (kcal, protein, fat, carbs).');
       }
       // Граммы: названы — их; иначе штуки × вес штуки; иначе обычная порция
@@ -782,22 +785,39 @@ const PIECE_WEIGHT: readonly [RegExp, number][] = [
 const pieceWeight = (name: string) => PIECE_WEIGHT.find(([re]) => re.test(name))?.[1];
 
 /** Название еды без количества: «2 яйца» → яйца ×2, «тарелка борща» → борща. */
+const NUMBER_WORDS: Record<string, number> = {
+  один: 1, одна: 1, одно: 1, одну: 1, два: 2, две: 2, пара: 2, пару: 2, три: 3, четыре: 4, пять: 5, шесть: 6, семь: 7, восемь: 8,
+  девять: 9, десять: 10, полтора: 1.5, полторы: 1.5, половина: 0.5, половину: 0.5, пол: 0.5,
+};
 export function foodWords(raw: string): { name: string; count?: number } {
   const words = raw.trim().split(/\s+/);
   let count: number | undefined;
-  const lead = words[0] ? /^(\d+(?:[.,]\d+)?)$/.exec(words[0]) : null;
-  if (lead?.[1] && words.length > 1) {
-    count = Number(lead[1].replace(',', '.'));
+  // «2 яйца» и «два яйца», «полтора банана»
+  const first = (words[0] ?? '').toLowerCase().replaceAll('ё', 'е');
+  const lead = /^(\d+(?:[.,]\d+)?)$/.exec(first);
+  const n = lead?.[1] ? Number(lead[1].replace(',', '.')) : NUMBER_WORDS[first];
+  if (n && words.length > 1) {
+    count = n;
     words.shift();
   }
   while (words.length > 1 && MEASURE.test(words[0] ?? '')) words.shift();
   return { name: words.join(' '), ...(count ? { count } : {}) };
 }
 
+/** «Красных яблока», «спелый банан»: целиком нет — отбрасываем слова спереди, пока не найдётся (существительное обычно последнее). */
+function withoutAdjectives(list: FoodRef[], name: string): FoodRef | undefined {
+  const words = name.split(/\s+/);
+  for (let i = 1; i < words.length; i++) {
+    const hit = bestFood(list, words.slice(i).join(' '));
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 /** Есть ли еда с таким названием в справочнике или своих продуктах (для помощника: брать ли цифры из базы продуктов). */
 export function catalogMatch(data: AccountData, name: string): boolean {
   const n = foodWords(name).name;
-  return foodList(data).some((f) => norm(f.name) === norm(n)) || bestFood(guessList(data), n) !== undefined;
+  return foodList(data).some((f) => norm(f.name) === norm(n)) || bestFood(guessList(data), n) !== undefined || withoutAdjectives(guessList(data), n) !== undefined;
 }
 
 /**
