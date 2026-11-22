@@ -176,6 +176,23 @@ describe('помощник в Telegram', () => {
     expect(sent.at(-1)).toContain('привязан');
   });
 
+  it('расход нейросети считается на пользователя: фразы, обращения и токены из ответа', async () => {
+    let n = 0;
+    const ai: AiClient = () =>
+      Promise.resolve(
+        ++n === 1
+          ? { result: { tool_calls: [{ name: 'add_task', arguments: { title: 'Купить молоко' } }] }, usage: { prompt_tokens: 1200, completion_tokens: 30 } }
+          : { result: { response: 'ок', usage: { prompt_tokens: 800, completion_tokens: 10 } } },
+      );
+    const { store, d, session, userId } = await setup(ai);
+    await handle(req('POST', 'assistant/plan', { token: session, body: { text: 'Напомни купить молоко' } }), d);
+    const rows = await store.aiUsageSince('2000-01-01');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ userId, phrases: 1, voice: 0 });
+    expect(rows[0]?.calls).toBe(n);
+    expect(rows[0]?.tokensIn).toBe(n === 1 ? 1200 : 2000);
+  });
+
   it('приложение: «предложить» ничего не записывает, «применить» — только выбранное и только безопасное', async () => {
     let n = 0;
     const ai: AiClient = () =>

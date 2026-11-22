@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
+import { SPEECH_MODEL, applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, PasswordBusyError, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
@@ -223,8 +223,13 @@ async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes>
   const admins = adminEmails(d.env);
   const user = await d.store.userById(userId);
   if (!user || !isAdmin(user, d.env)) throw new HttpError(403, 'forbidden');
-  const [users, activity, records] = await Promise.all([d.store.adminUsers(), d.store.activitySince(dayOf(now - 30 * DAY_MS)), d.store.adminRecords(now - 7 * DAY_MS)]);
-  return json(buildStats({ now, admins, users, activity, records }));
+  const [users, activity, records, ai] = await Promise.all([
+    d.store.adminUsers(),
+    d.store.activitySince(dayOf(now - 30 * DAY_MS)),
+    d.store.adminRecords(now - 7 * DAY_MS),
+    d.store.aiUsageSince(dayOf(now - 30 * DAY_MS)),
+  ]);
+  return json(buildStats({ now, admins, users, activity, records, ai, aiPerDay: AI_MAX_PER_DAY }));
 }
 
 // Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
@@ -631,8 +636,29 @@ async function handleAssistantButton(d: Deps, tg: TelegramApi, e: Extract<BotEve
   await tg.edit(e.chatId, messageId, view.text, view.keyboard);
 }
 
-async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: string, now: number, phrase: () => Promise<string>, heard = false): Promise<void> {
+/**
+ * Нейросеть со счётчиком расхода на пользователя — для раздела «Нейросеть» в админке: обращения к модели,
+ * токены из ответа (usage), распознанные голосовые. Учёт не должен ломать сам ответ: ошибки записи глотаем.
+ */
+function meteredAi(d: Deps, userId: string, now: number): AiClient | undefined {
   const ai = d.ai;
+  if (!ai) return undefined;
+  const day = dayOf(now);
+  return async (model, input) => {
+    const raw = await ai(model, input);
+    const r = raw as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }; result?: { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } } };
+    const u = r.usage ?? r.result?.usage;
+    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+    const delta = model === SPEECH_MODEL ? { voice: 1 } : { calls: 1, tokensIn: n(u?.prompt_tokens), tokensOut: n(u?.completion_tokens) };
+    await d.store.aiUsageAdd(userId, day, delta).catch((e: unknown) => {
+      console.warn('расход нейросети не записан', e);
+    });
+    return raw;
+  };
+}
+
+async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: string, now: number, phrase: () => Promise<string>, heard = false): Promise<void> {
+  const ai = meteredAi(d, userId, now);
   if (!ai) return;
   const limiter = d.limiter ?? defaultLimiter;
   const key = `ai:${userId}`;
@@ -641,6 +667,7 @@ async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: st
     return;
   }
   limiter.add(key, now);
+  await d.store.aiUsageAdd(userId, dayOf(now), { phrases: 1 }).catch(() => undefined);
   // Telegram гасит «печатает…» через ~5 секунд, поэтому повторяем
   const typing = () => void tg.typing?.(chatId).catch(() => undefined);
   typing();
@@ -694,13 +721,14 @@ async function handleAssistant(req: HttpReq, d: Deps, action: string, now: numbe
     return json({ results: await applyProposals(d.store, userId, calls, now) });
   }
   if (action !== 'plan') throw new HttpError(404, 'not found');
-  const ai = d.ai;
+  const ai = meteredAi(d, userId, now);
   if (!ai) throw new HttpError(503, 'ai_off');
   const b = readJson(req.body, VOICE_MAX_JSON) as { text?: unknown; audio?: unknown };
   const limiter = d.limiter ?? defaultLimiter;
   const key = `ai:${userId}`;
   if (limiter.count(key, DAY_MS, now) >= AI_MAX_PER_DAY) throw new HttpError(429, 'ai_limit');
   limiter.add(key, now);
+  await d.store.aiUsageAdd(userId, dayOf(now), { phrases: 1 }).catch(() => undefined);
   let text = typeof b.text === 'string' ? b.text.trim().slice(0, 1000) : '';
   if (!text && typeof b.audio === 'string') {
     const audio = Buffer.from(b.audio, 'base64');
@@ -716,7 +744,7 @@ async function handleAssistant(req: HttpReq, d: Deps, action: string, now: numbe
 /** Голосовое: скачать, распознать, дальше — как обычная фраза. */
 async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'voice' }>, now: number): Promise<void> {
   const owner = await d.store.userByTelegram(e.telegramId);
-  const ai = d.ai;
+  const ai = owner ? meteredAi(d, owner.id, now) : undefined;
   if (!owner || !ai || !tg.download) {
     await tg.send(e.chatId, 'Голосовые понимаю, когда Telegram привязан к аккаунту в личном кабинете приложения.');
     return;
