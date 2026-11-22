@@ -15,20 +15,35 @@ interface AiUsage {
   voice: number;
 }
 
+/** Расход с оценками сервера: нейроны Workers AI и рубли (прикидка). */
+interface Priced extends AiUsage {
+  neurons: number;
+  haikuRub: number;
+  workersRub: number;
+}
+
 interface Stats {
   /** Нет у старого сервера, пока не обновился. */
-  ai?: { today: AiUsage; week: AiUsage; month: AiUsage; days: { date: string; tokens: number }[]; freeNeurons: number; perUserDay: number };
+  ai?: { today: Priced; week: Priced; month: Priced; freeUsedPct?: number; perPhrase?: Priced | null; rubPerUsd?: number; days: { date: string; tokens: number }[]; freeNeurons: number; perUserDay: number };
   since: string | null;
   users: { total: number; new7: number; new30: number; withPush: number };
   active: { day: number; week: number; month: number };
   returned: { previous: number; back: number };
   days: { date: string; users: number }[];
   modules: { name: string; records: number; users: number; active: number }[];
-  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; pushDevices: number; version: string | null; activeDays: number; records: Record<string, number>; ai?: { today: AiUsage; week: AiUsage } }[];
+  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; pushDevices: number; version: string | null; activeDays: number; records: Record<string, number>; ai?: { today: Priced; week: Priced } }[];
 }
 
 const num = (n: number) => n.toLocaleString('ru-RU');
 const tokens = (u: AiUsage) => num(u.tokensIn + u.tokensOut);
+/** Рубли с копейками: мелкие суммы — до копейки, крупные — до рубля. */
+const rub = (n: number | undefined) => {
+  const v = n ?? 0;
+  if (v === 0) return '0 ₽';
+  if (v < 0.01) return '< 1 коп.';
+  return `${v.toLocaleString('ru-RU', { maximumFractionDigits: v < 100 ? 2 : 0 })} ₽`;
+};
+const pct = (n: number) => `${n.toLocaleString('ru-RU', { maximumFractionDigits: n < 10 ? 1 : 0 })}%`;
 
 function AiPanel({ ai, list }: { ai: NonNullable<Stats['ai']>; list: Stats['list'] }) {
   const users = list.filter((u) => u.ai && (u.ai.week.phrases > 0 || u.ai.week.calls > 0 || u.ai.week.voice > 0)).sort((a, b) => (b.ai?.week.tokensIn ?? 0) + (b.ai?.week.tokensOut ?? 0) - ((a.ai?.week.tokensIn ?? 0) + (a.ai?.week.tokensOut ?? 0)));
@@ -39,12 +54,24 @@ function AiPanel({ ai, list }: { ai: NonNullable<Stats['ai']>; list: Stats['list
         <Metric label="Фраз сегодня" value={ai.today.phrases} />
         <Metric label="Токенов за 7 дней" value={tokens(ai.week)} />
         <Metric label="За 30 дней" value={tokens(ai.month)} />
+        <Metric label="Бесплатного лимита сегодня" value={ai.freeUsedPct === undefined ? '—' : pct(ai.freeUsedPct)} />
+        <Metric label="На Haiku сегодня" value={rub(ai.today.haikuRub)} />
+        <Metric label="На Haiku за 30 дней" value={rub(ai.month.haikuRub)} />
+        <Metric label="Фраза на Haiku" value={ai.perPhrase ? rub(ai.perPhrase.haikuRub) : '—'} />
       </div>
       <div className={s.chart}>
         <BarChart title="Токены по дням" color="var(--c-gold)" rows={16} bars={ai.days.map((d) => ({ label: d.date.slice(8), value: d.tokens, hint: `${formatDateShort(d.date)}: ${num(d.tokens)}` }))} />
       </div>
       <p className={s.hint}>
-        Сегодня: обращений к модели {ai.today.calls}, токенов на входе {num(ai.today.tokensIn)}, на выходе {num(ai.today.tokensOut)}, голосовых {ai.today.voice}. Бесплатно у Cloudflare Workers AI — {num(ai.freeNeurons)} «нейронов» в сутки (сброс в 03:00 по Москве); сколько нейронов уходит на токен, зависит от модели, точный остаток — в панели Cloudflare. Одному человеку — до {ai.perUserDay} фраз в сутки.
+        Сегодня: обращений к модели {ai.today.calls}, токенов на входе {num(ai.today.tokensIn)}, на выходе {num(ai.today.tokensOut)}, голосовых {ai.today.voice}, ≈ {num(ai.today.neurons)} из {num(ai.freeNeurons)} бесплатных «нейронов» Cloudflare (сброс в 03:00 по Москве). Одному человеку — до {ai.perUserDay} фраз в сутки.
+      </p>
+      {ai.perPhrase && (
+        <p className={s.hint}>
+          Прикидка на будущее (по средней фразе за 30 дней — {num(Math.round(ai.perPhrase.tokensIn + ai.perPhrase.tokensOut))} токенов): 1 000 фраз в день на Haiku ≈ {rub(ai.perPhrase.haikuRub * 1000)} в день, {rub(ai.perPhrase.haikuRub * 30_000)} в месяц. Тот же расход на Workers AI сверх бесплатного ≈ {rub(ai.perPhrase.workersRub * 30_000)} в месяц.
+        </p>
+      )}
+      <p className={s.hint}>
+        Всё это оценка: нейроны — по прайсу glm-4.7-flash, голосовое — как ~15 секунд, Haiku 5.5 — $0,10 / $0,50 за миллион токенов, курс {ai.rubPerUsd ?? 80} ₽ за доллар; распознавание голоса в цену Haiku не входит. Точный остаток — в панели Cloudflare.
       </p>
       {users.length === 0 && <p className={s.hint}>За неделю нейросетью никто не пользовался.</p>}
       <ul className={s.list}>
@@ -54,7 +81,7 @@ function AiPanel({ ai, list }: { ai: NonNullable<Stats['ai']>; list: Stats['list
               {u.email.endsWith('@telegram.invalid') ? `Telegram ${u.email.slice(2, -17)}` : u.email}
               <br />
               <span className={s.dim}>
-                сегодня: фраз {u.ai?.today.phrases ?? 0}, токенов {u.ai ? tokens(u.ai.today) : 0} · за 7 дней: фраз {u.ai?.week.phrases ?? 0}, голосовых {u.ai?.week.voice ?? 0}
+                сегодня: фраз {u.ai?.today.phrases ?? 0}, токенов {u.ai ? tokens(u.ai.today) : 0} · за 7 дней: фраз {u.ai?.week.phrases ?? 0}, голосовых {u.ai?.week.voice ?? 0}, на Haiku ≈ {rub(u.ai?.week.haikuRub)}
               </span>
             </span>
             <span className={s.dim}>{u.ai ? tokens(u.ai.week) : 0} ток.</span>

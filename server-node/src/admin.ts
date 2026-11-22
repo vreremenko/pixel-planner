@@ -39,6 +39,43 @@ export interface StatsInput {
  */
 export const AI_FREE_NEURONS = 10_000;
 
+/**
+ * Прикидка, а не бухгалтерия. Цены на ноябрь 2026, проверять перед решениями:
+ * - Workers AI, glm-4.7-flash: 5 500 нейронов за миллион входных токенов, 36 400 — за миллион выходных;
+ *   запасная модель (gpt-oss-20b) считается по тем же цифрам.
+ * - Whisper: ~46 нейронов за минуту звука; длину голосовых не храним, берём ~15 секунд на сообщение.
+ * - Сверх бесплатного Cloudflare берёт $0,011 за 1 000 нейронов.
+ * - Claude Haiku 5.5: $0,10 за миллион входных, $0,50 за миллион выходных токенов (запросы до 100K токенов).
+ * - Курс — примерный, рублей за доллар.
+ */
+export const AI_PRICES = {
+  neuronsPerMIn: 5_500,
+  neuronsPerMOut: 36_400,
+  neuronsPerVoice: 12,
+  usdPerNeuron: 0.011 / 1000,
+  haikuUsdPerMIn: 0.1,
+  haikuUsdPerMOut: 0.5,
+  rubPerUsd: 80,
+} as const;
+
+/** Нейроны Workers AI на этот расход (округлено). */
+export function neuronsOf(u: Pick<AiUsage, 'tokensIn' | 'tokensOut' | 'voice'>): number {
+  const p = AI_PRICES;
+  return Math.round((u.tokensIn * p.neuronsPerMIn + u.tokensOut * p.neuronsPerMOut) / 1e6 + u.voice * p.neuronsPerVoice);
+}
+
+/** Сколько стоили бы те же токены на Claude Haiku 5.5, в рублях (голос не считаем: его распознаёт отдельная модель). */
+export function haikuRubOf(u: Pick<AiUsage, 'tokensIn' | 'tokensOut'>): number {
+  const p = AI_PRICES;
+  return ((u.tokensIn * p.haikuUsdPerMIn + u.tokensOut * p.haikuUsdPerMOut) / 1e6) * p.rubPerUsd;
+}
+
+/** Оценки к расходу: нейроны, доля бесплатного дня, рубли на Workers AI сверх бесплатного и на Haiku. */
+function priced(u: AiUsage) {
+  const neurons = neuronsOf(u);
+  return { ...u, neurons, haikuRub: haikuRubOf(u), workersRub: neurons * AI_PRICES.usdPerNeuron * AI_PRICES.rubPerUsd };
+}
+
 const zero = (): AiUsage => ({ phrases: 0, calls: 0, tokensIn: 0, tokensOut: 0, voice: 0 });
 function addUsage(to: AiUsage, x: AiUsage): AiUsage {
   to.phrases += x.phrases;
@@ -97,9 +134,14 @@ export function buildStats({ now, admins, users, activity, records, ai = [], aiP
 
   return {
     ai: {
-      today: aiToday,
-      week: aiWeek,
-      month: aiMonth,
+      today: priced(aiToday),
+      week: priced(aiWeek),
+      month: priced(aiMonth),
+      /** Доля бесплатного дневного лимита Workers AI, потраченная сегодня, в процентах (оценка). */
+      freeUsedPct: (neuronsOf(aiToday) / AI_FREE_NEURONS) * 100,
+      /** На сколько фраз в среднем уходят эти токены — для прикидки «сколько стоит фраза». */
+      perPhrase: aiMonth.phrases > 0 ? priced({ ...aiMonth, tokensIn: aiMonth.tokensIn / aiMonth.phrases, tokensOut: aiMonth.tokensOut / aiMonth.phrases, voice: aiMonth.voice / aiMonth.phrases, phrases: 1, calls: aiMonth.calls / aiMonth.phrases }) : null,
+      rubPerUsd: AI_PRICES.rubPerUsd,
       days: days.map((date) => ({
         date,
         tokens: ai.filter((r) => r.day === date).reduce((s, r) => s + r.tokensIn + r.tokensOut, 0),
@@ -135,7 +177,7 @@ export function buildStats({ now, admins, users, activity, records, ai = [], aiP
         version: u.appVersion,
         activeDays: activity.filter((a) => a.userId === u.id && a.day >= monthStart).length,
         records: Object.fromEntries(perUser.get(u.id) ?? []),
-        ai: { today: aiUserToday.get(u.id) ?? zero(), week: aiUserWeek.get(u.id) ?? zero() },
+        ai: { today: priced(aiUserToday.get(u.id) ?? zero()), week: priced(aiUserWeek.get(u.id) ?? zero()) },
       })),
   };
 }
