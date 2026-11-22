@@ -383,7 +383,7 @@ export function SettingsScreen() {
         ))}
         <NotificationsPanel />
         <FeedbackPanel />
-        <Panel title="Звук и экран" icon="sound" accent="var(--c-task)">
+        <Panel title="Звук" icon="sound" accent="var(--c-task)">
           <ToggleRow
             label="8-битные звуки"
             hint="При выполнении задач и привычек"
@@ -393,14 +393,30 @@ export function SettingsScreen() {
               if (v) play('complete', true);
             }}
           />
+        </Panel>
+        <Panel title="Оформление" icon="sun" accent="var(--c-warn)">
           {!settings.momMode && (
-            <ToggleRow
-              label="Эффект CRT-монитора"
-              hint="Сканлайны и лёгкое свечение"
-              checked={settings.crtEffect}
-              onChange={(v) => void update({ crtEffect: v })}
-            />
+            <>
+              <ToggleRow
+                label="Пиксельный шрифт"
+                hint="Шрифт в стиле 8-битных игр. Выключен — обычный, самый читаемый."
+                checked={settings.pixelFont}
+                onChange={(v) => void update({ pixelFont: v })}
+              />
+              <ToggleRow
+                label="Эффект старого монитора"
+                hint="Полоски-сканлайны и лёгкое свечение, как на экране CRT"
+                checked={settings.crtEffect}
+                onChange={(v) => void update({ crtEffect: v })}
+              />
+            </>
           )}
+          <ToggleRow
+            label="Режим «Для мамы»"
+            hint="Светлая тёплая тема и крупный текст. Выключите — всё вернётся как было."
+            checked={settings.momMode}
+            onChange={(v) => void update({ momMode: v })}
+          />
         </Panel>
         {!inTelegram() && (
           <Panel title="Установка" icon="download" accent="var(--c-backlog)">
@@ -459,14 +475,6 @@ export function SettingsScreen() {
               Пробел, стрелки, Пробел.
             </li>
           </ul>
-        </Panel>
-        <Panel title="Для мамы" icon="heart" accent="var(--c-warn)">
-          <ToggleRow
-            label="Режим «Для мамы»"
-            hint="Светлая тёплая тема, крупнее текст и более читаемый шрифт. Выключите — всё вернётся как было."
-            checked={settings.momMode}
-            onChange={(v) => void update({ momMode: v })}
-          />
         </Panel>
       </div>
       {showLog && (

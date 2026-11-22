@@ -16,8 +16,9 @@
 }
 .logo {
   white-space: nowrap;
-  font-family: var(--font-title);
-  font-size: max(calc(15px * var(--fs-scale)), var(--fs-min));
+  /* Логотип — фирменный знак: всегда пиксельный, при любом шрифте приложения */
+  font-family: 'Monocraft', monospace;
+  font-size: 15px;
   line-height: 1.6;
   color: var(--c-task);
   padding: var(--gap-2);

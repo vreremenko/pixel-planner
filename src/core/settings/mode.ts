@@ -1,17 +1,28 @@
-/** Режим «Для мамы»: ставит тему на <html> и запоминает выбор, чтобы следующий запуск открылся сразу в нужной теме. */
+/**
+ * Оформление на <html>: режим «Для мамы» (data-mode) и пиксельный шрифт (data-font). Выбор запоминается,
+ * чтобы следующий запуск сразу открылся как надо (см. скрипт в index.html). В режиме «Для мамы» шрифт всегда читаемый.
+ */
 const MODE_KEY = 'pp-mode';
+const FONT_KEY = 'pp-font';
 const THEME_COLOR = { normal: '#0b0a1a', mom: '#fbf1e8' } as const;
 
-export function applyMode(mom: boolean): void {
+function remember(key: string, value: string | null) {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    // без localStorage оформление просто включится чуть позже, после чтения настроек
+  }
+}
+
+export function applyMode(mom: boolean, pixelFont = false): void {
   const root = document.documentElement;
   if (mom) root.dataset.mode = 'mom';
   else delete root.dataset.mode;
+  if (pixelFont && !mom) root.dataset.font = 'pixel';
+  else delete root.dataset.font;
   root.style.background = ''; // убираем подложку, которую мог поставить скрипт в index.html
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mom ? THEME_COLOR.mom : THEME_COLOR.normal);
-  try {
-    if (mom) localStorage.setItem(MODE_KEY, 'mom');
-    else localStorage.removeItem(MODE_KEY);
-  } catch {
-    // без localStorage тема просто включится чуть позже, после чтения настроек
-  }
+  remember(MODE_KEY, mom ? 'mom' : null);
+  remember(FONT_KEY, pixelFont ? 'pixel' : null);
 }

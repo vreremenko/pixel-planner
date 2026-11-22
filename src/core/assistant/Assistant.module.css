@@ -23,8 +23,8 @@
 .fab {
   position: fixed;
   right: 24px;
-  /* выше флажка-пасхалки в углу */
-  bottom: 44px;
+  /* выше флажка-пасхалки в углу и поля быстрой задачи внизу экрана «День» */
+  bottom: 112px;
   z-index: 110;
   display: flex;
   padding: 0;
