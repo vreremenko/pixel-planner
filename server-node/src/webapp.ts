@@ -2,7 +2,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /** Данные старше этого не принимаем: перехваченная строка не должна работать вечно. */
-const MAX_AGE_MS = 86_400_000;
+/** Данные Mini App Telegram подписывает при каждом открытии; дольше 6 часов старыми не принимаем. */
+const MAX_AGE_MS = 6 * 3_600_000;
 
 export interface WebAppUser {
   id: string;
