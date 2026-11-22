@@ -1,10 +1,10 @@
 /* Админка: сколько людей пользуется приложением и чем. Только количества, содержимое записей сервер сюда не отдаёт. */
 import { useEffect, useState } from 'react';
-import { adminStats } from '../auth/api';
+import { adminSanctions, adminStats } from '../auth/api';
 import { useAuth } from '../auth/store';
 import { BarChart } from '../charts/BarChart';
 import { dateOf, formatDateShort } from '../domain/dates';
-import { Button, Panel } from '../ui';
+import { Button, Checkbox, Panel, toast } from '../ui';
 import s from './Admin.module.css';
 
 interface AiUsage {
@@ -31,7 +31,7 @@ interface Stats {
   returned: { previous: number; back: number };
   days: { date: string; users: number }[];
   modules: { name: string; records: number; users: number; active: number }[];
-  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; pushDevices: number; version: string | null; activeDays: number; records: Record<string, number>; ai?: { today: Priced; week: Priced } }[];
+  list: { email: string; admin: boolean; verified: boolean; telegram: boolean; createdAt: number; lastSeen: number | null; sessions: number; pushDevices: number; version: string | null; activeDays: number; records: Record<string, number>; sanctions?: boolean; ai?: { today: Priced; week: Priced } }[];
 }
 
 const num = (n: number) => n.toLocaleString('ru-RU');
@@ -103,6 +103,31 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+/** Шутка для своих: галочка «Санкции» — звук на каждое нажатие в меню и особое уведомление. */
+function SanctionsToggle({ email, initial }: { email: string; initial: boolean }) {
+  const token = useAuth((st) => st.session?.token);
+  const [on, setOn] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Checkbox
+      checked={on}
+      label={`Санкции: ${email}`}
+      color="var(--c-warn)"
+      onChange={(v) => {
+        if (!token || busy) return;
+        setBusy(true);
+        adminSanctions(token, email, v).then(
+          () => {
+            setOn(v);
+            toast(v ? 'Санкции введены — подействуют при следующем открытии приложения' : 'Санкции сняты', 'alert', 'var(--c-warn)');
+          },
+          () => toast('Не получилось', 'alert', 'var(--c-warn)'),
+        ).finally(() => setBusy(false));
+      }}
+    />
+  );
+}
+
 function Report({ stats }: { stats: Stats }) {
   const { users, active, returned, days, modules, list, since, ai } = stats;
   return (
@@ -165,6 +190,12 @@ function Report({ stats }: { stats: Stats }) {
                   </>
                 )}
               </span>
+              {!u.admin && (
+                <span className={s.sanctions}>
+                  <SanctionsToggle email={u.email} initial={Boolean(u.sanctions)} />
+                  <span className={s.dim}>санкции</span>
+                </span>
+              )}
             </li>
           ))}
         </ul>

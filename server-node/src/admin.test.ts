@@ -4,7 +4,7 @@ import type { AdminUserRow } from './types.ts';
 
 const NOW = Date.UTC(2026, 10, 22, 12);
 const DAY = 86_400_000;
-const user = (id: string, email: string): AdminUserRow => ({ id, email, emailVerified: true, telegram: false, createdAt: NOW - 40 * DAY, lastSeen: NOW, sessions: 1, pushDevices: 0, appVersion: null });
+const user = (id: string, email: string): AdminUserRow => ({ id, email, emailVerified: true, telegram: false, createdAt: NOW - 40 * DAY, lastSeen: NOW, sessions: 1, pushDevices: 0, appVersion: null, sanctions: false });
 const use = (day: string, userId: string, tokensIn: number, phrases = 1) => ({ day, userId, phrases, calls: 2, tokensIn, tokensOut: 10, voice: 0 });
 
 describe('админка: нейросеть', () => {

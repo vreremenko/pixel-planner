@@ -145,6 +145,8 @@ export const changePassword = (token: string, oldPassword: string, newPassword: 
   call('auth/password', { method: 'POST', token, body: { oldPassword, newPassword } });
 
 export const adminStats = <T>(token: string) => call('admin/stats', { method: 'GET', token }) as Promise<T>;
+/** Шутка: включить или снять «санкции» пользователю. */
+export const adminSanctions = (token: string, email: string, on: boolean) => call('admin/sanctions', { method: 'POST', token, body: { email, on } });
 
 export const deleteAccount = (token: string, password: string | null) => call('auth/account', { method: 'DELETE', token, body: password === null ? { confirm: true } : { password } });
 

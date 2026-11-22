@@ -75,6 +75,7 @@ export class SqliteStore implements Store {
     const userCols = this.db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
     if (!userCols.some((c) => c.name === 'email_verified_at')) this.db.exec('ALTER TABLE users ADD COLUMN email_verified_at INTEGER');
     if (!userCols.some((c) => c.name === 'telegram_id')) this.db.exec('ALTER TABLE users ADD COLUMN telegram_id TEXT');
+    if (!userCols.some((c) => c.name === 'sanctions')) this.db.exec('ALTER TABLE users ADD COLUMN sanctions INTEGER NOT NULL DEFAULT 0');
     const metaCols = this.db.prepare('PRAGMA table_info(schedule_meta)').all() as unknown as { name: string }[];
     if (!metaCols.some((c) => c.name === 'tz')) this.db.exec('ALTER TABLE schedule_meta ADD COLUMN tz TEXT');
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_telegram ON users (telegram_id) WHERE telegram_id IS NOT NULL');
@@ -285,8 +286,8 @@ export class SqliteStore implements Store {
   }
 
   private user(where: 'id' | 'email' | 'telegram_id', value: string): User | null {
-    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash, email_verified_at AS verifiedAt, telegram_id AS telegramId FROM users WHERE ${where} = ?`).get(value) as (User & { verifiedAt: number | null }) | undefined;
-    return r ? { id: r.id, email: r.email, passHash: r.passHash, emailVerified: r.verifiedAt !== null, telegramId: r.telegramId ?? null } : null;
+    const r = this.db.prepare(`SELECT id, email, pass_hash AS passHash, email_verified_at AS verifiedAt, telegram_id AS telegramId, sanctions FROM users WHERE ${where} = ?`).get(value) as (Omit<User, 'sanctions'> & { verifiedAt: number | null; sanctions: number }) | undefined;
+    return r ? { id: r.id, email: r.email, passHash: r.passHash, emailVerified: r.verifiedAt !== null, telegramId: r.telegramId ?? null, sanctions: r.sanctions === 1 } : null;
   }
 
   userByEmail(email: string): Promise<User | null> {
@@ -319,6 +320,11 @@ export class SqliteStore implements Store {
 
   userByTelegram(telegramId: string): Promise<User | null> {
     return Promise.resolve(this.user('telegram_id', telegramId));
+  }
+
+  userSetSanctions(id: string, on: boolean): Promise<void> {
+    this.db.prepare('UPDATE users SET sanctions = ? WHERE id = ?').run(on ? 1 : 0, id);
+    return Promise.resolve();
   }
 
   userSetTelegram(id: string, telegramId: string | null): Promise<void> {
@@ -509,15 +515,15 @@ export class SqliteStore implements Store {
   adminUsers(): Promise<AdminUserRow[]> {
     const rows = this.db
       .prepare(
-        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt, u.email_verified_at IS NOT NULL AS emailVerified, u.telegram_id IS NOT NULL AS telegram,
+        `SELECT u.id AS id, u.email AS email, u.created_at AS createdAt, u.email_verified_at IS NOT NULL AS emailVerified, u.telegram_id IS NOT NULL AS telegram, u.sanctions AS sanctions,
                 (SELECT MAX(last_used_at) FROM sessions s WHERE s.user_id = u.id) AS lastSeen,
                 (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id) AS sessions,
                 (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS pushDevices,
                 (SELECT app_version FROM sessions s WHERE s.user_id = u.id AND app_version IS NOT NULL ORDER BY last_used_at DESC LIMIT 1) AS appVersion
          FROM users u`,
       )
-      .all() as unknown as (Omit<AdminUserRow, 'emailVerified' | 'telegram'> & { emailVerified: number; telegram: number })[];
-    return Promise.resolve(rows.map((r) => ({ ...r, emailVerified: r.emailVerified === 1, telegram: r.telegram === 1 })));
+      .all() as unknown as (Omit<AdminUserRow, 'emailVerified' | 'telegram' | 'sanctions'> & { emailVerified: number; telegram: number; sanctions: number })[];
+    return Promise.resolve(rows.map((r) => ({ ...r, emailVerified: r.emailVerified === 1, telegram: r.telegram === 1, sanctions: r.sanctions === 1 })));
   }
 
   adminRecords(recentSince: number): Promise<AdminRecordRow[]> {

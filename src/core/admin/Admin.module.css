@@ -52,3 +52,12 @@
   color: var(--c-text-muted);
   font-size: var(--fs-small);
 }
+
+/* Галочка «Санкции» справа в строке пользователя */
+.sanctions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
+}

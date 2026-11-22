@@ -22,6 +22,8 @@ export interface TelegramApi {
   menu?(chatId: number, text: string, keyboard: Keyboard): Promise<number | undefined>;
   /** Поменять текст и кнопки уже отправленного сообщения (без кнопок — убрать их). */
   edit?(chatId: number, messageId: number, text: string, keyboard?: Keyboard): Promise<void>;
+  /** Имя и @username человека по его id (для отзывов: кому ответить). */
+  who?(chatId: number): Promise<{ username?: string; name?: string } | null>;
 }
 
 const TIMEOUT_MS = 10_000;
@@ -57,6 +59,13 @@ export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
       return r.result?.message_id;
     },
     edit: (chatId, messageId, text, keyboard) => ok(call('editMessageText', { chat_id: chatId, message_id: messageId, text, reply_markup: { inline_keyboard: keyboard ? buttons(keyboard) : [] } })),
+    who: async (chatId) => {
+      const r = (await call('getChat', { chat_id: chatId })) as { result?: { username?: unknown; first_name?: unknown; last_name?: unknown } };
+      const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+      const name = [str(r.result?.first_name), str(r.result?.last_name)].filter(Boolean).join(' ') || undefined;
+      const username = str(r.result?.username);
+      return { ...(username ? { username } : {}), ...(name ? { name } : {}) };
+    },
     download: async (fileId) => {
       const meta = (await call('getFile', { file_id: fileId })) as { result?: { file_path?: string; file_size?: number } };
       const path = meta.result?.file_path;

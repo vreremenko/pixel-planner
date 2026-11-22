@@ -441,6 +441,22 @@ describe('админка', () => {
     expect((await stats(d, boss)).status).toBe(200);
   });
 
+  it('санкции: включает только админ, человек видит их в auth/me, снимаются обратно', async () => {
+    const d = mk({ env });
+    const user = await register(d, 'a@b.ru');
+    const boss = await registerVerified(d, 'boss@site.ru');
+    const set = (token: string, on: boolean) => handle(req('POST', 'admin/sanctions', { token, body: { email: 'a@b.ru', on } }), d);
+    const me = async () => (json(await handle(req('GET', 'auth/me', { token: user }), d)).user as { sanctions?: boolean }).sanctions;
+    expect((await set(user, true)).status).toBe(403);
+    expect(await me()).toBeUndefined();
+    expect((await set(boss, true)).status).toBe(200);
+    expect(await me()).toBe(true);
+    expect((json(await stats(d, boss)).list as { email: string; sanctions: boolean }[]).find((u) => u.email === 'a@b.ru')?.sanctions).toBe(true);
+    await set(boss, false);
+    expect(await me()).toBeUndefined();
+    expect((await handle(req('POST', 'admin/sanctions', { token: boss, body: { email: 'nobody@x.ru', on: true } }), d)).status).toBe(404);
+  });
+
   it('без настройки админов нет ни у кого', async () => {
     const d = mk();
     expect((await stats(d, await registerVerified(d, 'boss@site.ru'))).status).toBe(403);
@@ -646,6 +662,7 @@ describe('Telegram', () => {
           return Promise.resolve();
         },
         answer: () => Promise.resolve(),
+        who: (id) => Promise.resolve(id === 4242 ? { username: 'brother', name: 'Брат' } : null),
       },
     });
     return { d, sent };
@@ -758,6 +775,16 @@ describe('Telegram', () => {
     for (let i = 0; i < 4; i++) await post(admin, 'feedback', { text: 'ещё' }, token);
     expect((await post(admin, 'feedback', { text: 'шестой' }, token)).error).toBe('too_many_attempts');
     expect((await post(mk(), 'feedback', { text: 'x' })).error).toBe('unauthorized');
+  });
+
+  it('в отзыве — Telegram автора, если он привязан', async () => {
+    const { d, sent } = setup();
+    const admin = { ...d, env: { ...d.env, ADMIN_EMAILS: 'boss@site.ru' } };
+    await link(admin, await registerVerified(admin, 'boss@site.ru'));
+    const token = await registerVerified(admin, 'a@b.ru');
+    await link(admin, token, 4242);
+    await post(admin, 'feedback', { text: 'Привет' }, token);
+    expect(sent.at(-1)?.text).toContain('От: a@b.ru\nTelegram: @brother (Брат)\n');
   });
 
   it('без настроек бота вход честно недоступен', async () => {

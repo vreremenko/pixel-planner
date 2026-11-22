@@ -233,6 +233,19 @@ async function handleAdmin(req: HttpReq, d: Deps, now: number): Promise<HttpRes>
   return json(buildStats({ now, admins, users, activity, records, ai, aiPerDay: AI_MAX_PER_DAY }));
 }
 
+/** Шутка админа: включить или снять «санкции» пользователю (по почте из списка в админке). */
+async function handleSanctions(req: HttpReq, d: Deps): Promise<HttpRes> {
+  const { userId } = await requireUser(req, d);
+  const me = await d.store.userById(userId);
+  if (!me || !isAdmin(me, d.env)) throw new HttpError(403, 'forbidden');
+  const b = readJson(req.body) as { email?: unknown; on?: unknown };
+  if (typeof b.email !== 'string' || typeof b.on !== 'boolean') throw new HttpError(400, 'email and on required');
+  const target = await d.store.userByEmail(b.email);
+  if (!target) throw new HttpError(404, 'not found');
+  await d.store.userSetSanctions(target.id, b.on);
+  return json({ ok: true, sanctions: b.on });
+}
+
 // Служебные знаки языка запросов сервис принимает за синтаксис и отвечает ошибкой
 const offQuery = (raw: string) => raw.replace(/[^\p{L}\p{N}%.,-]+/gu, ' ').trim().toLowerCase().slice(0, OFF_QUERY_MAX);
 
@@ -403,7 +416,7 @@ export async function requireTrusted(store: Store, userId: string): Promise<void
   if (!user.emailVerified && !isTelegramOnly(user.email)) throw new HttpError(403, 'email_unverified');
 }
 
-const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(isAdmin(u, env) ? { admin: true } : {}) });
+const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null; sanctions?: boolean }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(isAdmin(u, env) ? { admin: true } : {}), ...(u.sanctions ? { sanctions: true } : {}) });
 
 /** Выдать устройству новую сессию. */
 async function openSession(d: Deps, userId: string, device: string): Promise<string> {
@@ -481,7 +494,14 @@ async function handleFeedback(req: HttpReq, d: Deps, now: number): Promise<HttpR
   const user = await d.store.userById(userId);
   if (!user) throw bad(401, 'unauthorized');
   const version = typeof b.version === 'string' && VERSION_RE.test(b.version) ? b.version : '?';
-  const message = `Отзыв из PIXEL PLANNER\nОт: ${user.email}\nВерсия: ${version}\n\n${text}`;
+  // Если у автора привязан Telegram — подсказываем, где ему ответить
+  let tgLine = '';
+  if (user.telegramId) {
+    const who = await d.telegram?.who?.(Number(user.telegramId)).catch(() => null);
+    const name = who?.name ? ` (${who.name})` : '';
+    tgLine = who?.username ? `\nTelegram: @${who.username}${name}` : `\nTelegram: id ${user.telegramId}${name}`;
+  }
+  const message = `Отзыв из PIXEL PLANNER\nОт: ${user.email}${tgLine}\nВерсия: ${version}\n\n${text}`;
   let delivered = false;
   for (const email of adminEmails(d.env)) {
     const admin = await d.store.userByEmail(email);
@@ -1196,6 +1216,7 @@ async function handleApi(req: HttpReq, d: Deps): Promise<HttpRes> {
   if (req.method === 'POST' && parts[0] === 'feedback' && parts.length === 1) return handleFeedback(req, d, now);
   if (req.method === 'POST' && parts[0] === 'telegram' && parts[1] === 'update' && parts.length === 2) return handleTelegramUpdate(req, d, now);
   if (req.method === 'GET' && parts[0] === 'admin' && parts[1] === 'stats' && parts.length === 2) return handleAdmin(req, d, now);
+  if (req.method === 'POST' && parts[0] === 'admin' && parts[1] === 'sanctions' && parts.length === 2) return handleSanctions(req, d);
   if (parts[0] === 'sync' && parts.length === 1) return handleSync(req, d);
   if (parts[0] === 'assistant' && parts.length === 2 && req.method === 'POST') return handleAssistant(req, d, parts[1] ?? '', now);
   // MCP в интернете и вход нейросетей через OAuth
