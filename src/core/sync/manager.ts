@@ -38,6 +38,8 @@ const useSync = create<SyncStore>(() => ({ state: undefined, running: false, unr
 
 /** Расписание напоминаний можно отправлять только с актуальными данными, иначе старое устройство затрёт новые напоминания. */
 export const hasPulled = (): boolean => useSync.getState().pulled;
+/** То же для компонентов: подтянули ли данные с сервера с момента запуска. */
+export const usePulled = (): boolean => useSync((s) => s.pulled);
 
 /** До какой записи сервера данные на этом устройстве догнаны: сервер по нему отклонит расписание, посчитанное по старым данным. */
 export const syncCursor = (): number | null => useSync.getState().state?.cursor ?? null;

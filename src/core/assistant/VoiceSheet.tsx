@@ -2,6 +2,7 @@
  * Шторка помощника: говорите (или пишите) — нейросеть предлагает действия, вы снимаете галочки с ошибочных
  * и нажимаете «Применить». До этого ничего не записывается: сервер лишь «примеряет» действия на копии данных.
  */
+import { markAssistantTried } from '../onboarding/assistantTried';
 import { UndoButton } from './UndoButton';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
@@ -35,6 +36,7 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
   const send = (input: { text: string } | { audio: string }) => {
     if (!token) return;
     setStage('thinking');
+    markAssistantTried();
     assistantPlan(token, input).then((p) => {
       setPlan(p);
       // По умолчанию отмечено всё: снимают только ошибочное

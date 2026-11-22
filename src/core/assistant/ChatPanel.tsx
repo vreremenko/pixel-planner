@@ -3,6 +3,7 @@
  * кнопка микрофона рядом. Каждая команда — сообщение: что нейросеть предлагает сделать (галочки, по умолчанию все)
  * и «Применить»; до этого ничего не записывается. История — до закрытия панели.
  */
+import { markAssistantTried } from '../onboarding/assistantTried';
 import { UndoButton } from './UndoButton';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
@@ -58,6 +59,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     if (!token) return;
     const id = nextId++;
     setTurns((ts) => [...ts, { id, said, status: 'thinking', checked: [] }]);
+    markAssistantTried();
     assistantPlan(token, payload).then(
       (plan) => patch(id, { status: 'review', plan, said: plan.heard || said, checked: plan.proposals.map(() => true) }),
       (e: unknown) => patch(id, { status: 'failed', error: e instanceof AuthError ? e.message : 'Не получилось. Попробуйте ещё раз' }),
