@@ -6,7 +6,6 @@ import type { ModuleNavItem } from '../module';
 import { MissedReminders } from '../notifications/MissedReminders';
 import { useAuth } from '../auth/store';
 import { TopbarSlot } from './topbarSlot';
-import { Goida } from '../easter/Goida';
 import { OfflineBar } from './OfflineBar';
 import { TelegramBridge } from '../telegram/TelegramBridge';
 import { TelegramWelcome } from '../telegram/TelegramWelcome';
@@ -124,7 +123,6 @@ export function Layout() {
           </nav>
         )}
       </header>
-      <Goida />
       <TelegramBridge />
       <TelegramWelcome />
       <main id="main" className={s.main}>
