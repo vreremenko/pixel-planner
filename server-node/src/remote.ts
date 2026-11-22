@@ -24,7 +24,9 @@ export interface RemoteDeps {
   /** Бросает ошибку, если почта аккаунта не подтверждена (и это не аккаунт из Telegram). */
   trusted: (userId: string) => Promise<void>;
   /** Проверить, что записи влезают в объём аккаунта. */
-  checkQuota: (userId: string, adding: number) => Promise<void>;
+  checkQuota: (userId: string, records: readonly { d: string }[]) => Promise<void>;
+  /** Не слишком ли часто зовут MCP (false — отказать). */
+  allowCall: (userId: string) => boolean;
 }
 
 const ACCESS_PREFIX = 'ppk_';
@@ -277,6 +279,7 @@ export async function mcp(req: HttpReq, d: RemoteDeps): Promise<HttpRes> {
     }
     throw e;
   }
+  if (!d.allowCall(userId)) return json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Слишком много запросов, подождите минуту' } }, 429);
   let body: unknown;
   try {
     body = readJson(req.body);
@@ -292,7 +295,7 @@ export async function mcp(req: HttpReq, d: RemoteDeps): Promise<HttpRes> {
     const text = tool.run(data, args, { now: d.now, today: todayIn(d.now, tz), newId: randomUUID });
     const changes = data.changes();
     if (changes.length > 0) {
-      await d.checkQuota(userId, changes.length);
+      await d.checkQuota(userId, changes);
       await d.store.syncPush(userId, changes);
       // Напоминания задач и платежей, добавленных нейросетью, должны прийти, даже если приложение сейчас не открыто
       try {
@@ -312,7 +315,13 @@ export async function mcp(req: HttpReq, d: RemoteDeps): Promise<HttpRes> {
       return { jsonrpc: '2.0', id: typeof id === 'string' || typeof id === 'number' ? id : null, error: { code: -32603, message: 'Внутренняя ошибка сервера' } };
     }
   };
-  const out = Array.isArray(body) ? (await Promise.all(body.slice(0, 20).map(one))).filter((x) => x !== null) : await one(body);
+  // Пакет — по очереди, а не все сразу: каждое действие читает аккаунт целиком, параллельно это 20 копий в памяти
+  const batch = async (list: unknown[]) => {
+    const res: unknown[] = [];
+    for (const m of list.slice(0, 20)) res.push(await one(m));
+    return res.filter((x) => x !== null);
+  };
+  const out = Array.isArray(body) ? await batch(body) : await one(body);
   if (out === null || (Array.isArray(out) && out.length === 0)) return { status: 202, headers: { ...SAFE_HEADERS }, body: '' };
   return json(out);
 }

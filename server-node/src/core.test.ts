@@ -899,6 +899,23 @@ describe('запасной вход через посредника', () => {
 describe('личные ключи доступа', () => {
   const keyReq = (method: string, path: string, key: string, body?: unknown) => req(method, path, { token: key, ...(body === undefined ? {} : { body }) });
 
+  it('объём аккаунта ограничен в байтах, а MCP — по частоте; пакет MCP выполняется', async () => {
+    const store = new MemoryStore();
+    const d = mk({}, store);
+    const token = await registerVerified(d, 'a@b.ru');
+    const user = await store.userByEmail('a@b.ru');
+    // Почти 30 МБ уже лежит — следующие 20 КБ не влезут
+    await store.syncPush(user?.id ?? '', [{ t: 'tasks', id: 'big', u: 1, d: 'x'.repeat(29_990_000) }]);
+    const rec = { t: 'tasks', id: 'n1', u: 2, d: JSON.stringify({ id: 'n1', title: 'y'.repeat(19_000), createdAt: 1, updatedAt: 2 }) };
+    expect((await handle(req('PUT', 'sync', { token, body: { records: [rec] } }), d)).status).toBe(413);
+    const made = json(await handle(req('POST', 'auth/keys', { token, body: { name: 'k' } }), d)) as { key: string };
+    const ping = { jsonrpc: '2.0', id: 1, method: 'ping' };
+    expect((await handle(keyReq('POST', 'mcp', made.key, [ping, { ...ping, id: 2 }]), d)).status).toBe(200);
+    let last = 200;
+    for (let i = 0; i < 61; i++) last = (await handle(keyReq('POST', 'mcp', made.key, ping), d)).status;
+    expect(last).toBe(429);
+  });
+
   it('ключ выдаётся один раз, читает и пишет записи, но не управляет аккаунтом', async () => {
     const d = mk();
     const token = await registerVerified(d, 'a@b.ru');

@@ -71,6 +71,16 @@ const MAX_SYNC_BODY_BYTES = 900 * 1024;
 const MAX_SYNC_RECORDS = 300;
 /** Потолок записей на аккаунт: обычному человеку хватит на много лет, а диск сервера одним аккаунтом не забить. */
 const MAX_SYNC_TOTAL = 50_000;
+/**
+ * И по объёму: 30 МБ текста — годы записей обычного человека. Без этого бесплатный аккаунт мог залить ~1 ГБ,
+ * и чтение такого аккаунта целиком (MCP, помощник, расписание) роняло сервер по памяти.
+ */
+const MAX_SYNC_BYTES = 30_000_000;
+/** Частота: синхронизация (первая выгрузка большого аккаунта — ~170 запросов), MCP и «применить» помощника. */
+const SYNC_PUT_MAX = 300;
+const SYNC_PUT_WINDOW_MS = 10 * 60_000;
+const MCP_MAX_PER_MIN = 60;
+const APPLY_MAX_PER_HOUR = 120;
 /** За один запрос отдаём не больше 300 записей и ~500 КБ; остальное клиент заберёт следующим запросом (`more`). */
 const MAX_SYNC_PULL = 300;
 const MAX_SYNC_PULL_BYTES = 500_000;
@@ -312,6 +322,13 @@ async function handleFoodBarcode(req: HttpReq, d: Deps, now: number): Promise<Ht
   return { status: 200, headers: { ...SAFE_HEADERS }, body };
 }
 
+/** Влезут ли новые записи в аккаунт: по числу и по объёму. */
+async function checkQuota(d: Deps, space: string, records: readonly { d: string }[]): Promise<void> {
+  if (records.length === 0) return;
+  const bytes = records.reduce((a, r) => a + r.d.length, 0);
+  if ((await d.store.syncCount(space)) + records.length > MAX_SYNC_TOTAL || (await d.store.syncBytes(space)) + bytes > MAX_SYNC_BYTES) throw new HttpError(413, 'quota');
+}
+
 async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
   // Ключом можно читать и добавлять записи, но не стирать все данные аккаунта
   const { userId: space } = await requireUser(req, d, req.method !== 'DELETE');
@@ -331,7 +348,11 @@ async function handleSync(req: HttpReq, d: Deps): Promise<HttpRes> {
     const b = readJson(req.body, MAX_SYNC_BODY_BYTES) as { records?: unknown[] };
     if (!Array.isArray(b.records)) throw new HttpError(400, 'records required');
     const records = b.records.slice(0, MAX_SYNC_RECORDS).map(parseSyncRecord).filter((x): x is SyncIn => x !== null);
-    if (records.length > 0 && (await d.store.syncCount(space)) + records.length > MAX_SYNC_TOTAL) throw new HttpError(413, 'quota');
+    const limiter = d.limiter ?? defaultLimiter;
+    const at = (d.now ?? Date.now)();
+    if (limiter.count(`sync:${space}`, SYNC_PUT_WINDOW_MS, at) >= SYNC_PUT_MAX) throw new HttpError(429, 'too_many_requests');
+    limiter.add(`sync:${space}`, at);
+    await checkQuota(d, space, records);
     if (records.length > 0) await d.store.syncPush(space, records);
     return json({ ok: true, count: records.length });
   }
@@ -652,6 +673,11 @@ async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: st
 async function handleAssistant(req: HttpReq, d: Deps, action: string, now: number): Promise<HttpRes> {
   const { userId } = await requireUser(req, d);
   if (action === 'apply') {
+    const limiter = d.limiter ?? defaultLimiter;
+    if (limiter.count(`apply:${userId}`, 3_600_000, now) >= APPLY_MAX_PER_HOUR) throw new HttpError(429, 'too_many_requests');
+    limiter.add(`apply:${userId}`, now);
+    // Пять записей помощника — несколько килобайт; если аккаунт уже упёрся в квоту, не добавляем
+    await checkQuota(d, userId, [{ d: 'x'.repeat(20_000) }]);
     const b = readJson(req.body) as { calls?: unknown };
     if (!Array.isArray(b.calls)) throw new HttpError(400, 'calls required');
     const calls = b.calls.filter((c): c is { name: unknown; args: unknown } => typeof c === 'object' && c !== null);
@@ -1034,8 +1060,12 @@ function remoteDeps(d: Deps, now: number): RemoteDeps {
     sessionUser: async (req) => (await requireUser(req, d)).userId,
     keyUser: async (req) => (await requireUser(req, d, true)).userId,
     trusted: (userId) => requireTrusted(d.store, userId),
-    checkQuota: async (userId, adding) => {
-      if ((await d.store.syncCount(userId)) + adding > MAX_SYNC_TOTAL) throw new HttpError(413, 'quota');
+    checkQuota: (userId, records) => checkQuota(d, userId, records),
+    allowCall: (userId) => {
+      const limiter = d.limiter ?? defaultLimiter;
+      if (limiter.count(`mcp:${userId}`, 60_000, now) >= MCP_MAX_PER_MIN) return false;
+      limiter.add(`mcp:${userId}`, now);
+      return true;
     },
   };
 }

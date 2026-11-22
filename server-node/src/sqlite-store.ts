@@ -123,6 +123,10 @@ export class SqliteStore implements Store {
     return Promise.resolve((this.db.prepare('SELECT COUNT(*) AS n FROM sync_records WHERE space = ?').get(space) as { n: number }).n);
   }
 
+  syncBytes(space: string): Promise<number> {
+    return Promise.resolve((this.db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM sync_records WHERE space = ?').get(space) as { n: number }).n);
+  }
+
   syncSeq(space: string): Promise<number> {
     return Promise.resolve(Number((this.db.prepare('SELECT seq FROM sync_spaces WHERE space = ?').get(space) as Row | undefined)?.seq ?? 0));
   }

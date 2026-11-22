@@ -39,6 +39,10 @@ export class MemoryStore implements Store {
     return Promise.resolve([...this.rows.values()].filter((r) => r.space === space).length);
   }
 
+  syncBytes(space: string): Promise<number> {
+    return Promise.resolve([...this.rows.values()].filter((r) => r.space === space).reduce((a, r) => a + r.d.length, 0));
+  }
+
   syncSeq(space: string): Promise<number> {
     return Promise.resolve(Math.max(0, ...[...this.rows.values()].filter((r) => r.space === space).map((r) => r.seq)));
   }
