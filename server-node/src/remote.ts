@@ -21,6 +21,8 @@ export interface RemoteDeps {
   sessionUser: (req: HttpReq) => Promise<string>;
   /** Пользователь по ключу доступа или сессии. */
   keyUser: (req: HttpReq) => Promise<string>;
+  /** Бросает ошибку, если почта аккаунта не подтверждена (и это не аккаунт из Telegram). */
+  trusted: (userId: string) => Promise<void>;
   /** Проверить, что записи влезают в объём аккаунта. */
   checkQuota: (userId: string, adding: number) => Promise<void>;
 }
@@ -209,6 +211,8 @@ export async function oauth(req: HttpReq, d: RemoteDeps, parts: string[]): Promi
   if (action === 'approve' && req.method === 'POST' && parts.length === 2) {
     const userId = await d.sessionUser(req);
     const b = readJson(req.body) as { id?: unknown; allow?: unknown };
+    // Доступ нейросети — только для подтверждённой почты (см. requireTrusted в core.ts)
+    if (b.allow === true) await d.trusted(userId);
     const id = typeof b.id === 'string' ? b.id : '';
     const p = id ? await getJson<Pending>(d, 'request', id) : null;
     if (!p) throw new HttpError(404, 'request_expired');

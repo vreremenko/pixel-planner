@@ -21,6 +21,7 @@ const MESSAGES: Record<string, string> = {
   telegram_taken: 'Этот Telegram уже привязан к другому аккаунту',
   telegram_linked: 'Telegram уже привязан к этому аккаунту',
   too_many_keys: 'Ключей уже 10. Удалите ненужный',
+  email_unverified: 'Сначала подтвердите почту — код в письме, кнопка в личном кабинете',
   telegram_only: 'В этот аккаунт можно войти только через Telegram. Сначала добавьте почту и пароль',
   has_email: 'У аккаунта уже есть почта',
   bad_init_data: 'Telegram не подтвердил вход. Закройте приложение и откройте снова',

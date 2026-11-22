@@ -557,6 +557,28 @@ describe('письма с кодами', () => {
     expect((await post(d, 'auth/reset', { email: 'a@b.ru', code: lastCode(), newPassword: NEW })).status).toBe(400);
   });
 
+  it('захват до регистрации: без подтверждённой почты ни ключа, ни Telegram; сброс пароля отзывает чужие доступы', async () => {
+    const { d, lastCode } = setup();
+    // Злоумышленник регистрирует чужую почту и пытается оставить себе доступы
+    const token = await register(d, 'victim@b.ru');
+    expect((await post(d, 'auth/keys', { name: 'k' }, token)).status).toBe(403);
+    expect(json(await post(d, 'auth/keys', { name: 'k' }, token)).error).toBe('email_unverified');
+    expect((await post(d, 'auth/telegram/link', {}, token)).status).toBe(403);
+    // Допустим, ключ и Telegram у него всё же есть (появились до этого исправления)
+    const user = await d.store.userByEmail('victim@b.ru');
+    await d.store.apiKeyCreate({ id: 'k1', userId: user?.id ?? '', name: 'чужой', keyHash: 'h', now });
+    await d.store.userSetTelegram(user?.id ?? '', '999');
+    // Хозяйка почты восстанавливает пароль — всё чужое отзывается
+    now += 61_000;
+    await post(d, 'auth/reset/request', { email: 'victim@b.ru' });
+    expect((await post(d, 'auth/reset', { email: 'victim@b.ru', code: lastCode(), newPassword: NEW })).status).toBe(200);
+    expect(await d.store.apiKeysOfUser(user?.id ?? '')).toHaveLength(0);
+    expect((await d.store.userById(user?.id ?? ''))?.telegramId).toBeFalsy();
+    // Теперь почта подтверждена — ключ можно
+    const login = json(await post(d, 'auth/login', { email: 'victim@b.ru', password: NEW }));
+    expect((await post(d, 'auth/keys', { name: 'k' }, String(login.token))).status).toBe(201);
+  });
+
   it('код подтверждения не подходит для сброса, а чужая почта отвечает так же', async () => {
     const { d, mails, lastCode } = setup();
     await register(d, 'a@b.ru');
@@ -623,7 +645,7 @@ describe('Telegram', () => {
 
   it('привязка: бот спрашивает подтверждение и только потом привязывает', async () => {
     const { d, sent } = setup();
-    const token = await register(d, 'a@b.ru');
+    const token = await registerVerified(d, 'a@b.ru');
     const { code, url } = (await post(d, 'auth/telegram/link', {}, token)) as { code: string; url: string };
     expect(url).toBe(`https://t.me/bot?start=link_${code}`);
     await text(d, `/start link_${code}`);
@@ -638,7 +660,7 @@ describe('Telegram', () => {
 
   it('вход: сессию получает приложение, но только после кнопки в боте', async () => {
     const { d } = setup();
-    await link(d, await register(d, 'a@b.ru'));
+    await link(d, await registerVerified(d, 'a@b.ru'));
     const { code } = (await post(d, 'auth/telegram/start')) as { code: string };
     await text(d, `/start login_${code}`);
     expect(await post(d, 'auth/telegram/check', { code })).toEqual({ status: 'pending' });
@@ -658,11 +680,11 @@ describe('Telegram', () => {
 
   it('чужой Telegram не подтвердит вход, а занятый нельзя привязать ко второму аккаунту', async () => {
     const { d, sent } = setup();
-    await link(d, await register(d, 'a@b.ru'));
+    await link(d, await registerVerified(d, 'a@b.ru'));
     const { code } = (await post(d, 'auth/telegram/start')) as { code: string };
     await press(d, `ok:${code}`, 777);
     expect(await post(d, 'auth/telegram/check', { code })).toEqual({ status: 'pending' });
-    await link(d, await register(d, 'c@d.ru'));
+    await link(d, await registerVerified(d, 'c@d.ru'));
     expect(sent.some((m) => m.text.includes('уже привязан'))).toBe(true);
   });
 
@@ -670,7 +692,7 @@ describe('Telegram', () => {
     let now = 1_000_000;
     const { d } = setup();
     const ticking = { ...d, now: () => now };
-    const token = await register(ticking, 'a@b.ru');
+    const token = await registerVerified(ticking, 'a@b.ru');
     await link(ticking, token);
     const { code } = (await post(ticking, 'auth/telegram/start')) as { code: string };
     now += 11 * 60_000;
@@ -684,7 +706,7 @@ describe('Telegram', () => {
 
   it('напоминания в Telegram: включаются только с привязкой и уходят в чат', async () => {
     const { d, sent } = setup();
-    const token = await register(d, 'a@b.ru');
+    const token = await registerVerified(d, 'a@b.ru');
     expect((await post(d, 'auth/telegram/reminders', { on: true }, token)).error).toBe('telegram_not_linked');
     await link(d, token);
     await post(d, 'auth/telegram/reminders', { on: true }, token);
@@ -702,7 +724,7 @@ describe('Telegram', () => {
     const { d, sent } = setup();
     const admin = { ...d, env: { ...d.env, ADMIN_EMAILS: 'boss@site.ru' } };
     await link(admin, await registerVerified(admin, 'boss@site.ru'));
-    const token = await register(admin, 'a@b.ru');
+    const token = await registerVerified(admin, 'a@b.ru');
     expect((await post(admin, 'feedback', { text: '  ' }, token)).error).toBe('bad_text');
     expect(await post(admin, 'feedback', { text: 'Добавьте тёмную тему', version: '0.26.0' }, token)).toEqual({ ok: true });
     expect(sent.at(-1)?.text).toBe('Отзыв из PIXEL PLANNER\nОт: a@b.ru\nВерсия: 0.26.0\n\nДобавьте тёмную тему');
@@ -746,12 +768,12 @@ describe('Mini App', () => {
 
   it('вход по почте внутри Mini App привязывает этот Telegram, но не чужой', async () => {
     const d = setup();
-    const token = await register(d, 'a@b.ru');
+    const token = await registerVerified(d, 'a@b.ru');
     const link = async (t: string, data: string) => json(await handle(req('POST', 'auth/telegram/webapp-link', { token: t, body: { initData: data } }), d));
     expect((await link(token, initData(5))).user).toMatchObject({ telegram: true });
     expect(json(await handle(req('POST', 'auth/telegram/webapp', { body: { initData: initData(5) } }), d)).status).toBe('session');
     expect((await link(token, initData(6))).error).toBe('telegram_other');
-    const other = await register(d, 'c@d.ru');
+    const other = await registerVerified(d, 'c@d.ru');
     expect((await link(other, initData(5))).error).toBe('telegram_taken');
   });
 
@@ -768,7 +790,7 @@ describe('Mini App', () => {
     const post = async (path: string, body: unknown, method = 'POST') => handle(req(method, path, { token, body }), d);
     expect(json(await post('auth/telegram', {}, 'DELETE')).error).toBe('telegram_only');
     expect(json(await post('auth/account', {}, 'DELETE')).error).toBe('bad_credentials');
-    await register(d, 'busy@b.ru');
+    await registerVerified(d, 'busy@b.ru');
     expect(json(await post('auth/email', { email: 'busy@b.ru', password: PASSWORD })).error).toBe('email_taken');
     const added = json(await post('auth/email', { email: 'Me@b.ru', password: PASSWORD }));
     expect(added.user).toMatchObject({ email: 'me@b.ru', emailVerified: false });
@@ -870,7 +892,7 @@ describe('личные ключи доступа', () => {
 
   it('ключ выдаётся один раз, читает и пишет записи, но не управляет аккаунтом', async () => {
     const d = mk();
-    const token = await register(d, 'a@b.ru');
+    const token = await registerVerified(d, 'a@b.ru');
     const made = json(await handle(req('POST', 'auth/keys', { token, body: { name: 'Claude Code' } }), d)) as { key: string; id: string };
     expect(made.key).toMatch(/^ppk_[A-Za-z0-9_-]{43}$/);
     const list = json(await handle(req('GET', 'auth/keys', { token }), d)) as { keys: { id: string; name: string }[] };
@@ -888,8 +910,8 @@ describe('личные ключи доступа', () => {
 
   it('отозванный и выдуманный ключ не работают, чужой ключ не удалить', async () => {
     const d = mk();
-    const token = await register(d, 'a@b.ru');
-    const other = await register(d, 'c@d.ru');
+    const token = await registerVerified(d, 'a@b.ru');
+    const other = await registerVerified(d, 'c@d.ru');
     const made = json(await handle(req('POST', 'auth/keys', { token, body: {} }), d)) as { key: string; id: string };
     await handle(req('DELETE', `auth/keys/${made.id}`, { token: other }), d);
     expect((await handle(keyReq('GET', 'sync', made.key), d)).status).toBe(200);
@@ -900,7 +922,7 @@ describe('личные ключи доступа', () => {
 
   it('больше десяти ключей не выдаём', async () => {
     const d = mk();
-    const token = await register(d, 'a@b.ru');
+    const token = await registerVerified(d, 'a@b.ru');
     for (let i = 0; i < 10; i++) await handle(req('POST', 'auth/keys', { token, body: {} }), d);
     expect(json(await handle(req('POST', 'auth/keys', { token, body: {} }), d)).error).toBe('too_many_keys');
   });

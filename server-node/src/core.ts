@@ -359,6 +359,17 @@ const bad = (status: number, error: string) => new HttpError(status, error);
 const sha = (text: string) => createHash('sha256').update(text).digest();
 const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha(a), sha(b));
 
+/**
+ * Ключи, доступ для нейросетей и привязка Telegram — только для подтверждённой почты (или аккаунта из Telegram):
+ * иначе можно заранее зарегистрировать чужую почту, оставить себе ключ или свой Telegram и ждать, пока хозяин
+ * восстановит пароль и начнёт вести аккаунт.
+ */
+export async function requireTrusted(store: Store, userId: string): Promise<void> {
+  const user = await store.userById(userId);
+  if (!user) throw new HttpError(401, 'unauthorized');
+  if (!user.emailVerified && !isTelegramOnly(user.email)) throw new HttpError(403, 'email_unverified');
+}
+
 const publicUser = (u: { id: string; email: string; emailVerified?: boolean; telegramId?: string | null }, env: Env) => ({ id: u.id, email: u.email, emailVerified: Boolean(u.emailVerified), telegram: Boolean(u.telegramId), ...(isTelegramOnly(u.email) ? { telegramOnly: true } : {}), ...(isAdmin(u, env) ? { admin: true } : {}) });
 
 /** Выдать устройству новую сессию. */
@@ -849,6 +860,10 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     }
     limiter.reset(failKey);
     await d.store.userSetPassword(user.id, await hashPassword(b.newPassword));
+    // Сброс пароля — это «вернуть себе аккаунт»: отзываем всё, через что в него мог входить кто-то другой —
+    // сессии, ключи и доступы нейросетей, а если почта до этого не была подтверждена — и привязанный Telegram
+    for (const k of await d.store.apiKeysOfUser(user.id)) await d.store.apiKeyDelete(user.id, k.id);
+    if (!user.emailVerified && user.telegramId) await d.store.userSetTelegram(user.id, null);
     await d.store.userSetVerified(user.id, now);
     await d.store.codeDelete(user.id, 'reset');
     await d.store.sessionsDeleteAll(user.id);
@@ -872,6 +887,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   if (action === 'keys') {
     if (req.method === 'GET' && parts.length === 2) return json({ keys: await d.store.apiKeysOfUser(userId) });
     if (req.method === 'POST' && parts.length === 2) {
+      await requireTrusted(d.store, userId);
       const b = readJson(req.body) as { name?: unknown };
       const name = typeof b.name === 'string' && b.name.trim() ? b.name.trim().slice(0, 60) : 'Ключ';
       if ((await d.store.apiKeysOfUser(userId)).length >= MAX_API_KEYS) throw bad(409, 'too_many_keys');
@@ -911,6 +927,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
     if (user.telegramId && user.telegramId !== tg.id) throw bad(409, 'telegram_other');
+    if (!user.telegramId) await requireTrusted(d.store, userId);
     const owner = await d.store.userByTelegram(tg.id);
     if (owner && owner.id !== userId) throw bad(409, 'telegram_taken');
     if (!user.telegramId) await d.store.userSetTelegram(userId, tg.id);
@@ -921,6 +938,7 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   // POST /api/auth/telegram/link: ссылка на бота для привязки
   if (action === 'telegram' && parts[2] === 'link' && req.method === 'POST') {
     if ((await d.store.userById(userId))?.telegramId) throw bad(409, 'telegram_linked');
+    await requireTrusted(d.store, userId);
     return issueTelegramCode(d, 'link', userId, now);
   }
 
@@ -1015,6 +1033,7 @@ function remoteDeps(d: Deps, now: number): RemoteDeps {
     appUrl: d.env.APP_URL ?? DEFAULT_APP_URL,
     sessionUser: async (req) => (await requireUser(req, d)).userId,
     keyUser: async (req) => (await requireUser(req, d, true)).userId,
+    trusted: (userId) => requireTrusted(d.store, userId),
     checkQuota: async (userId, adding) => {
       if ((await d.store.syncCount(userId)) + adding > MAX_SYNC_TOTAL) throw new HttpError(413, 'quota');
     },
