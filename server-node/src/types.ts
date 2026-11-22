@@ -254,6 +254,22 @@ export interface Store {
   /** Отметить, что пользователь был активен в этот день (YYYY-MM-DD). */
   activityTouch(userId: string, day: string): Promise<void>;
   activitySince(day: string): Promise<ActivityRow[]>;
+  /** Расход нейросети за день: прибавить к счётчикам пользователя. */
+  aiUsageAdd(userId: string, day: string, delta: Partial<AiUsage>): Promise<void>;
+  aiUsageSince(day: string): Promise<AiUsageRow[]>;
   adminUsers(): Promise<AdminUserRow[]>;
   adminRecords(recentSince: number): Promise<AdminRecordRow[]>;
+}
+
+/** Сколько помощник потратил за день: фразы человека, обращения к модели, токены, распознанные голосовые. */
+export interface AiUsage {
+  phrases: number;
+  calls: number;
+  tokensIn: number;
+  tokensOut: number;
+  voice: number;
+}
+export interface AiUsageRow extends AiUsage {
+  day: string;
+  userId: string;
 }

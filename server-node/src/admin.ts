@@ -2,7 +2,7 @@
  * Сводка для админки. Только количества: содержимое записей сюда не попадает.
  * Активность считается по дням (UTC): день пользователя отмечается при любом запросе с его сессией.
  */
-import type { ActivityRow, AdminRecordRow, AdminUserRow } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, AiUsage, AiUsageRow } from './types.ts';
 
 const DAY = 86_400_000;
 /** Столбцов на графике: при большем числе подписи на телефоне не читаются. */
@@ -26,9 +26,30 @@ export interface StatsInput {
   users: readonly AdminUserRow[];
   activity: readonly ActivityRow[];
   records: readonly AdminRecordRow[];
+  /** Расход нейросети по дням за последние недели (может быть пустым). */
+  ai?: readonly AiUsageRow[];
+  /** Сколько фраз в сутки можно одному пользователю. */
+  aiPerDay?: number;
 }
 
-export function buildStats({ now, admins, users, activity, records }: StatsInput) {
+/**
+ * Бесплатный лимит Workers AI — 10 000 «нейронов» в сутки (UTC) на аккаунт Cloudflare. Сколько нейронов
+ * уходит на токен, зависит от модели, поэтому точный остаток виден только в панели Cloudflare;
+ * здесь — наш собственный учёт токенов и фраз.
+ */
+export const AI_FREE_NEURONS = 10_000;
+
+const zero = (): AiUsage => ({ phrases: 0, calls: 0, tokensIn: 0, tokensOut: 0, voice: 0 });
+function addUsage(to: AiUsage, x: AiUsage): AiUsage {
+  to.phrases += x.phrases;
+  to.calls += x.calls;
+  to.tokensIn += x.tokensIn;
+  to.tokensOut += x.tokensOut;
+  to.voice += x.voice;
+  return to;
+}
+
+export function buildStats({ now, admins, users, activity, records, ai = [], aiPerDay = 0 }: StatsInput) {
   const days = Array.from({ length: CHART_DAYS }, (_, i) => dayOf(now - (CHART_DAYS - 1 - i) * DAY));
   const within = (from: number, to: number) => {
     const first = dayOf(now - from * DAY);
@@ -54,7 +75,38 @@ export function buildStats({ now, admins, users, activity, records }: StatsInput
     perUser.set(r.userId, mine);
   }
 
+  const today = dayOf(now);
+  const weekStart = dayOf(now - 6 * DAY);
+  const aiToday = zero();
+  const aiWeek = zero();
+  const aiMonth = zero();
+  const aiUserToday = new Map<string, AiUsage>();
+  const aiUserWeek = new Map<string, AiUsage>();
+  for (const r of ai) {
+    if (r.day < monthStart) continue;
+    addUsage(aiMonth, r);
+    if (r.day >= weekStart) {
+      addUsage(aiWeek, r);
+      aiUserWeek.set(r.userId, addUsage(aiUserWeek.get(r.userId) ?? zero(), r));
+    }
+    if (r.day === today) {
+      addUsage(aiToday, r);
+      aiUserToday.set(r.userId, addUsage(aiUserToday.get(r.userId) ?? zero(), r));
+    }
+  }
+
   return {
+    ai: {
+      today: aiToday,
+      week: aiWeek,
+      month: aiMonth,
+      days: days.map((date) => ({
+        date,
+        tokens: ai.filter((r) => r.day === date).reduce((s, r) => s + r.tokensIn + r.tokensOut, 0),
+      })),
+      freeNeurons: AI_FREE_NEURONS,
+      perUserDay: aiPerDay,
+    },
     since: activity.reduce<string | null>((a, x) => (a === null || x.day < a ? x.day : a), null),
     users: {
       total: users.length,
@@ -83,6 +135,7 @@ export function buildStats({ now, admins, users, activity, records }: StatsInput
         version: u.appVersion,
         activeDays: activity.filter((a) => a.userId === u.id && a.day >= monthStart).length,
         records: Object.fromEntries(perUser.get(u.id) ?? []),
+        ai: { today: aiUserToday.get(u.id) ?? zero(), week: aiUserWeek.get(u.id) ?? zero() },
       })),
   };
 }

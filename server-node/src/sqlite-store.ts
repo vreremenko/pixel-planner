@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, OAuthGrant, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, OAuthGrant, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User, AiUsage, AiUsageRow } from './types.ts';
 
 const DAY = 86_400_000;
 
@@ -57,6 +57,11 @@ export class SqliteStore implements Store {
       CREATE INDEX IF NOT EXISTS api_keys_user ON api_keys (user_id);
       CREATE TABLE IF NOT EXISTS oauth_items (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (kind, id)) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS activity (day TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS ai_usage (
+        day TEXT NOT NULL, user_id TEXT NOT NULL, phrases INTEGER NOT NULL DEFAULT 0, calls INTEGER NOT NULL DEFAULT 0,
+        tokens_in INTEGER NOT NULL DEFAULT 0, tokens_out INTEGER NOT NULL DEFAULT 0, voice INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, user_id)
+      ) WITHOUT ROWID;
     `);
     // Устройства раньше не принадлежали пользователям: добавляем владельца, а старые без владельца убираем
     const cols = this.db.prepare('PRAGMA table_info(devices)').all() as unknown as { name: string }[];
@@ -478,6 +483,23 @@ export class SqliteStore implements Store {
   activityTouch(userId: string, day: string): Promise<void> {
     this.db.prepare('INSERT OR IGNORE INTO activity (day, user_id) VALUES (?, ?)').run(day, userId);
     return Promise.resolve();
+  }
+
+  aiUsageAdd(userId: string, day: string, d: Partial<AiUsage>): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO ai_usage (day, user_id, phrases, calls, tokens_in, tokens_out, voice) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (day, user_id) DO UPDATE SET phrases = phrases + excluded.phrases, calls = calls + excluded.calls,
+           tokens_in = tokens_in + excluded.tokens_in, tokens_out = tokens_out + excluded.tokens_out, voice = voice + excluded.voice`,
+      )
+      .run(day, userId, d.phrases ?? 0, d.calls ?? 0, d.tokensIn ?? 0, d.tokensOut ?? 0, d.voice ?? 0);
+    return Promise.resolve();
+  }
+
+  aiUsageSince(day: string): Promise<AiUsageRow[]> {
+    return Promise.resolve(
+      this.db.prepare('SELECT day, user_id AS userId, phrases, calls, tokens_in AS tokensIn, tokens_out AS tokensOut, voice FROM ai_usage WHERE day >= ?').all(day) as unknown as AiUsageRow[],
+    );
   }
 
   activitySince(day: string): Promise<ActivityRow[]> {

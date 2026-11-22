@@ -1,4 +1,4 @@
-import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, OAuthGrant, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User } from './types.ts';
+import type { ActivityRow, AdminRecordRow, AdminUserRow, ApiKeyInfo, CodeKind, Device, DeviceStatus, DueRow, PushEvent, ScheduleMeta, EmailCode, OAuthGrant, ScheduleItem, Store, SyncIn, SyncRow, TelegramCode, User, AiUsage, AiUsageRow } from './types.ts';
 
 /** Хранилище в памяти — для тестов; повторяет поведение YDB-реализации. */
 export class MemoryStore implements Store {
@@ -331,6 +331,19 @@ export class MemoryStore implements Store {
   activityTouch(userId: string, day: string): Promise<void> {
     this.activity.add(`${day}|${userId}`);
     return Promise.resolve();
+  }
+
+  private ai = new Map<string, AiUsageRow>();
+
+  aiUsageAdd(userId: string, day: string, d: Partial<AiUsage>): Promise<void> {
+    const key = `${day}|${userId}`;
+    const cur = this.ai.get(key) ?? { day, userId, phrases: 0, calls: 0, tokensIn: 0, tokensOut: 0, voice: 0 };
+    this.ai.set(key, { ...cur, phrases: cur.phrases + (d.phrases ?? 0), calls: cur.calls + (d.calls ?? 0), tokensIn: cur.tokensIn + (d.tokensIn ?? 0), tokensOut: cur.tokensOut + (d.tokensOut ?? 0), voice: cur.voice + (d.voice ?? 0) });
+    return Promise.resolve();
+  }
+
+  aiUsageSince(day: string): Promise<AiUsageRow[]> {
+    return Promise.resolve([...this.ai.values()].filter((r) => r.day >= day));
   }
 
   activitySince(day: string): Promise<ActivityRow[]> {
