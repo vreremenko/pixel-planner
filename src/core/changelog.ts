@@ -14,6 +14,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.43.1',
+    date: '2026-11-22',
+    title: 'Пауза до любого дня',
+    items: ['Паузу привычки теперь ставят до любой даты — хоть только на сегодня, взять выходной, — или без срока.'],
+  },
+  {
     version: '0.43.0',
     date: '2026-11-22',
     title: 'Пауза привычки и «Отменить»',

@@ -137,7 +137,12 @@
 .pauseRow {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: var(--gap-2);
+}
+.pauseRow > :first-child {
+  flex: 1 1 160px;
+  margin-bottom: 0;
 }
 /* День паузы в календаре: штриховка — «не ждали», а не «пропущено» */
 .paused {

@@ -9,7 +9,6 @@ import { currentPause } from '../domain/streaks';
 import { fs } from '../../../core/ui/fs';
 
 const WD = WEEKDAYS_SHORT.map((label, i) => ({ value: i as Weekday, label }));
-const PAUSES: { label: string; days?: number }[] = [{ label: '3 дня', days: 3 }, { label: 'Неделя', days: 7 }, { label: '2 недели', days: 14 }, { label: 'Без срока' }];
 
 interface Props {
   habit: Habit | null; // null => новая
@@ -23,6 +22,7 @@ export function HabitEditor({ habit, onClose }: Props) {
   const [mode, setMode] = useState<'daily' | 'days'>(habit?.schedule.type ?? 'daily');
   const [time, setTime] = useState(habit?.reminderTime ?? '');
   const [kind, setKind] = useState<HabitTracking['kind']>(habit?.tracking?.kind ?? 'check');
+  const [pauseUntil, setPauseUntil] = useState(today());
   const [unit, setUnit] = useState(habit && isCountHabit(habit) ? habit.tracking.unit : 'раз');
   const invalid = !name.trim() || (mode === 'days' && days.length === 0) || (kind === 'count' && !unit.trim());
 
@@ -40,6 +40,14 @@ export function HabitEditor({ habit, onClose }: Props) {
       toast('Привычка добавлена', 'star', 'var(--c-habit)');
     }
     onClose();
+  };
+
+  const pause = (until?: string) => {
+    if (!habit) return;
+    void pauseHabit(habit, today(), until).then(() => {
+      toast(`«${habit.name}» на паузе`, 'pause', 'var(--c-habit)');
+      onClose();
+    });
   };
 
   return (
@@ -130,23 +138,16 @@ export function HabitEditor({ habit, onClose }: Props) {
         {habit && !habit.archived && !currentPause(habit, today()) && (
           <Field label="Пауза">
             <p style={{ margin: '0 0 8px', color: 'var(--c-text-dim)', fontSize: fs(17) }}>
-              Отпуск, болезнь, перерыв: привычка не ждёт отметок и не напоминает, а серия не сгорает.
+              Выходной, отпуск, болезнь: привычка не ждёт отметок и не напоминает, а серия не сгорает.
             </p>
             <div className={s.pauseRow}>
-              {PAUSES.map((p) => (
-                <Button
-                  key={p.label}
-                  small
-                  onClick={() =>
-                    void pauseHabit(habit, today(), p.days).then(() => {
-                      toast(`«${habit.name}» на паузе`, 'pause', 'var(--c-habit)');
-                      onClose();
-                    })
-                  }
-                >
-                  {p.label}
-                </Button>
-              ))}
+              <TextInput label="По какое число" type="date" min={today()} value={pauseUntil} onChange={(e) => setPauseUntil(e.target.value)} />
+              <Button small icon="pause" disabled={!pauseUntil || pauseUntil < today()} onClick={() => pause(pauseUntil)}>
+                {pauseUntil === today() ? 'Только сегодня' : 'До этого дня'}
+              </Button>
+              <Button small onClick={() => pause()}>
+                Без срока
+              </Button>
             </div>
           </Field>
         )}

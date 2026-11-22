@@ -4,7 +4,15 @@ import { Button, Checkbox, Panel, PixelIcon, cx } from '../../../core/ui';
 import { type LocalDate } from '../../../core/domain/types';
 import { isCountHabit, type Habit } from '../domain/types';
 import { formatValue, parseValue } from '../../../core/domain/numbers';
-import { addDays, endOfMonth, formatDateShort, parseLocalDate, startOfMonth, weekday, WEEKDAYS_SHORT } from '../../../core/domain/dates';
+import {
+  addDays,
+  endOfMonth,
+  formatDateShort,
+  parseLocalDate,
+  startOfMonth,
+  weekday,
+  WEEKDAYS_SHORT,
+} from '../../../core/domain/dates';
 import { currentPause, habitStreak, isDue, isPaused } from '../domain/streaks';
 import { resumeHabit, setHabitValue, toggleHabit } from '../services/habits';
 import { dateOf } from '../../../core/domain/dates';
@@ -26,7 +34,17 @@ interface Props {
 }
 
 /** Быстрый ввод числа за сегодня. */
-function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: string; value: number | undefined; todayDate: LocalDate }) {
+function TodayCount({
+  habit,
+  unit,
+  value,
+  todayDate,
+}: {
+  habit: Habit;
+  unit: string;
+  value: number | undefined;
+  todayDate: LocalDate;
+}) {
   const [text, setText] = useState(value === undefined ? '' : formatValue(value));
   const [prev, setPrev] = useState(value);
   if (prev !== value) {
@@ -35,7 +53,8 @@ function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: str
     setText(value === undefined ? '' : formatValue(value));
   }
   const parsed = parseValue(text);
-  const dirty = parsed !== (value ?? null) && !(parsed === null && text.trim() === '' && value === undefined);
+  const dirty =
+    parsed !== (value ?? null) && !(parsed === null && text.trim() === '' && value === undefined);
   const invalid = text.trim() !== '' && parsed === null;
   return (
     <form
@@ -62,14 +81,30 @@ function TodayCount({ habit, unit, value, todayDate }: { habit: Habit; unit: str
       <span className={s.unit} title={unit}>
         {unit}
       </span>
-      <Button type="submit" small variant="habit" icon="check" className={s.countBtn} disabled={invalid || !dirty}>
+      <Button
+        type="submit"
+        small
+        variant="habit"
+        icon="check"
+        className={s.countBtn}
+        disabled={invalid || !dirty}
+      >
         {value === undefined ? 'Записать' : 'Обновить'}
       </Button>
     </form>
   );
 }
 
-export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpen, onPickDay }: Props) {
+export function HabitCard({
+  habit,
+  done,
+  values,
+  month,
+  todayDate,
+  onEdit,
+  onOpen,
+  onPickDay,
+}: Props) {
   const count = isCountHabit(habit) ? habit.tracking : null;
   const key = collapseKey.habit(habit.id);
   const collapsed = useCollapsed((st) => st.collapsed[key] === true);
@@ -81,9 +116,11 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
   const pauseText = pause
     ? pause.from > todayDate
       ? `Пауза с ${formatDateShort(pause.from)}`
-      : pause.to
-        ? `Пауза по ${formatDateShort(pause.to)}`
-        : 'Пауза без срока'
+      : pause.to === todayDate
+        ? 'Пауза на сегодня'
+        : pause.to
+          ? `Пауза по ${formatDateShort(pause.to)}`
+          : 'Пауза без срока'
     : null;
   const doneToday = done.has(todayDate);
   const created = dateOf(new Date(habit.createdAt));
@@ -101,7 +138,12 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
         </div>
         <div className={s.name}>
           {count ? (
-            <button type="button" className={s.nameBtn} onClick={onOpen} aria-label={`График и история: ${habit.name}`}>
+            <button
+              type="button"
+              className={s.nameBtn}
+              onClick={onOpen}
+              aria-label={`График и история: ${habit.name}`}
+            >
               {habit.name}
             </button>
           ) : (
@@ -114,7 +156,11 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
           {pauseText && (
             <div className={s.pauseNote}>
               {pauseText} ·{' '}
-              <button type="button" className={s.linkBtn} onClick={() => void resumeHabit(habit, todayDate)}>
+              <button
+                type="button"
+                className={s.linkBtn}
+                onClick={() => void resumeHabit(habit, todayDate)}
+              >
                 Вернуть
               </button>
             </div>
@@ -124,7 +170,12 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
           {count ? (
             <Button small variant="ghost" icon="bars" label="График и история" onClick={onOpen} />
           ) : scheduledToday || doneToday ? (
-            <Checkbox checked={doneToday} onChange={(v) => void toggleHabit(habit, todayDate, v)} label={`Выполнено сегодня: ${habit.name}`} color="var(--c-habit)" />
+            <Checkbox
+              checked={doneToday}
+              onChange={(v) => void toggleHabit(habit, todayDate, v)}
+              label={`Выполнено сегодня: ${habit.name}`}
+              color="var(--c-habit)"
+            />
           ) : (
             <span className={s.rest}>{pausedToday ? 'пауза' : 'отдых'}</span>
           )}
@@ -132,7 +183,12 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
         </div>
       </div>
       {count && (scheduledToday || doneToday) && (
-        <TodayCount habit={habit} unit={count.unit} value={values.get(todayDate)} todayDate={todayDate} />
+        <TodayCount
+          habit={habit}
+          unit={count.unit}
+          value={values.get(todayDate)}
+          todayDate={todayDate}
+        />
       )}
       <div className={s.streaks}>
         <div>
@@ -172,16 +228,37 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
             const future = d > todayDate;
             const miss = sched && !isDone && d < todayDate && d >= created;
             const paused = isPaused(habit, d);
-            const state = isDone ? 'выполнено' : paused ? 'пауза' : future ? 'впереди' : miss ? 'пропущено' : sched ? 'не отмечено' : 'выходной';
+            const state = isDone
+              ? 'выполнено'
+              : paused
+                ? 'пауза'
+                : future
+                  ? 'впереди'
+                  : miss
+                    ? 'пропущено'
+                    : sched
+                      ? 'не отмечено'
+                      : 'выходной';
             return (
               <button
                 key={d}
                 type="button"
                 disabled={future}
-                className={cx(s.cell, !sched && s.off, paused && !isDone && s.paused, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
+                className={cx(
+                  s.cell,
+                  !sched && s.off,
+                  paused && !isDone && s.paused,
+                  isDone && s.done,
+                  miss && s.miss,
+                  d === todayDate && s.today,
+                )}
                 aria-label={`${parseLocalDate(d).day}: ${state}${count && values.has(d) ? `, ${formatValue(values.get(d) ?? 0)} ${count.unit}` : ''}`}
                 aria-pressed={isDone}
-                title={count && values.has(d) ? `${formatValue(values.get(d) ?? 0)} ${count.unit}` : undefined}
+                title={
+                  count && values.has(d)
+                    ? `${formatValue(values.get(d) ?? 0)} ${count.unit}`
+                    : undefined
+                }
                 onClick={() => (count ? onPickDay(d) : void toggleHabit(habit, d, !isDone))}
               >
                 {parseLocalDate(d).day}

@@ -27,9 +27,9 @@ export async function setArchived(h: Habit, archived: boolean): Promise<void> {
   await habitRepo.put({ ...h, archived });
 }
 
-/** Пауза с сегодняшнего дня на `days` дней или без срока: серия не рвётся, напоминаний нет. */
-export async function pauseHabit(h: Habit, today: LocalDate, days?: number): Promise<void> {
-  await habitRepo.put({ ...h, pauses: withPause(h, today, days) });
+/** Пауза с сегодняшнего дня по `until` включительно или без срока: серия не рвётся, напоминаний нет. */
+export async function pauseHabit(h: Habit, today: LocalDate, until?: LocalDate): Promise<void> {
+  await habitRepo.put({ ...h, pauses: withPause(h, today, until) });
 }
 
 /** Вернуть с паузы с сегодняшнего дня. */

@@ -121,12 +121,13 @@ export const HABIT_TOOLS: readonly Tool[] = [
     name: 'pause_habit',
     title: 'Пауза привычки',
     description:
-      'Поставить привычку на паузу (отпуск, болезнь) с сегодняшнего дня: на days дней или без срока. В паузу привычка не ждёт отметок и не напоминает, серия не сгорает. resume: true — снять паузу с сегодня.',
+      'Поставить привычку на паузу (выходной, отпуск, болезнь) с сегодняшнего дня: до даты until включительно («только сегодня» — until = сегодня), на days дней или без срока. В паузу привычка не ждёт отметок и не напоминает, серия не сгорает. resume: true — снять паузу с сегодня.',
     inputSchema: {
       type: 'object',
       properties: {
         habit: { type: 'string', description: 'Название привычки' },
-        days: { type: 'integer', minimum: 1, maximum: 365, description: 'На сколько дней, включая сегодня; без поля — пока не вернут' },
+        until: { type: 'string', description: 'Последний день паузы ГГГГ-ММ-ДД, включительно' },
+        days: { type: 'integer', minimum: 1, maximum: 365, description: 'На сколько дней, включая сегодня; без until и days — пока не вернут' },
         resume: { type: 'boolean', description: 'true — вернуть с паузы' },
       },
       required: ['habit'],
@@ -140,9 +141,16 @@ export const HABIT_TOOLS: readonly Tool[] = [
         data.put('habits', { ...h, pauses: withoutPause(h, ctx.today), updatedAt: ctx.now });
         return `Вернул «${h.name}» с паузы — с сегодня снова ждёт отметок.`;
       }
-      const days = input.days === undefined ? undefined : Number(input.days);
-      if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 365)) throw new ToolError('days: от 1 до 365');
-      const pauses = withPause(h, ctx.today, days);
+      let to: string | undefined;
+      if (input.until !== undefined) {
+        to = text(input.until, 'until', 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || to < ctx.today || to > addDays(ctx.today, 365)) throw new ToolError('until: дата ГГГГ-ММ-ДД, не раньше сегодня и не дальше года');
+      } else if (input.days !== undefined) {
+        const days = Number(input.days);
+        if (!Number.isInteger(days) || days < 1 || days > 365) throw new ToolError('days: от 1 до 365');
+        to = addDays(ctx.today, days - 1);
+      }
+      const pauses = withPause(h, ctx.today, to);
       data.put('habits', { ...h, pauses, updatedAt: ctx.now });
       const until = pauses.at(-1)?.to;
       return `«${h.name}» на паузе ${until ? `по ${until} включительно` : 'без срока'}; серия сохранится.`;
