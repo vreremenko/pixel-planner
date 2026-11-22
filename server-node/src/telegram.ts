@@ -8,6 +8,8 @@ export interface TelegramEnv {
 
 /** Кнопка под сообщением: ответ боту (data) или открытие приложения (webApp). */
 export type Button = { text: string; data: string } | { text: string; webApp: string };
+/** Несколько рядов кнопок-ответов под сообщением (галочки помощника). */
+export type Keyboard = { text: string; data: string }[][];
 
 export interface TelegramApi {
   send(chatId: number, text: string, button?: Button): Promise<void>;
@@ -16,11 +18,17 @@ export interface TelegramApi {
   typing?(chatId: number): Promise<void>;
   /** Скачать файл (голосовое сообщение) по его id. */
   download?(fileId: string): Promise<Uint8Array>;
+  /** Сообщение с кнопками; возвращает id сообщения, чтобы потом менять его. */
+  menu?(chatId: number, text: string, keyboard: Keyboard): Promise<number | undefined>;
+  /** Поменять текст и кнопки уже отправленного сообщения (без кнопок — убрать их). */
+  edit?(chatId: number, messageId: number, text: string, keyboard?: Keyboard): Promise<void>;
 }
 
 const TIMEOUT_MS = 10_000;
 /** Голосовые больше ~2 МБ (несколько минут) не скачиваем. */
 const MAX_FILE = 2_000_000;
+
+const buttons = (k: Keyboard) => k.map((row) => row.map((b) => ({ text: b.text, callback_data: b.data })));
 
 export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
   const { TELEGRAM_BOT_TOKEN: token, TELEGRAM_RELAY_URL: relay, TELEGRAM_RELAY_KEY: key } = env;
@@ -44,6 +52,11 @@ export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
       ok(call('sendMessage', { chat_id: chatId, text, ...(button ? { reply_markup: { inline_keyboard: [['data' in button ? { text: button.text, callback_data: button.data } : { text: button.text, web_app: { url: button.webApp } }]] } } : {}) })),
     answer: (callbackId) => ok(call('answerCallbackQuery', { callback_query_id: callbackId })),
     typing: (chatId) => ok(call('sendChatAction', { chat_id: chatId, action: 'typing' })),
+    menu: async (chatId, text, keyboard) => {
+      const r = (await call('sendMessage', { chat_id: chatId, text, reply_markup: { inline_keyboard: buttons(keyboard) } })) as { result?: { message_id?: number } };
+      return r.result?.message_id;
+    },
+    edit: (chatId, messageId, text, keyboard) => ok(call('editMessageText', { chat_id: chatId, message_id: messageId, text, reply_markup: { inline_keyboard: keyboard ? buttons(keyboard) : [] } })),
     download: async (fileId) => {
       const meta = (await call('getFile', { file_id: fileId })) as { result?: { file_path?: string; file_size?: number } };
       const path = meta.result?.file_path;
@@ -60,13 +73,13 @@ export function createTelegram(env: TelegramEnv): TelegramApi | undefined {
 
 interface Update {
   message?: { text?: string; voice?: { file_id: string; duration?: number }; chat: { id: number; type: string }; from?: { id: number } };
-  callback_query?: { id: string; data?: string; from: { id: number }; message?: { chat: { id: number } } };
+  callback_query?: { id: string; data?: string; from: { id: number }; message?: { message_id?: number; chat: { id: number } } };
 }
 
 export type BotEvent =
   | { kind: 'text'; chatId: number; telegramId: string; text: string }
   | { kind: 'voice'; chatId: number; telegramId: string; fileId: string; duration: number }
-  | { kind: 'button'; chatId: number; telegramId: string; callbackId: string; data: string };
+  | { kind: 'button'; chatId: number; telegramId: string; callbackId: string; data: string; messageId?: number };
 
 /** Что пришло от Telegram; всё, кроме личных сообщений и нажатий на кнопку, не интересует. */
 export function parseUpdate(raw: unknown): BotEvent | null {
@@ -75,6 +88,6 @@ export function parseUpdate(raw: unknown): BotEvent | null {
   if (m?.from && m.chat.type === 'private' && typeof m.text === 'string') return { kind: 'text', chatId: m.chat.id, telegramId: String(m.from.id), text: m.text };
   if (m?.from && m.chat.type === 'private' && m.voice?.file_id) return { kind: 'voice', chatId: m.chat.id, telegramId: String(m.from.id), fileId: m.voice.file_id, duration: m.voice.duration ?? 0 };
   const c = u.callback_query;
-  if (c?.message && typeof c.data === 'string') return { kind: 'button', chatId: c.message.chat.id, telegramId: String(c.from.id), callbackId: c.id, data: c.data };
+  if (c?.message && typeof c.data === 'string') return { kind: 'button', chatId: c.message.chat.id, telegramId: String(c.from.id), callbackId: c.id, data: c.data, ...(c.message.message_id ? { messageId: c.message.message_id } : {}) };
   return null;
 }

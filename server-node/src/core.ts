@@ -5,13 +5,13 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isTimeZone, weeklyBody } from './schedule.ts';
-import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline } from './assistant.ts';
+import { applyProposals, planAssistant, runAssistant, transcribe, type AiClient, type FoodOnline, type Proposal } from './assistant.ts';
 import { WEEKLY_KIND } from '../../src/modules/weeklyDigest.ts';
 import { buildPushPayload, type PushSubscription } from '@block65/webcrypto-web-push';
 import { PASSWORD_MAX, RateLimiter, TOKEN_RE, dummyHash, hashPassword, isValidEmail, isValidPassword, newToken, normalizeEmail, tokenHash, verifyPassword } from './auth.ts';
 import { buildStats, dayOf } from './admin.ts';
 import type { SendMail } from './mail.ts';
-import { parseUpdate, type BotEvent, type TelegramApi } from './telegram.ts';
+import { parseUpdate, type BotEvent, type Keyboard, type TelegramApi } from './telegram.ts';
 import { checkInitData, isTelegramOnly, telegramEmail } from './webapp.ts';
 import type { CodeKind, DueRow, HttpReq, HttpRes, ScheduleItem, Store, SyncIn } from './types.ts';
 import { SYNC_TABLES } from '../../src/shared/syncTables.ts';
@@ -522,6 +522,73 @@ async function handleBotText(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { ki
  * Фраза (или голосовое) владельца аккаунта → нейросеть → действия → ответ в чат. Ответ бывает долгим, поэтому работа
  * идёт в фоне: Telegram не ждёт и не присылает сообщение повторно. Пока думает — «печатает…».
  */
+/**
+ * Подтверждение в боте: что предложил помощник — пунктами с галочками (по умолчанию все), «Применить» записывает
+ * только отмеченное. Предложения ждут 15 минут в памяти сервера; нажать может только тот, чей это Telegram.
+ */
+const BOT_PLAN_TTL_MS = 15 * 60_000;
+interface BotPlan {
+  userId: string;
+  chatId: number;
+  messageId?: number;
+  said: string;
+  error: string;
+  proposals: Proposal[];
+  checked: boolean[];
+  exp: number;
+}
+const botPlans = new Map<string, BotPlan>();
+
+function botPlanView(id: string, p: BotPlan): { text: string; keyboard: Keyboard } {
+  const lines = p.proposals.map((x, i) => `${p.checked[i] ? '☑' : '☐'} ${x.preview}`);
+  const count = p.checked.filter(Boolean).length;
+  return {
+    text: `${p.said}Что записать? Снимите лишнее и нажмите «Применить».\n\n${lines.join('\n')}${p.error ? `\n\n${p.error}` : ''}`,
+    keyboard: [
+      ...p.proposals.map((x, i) => [{ text: `${p.checked[i] ? '☑' : '☐'} ${x.preview.slice(0, 48)}`, data: `as:${id}:${String(i)}` }]),
+      [
+        { text: count ? `✅ Применить (${String(count)})` : '✅ Ничего не записывать', data: `as:${id}:ok` },
+        { text: '✖️ Отмена', data: `as:${id}:no` },
+      ],
+    ],
+  };
+}
+
+async function handleAssistantButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
+  await tg.answer(e.callbackId);
+  const [, id = '', act = ''] = e.data.split(':');
+  const p = botPlans.get(id);
+  const owner = await d.store.userByTelegram(e.telegramId);
+  const messageId = e.messageId ?? p?.messageId;
+  if (!p || p.exp < now || !owner || owner.id !== p.userId || p.chatId !== e.chatId) {
+    if (p && p.exp < now) botPlans.delete(id);
+    if (messageId && tg.edit && (!p || p.exp < now)) await tg.edit(e.chatId, messageId, 'Время вышло — напишите или скажите ещё раз.');
+    return;
+  }
+  if (!messageId || !tg.edit) return;
+  if (act === 'no') {
+    botPlans.delete(id);
+    await tg.edit(e.chatId, messageId, `${p.said}Отменено, ничего не записал.`);
+    return;
+  }
+  if (act === 'ok') {
+    botPlans.delete(id);
+    const calls = p.proposals.filter((_, i) => p.checked[i]);
+    if (!calls.length) {
+      await tg.edit(e.chatId, messageId, `${p.said}Ничего не записал.`);
+      return;
+    }
+    const results = await applyProposals(d.store, p.userId, calls, now);
+    await tg.edit(e.chatId, messageId, `${p.said}${results.map((r) => (r.ok ? `✓ ${r.text}` : `✗ Не получилось: ${r.text}`)).join('\n')}`);
+    return;
+  }
+  const i = Number(act);
+  if (!Number.isInteger(i) || i < 0 || i >= p.checked.length) return;
+  p.checked[i] = !p.checked[i];
+  const view = botPlanView(id, p);
+  await tg.edit(e.chatId, messageId, view.text, view.keyboard);
+}
+
 async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: string, now: number, phrase: () => Promise<string>, heard = false): Promise<void> {
   const ai = d.ai;
   if (!ai) return;
@@ -539,14 +606,27 @@ async function askAssistant(d: Deps, tg: TelegramApi, chatId: number, userId: st
   const job = (async () => {
     const text = await phrase();
     if (!text) return 'Не расслышал. Попробуйте ещё раз или напишите текстом.';
-    const reply = await runAssistant(d.store, ai, userId, text, now, foodOnline(d, now));
     // Для голосового показываем, что услышали: так видно, если распознало не то
-    return heard ? `🎤 «${text.slice(0, 300)}»\n${reply}` : reply;
+    const said = heard ? `🎤 «${text.slice(0, 300)}»\n` : '';
+    // Бот умеет кнопки — сначала показываем, что сделать, и записываем только отмеченное (как в приложении)
+    if (tg.menu && tg.edit) {
+      const plan = await planAssistant(d.store, ai, userId, text, now, foodOnline(d, now));
+      if (!plan.proposals.length) return `${said}${(plan.answer || plan.error).slice(0, 1500)}`;
+      const id = newToken().slice(0, 12);
+      const pending: BotPlan = { userId, chatId, said, error: plan.error, proposals: plan.proposals, checked: plan.proposals.map(() => true), exp: now + BOT_PLAN_TTL_MS };
+      for (const [k, p] of botPlans) if (p.exp < now) botPlans.delete(k);
+      botPlans.set(id, pending);
+      const view = botPlanView(id, pending);
+      pending.messageId = await tg.menu(chatId, view.text, view.keyboard);
+      return null;
+    }
+    const reply = await runAssistant(d.store, ai, userId, text, now, foodOnline(d, now));
+    return `${said}${reply}`;
   })()
     .finally(() => {
       clearInterval(keep);
     })
-    .then((reply) => tg.send(chatId, reply))
+    .then((reply) => (reply === null ? undefined : tg.send(chatId, reply)))
     .catch(async (err: unknown) => {
       console.warn('помощник в боте не ответил', err);
       await tg.send(chatId, 'Нейросеть сейчас не отвечает. Попробуйте чуть позже.').catch(() => undefined);
@@ -603,6 +683,7 @@ async function handleBotVoice(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { k
 }
 
 async function handleBotButton(d: Deps, tg: TelegramApi, e: Extract<BotEvent, { kind: 'button' }>, now: number): Promise<void> {
+  if (e.data.startsWith('as:')) return handleAssistantButton(d, tg, e, now);
   await tg.answer(e.callbackId);
   const hash = tokenHash(e.data.replace(/^ok:/, ''));
   const row = await d.store.tgCodeGet(hash);
