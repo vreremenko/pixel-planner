@@ -25,7 +25,9 @@ export default {
     if (pathname === `/in/${env.RELAY_KEY}` && request.method === 'POST') {
       const res = await fetch(`${env.SERVER_URL}/api/telegram/update`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-relay-key': env.RELAY_KEY },
+        // Обновление бота помечаем своим заголовком: ветка /api/ ниже его не ставит никогда, поэтому подделать
+        // обновление через запасной вход нельзя (x-relay-key оставлен на время перехода, пока сервер старый)
+        headers: { 'content-type': 'application/json', 'x-relay-update': env.RELAY_KEY, 'x-relay-key': env.RELAY_KEY },
         body: request.body,
       });
       return new Response(null, { status: res.ok ? 200 : 502 });
@@ -49,8 +51,10 @@ export default {
       }
     }
     if (pathname.startsWith('/api/')) {
+      // «/api//telegram/update» обходил проверку ниже, а сервер выбрасывает пустые части пути: пустых частей не бывает
+      if (pathname.includes('//')) return new Response('not found', { status: 404 });
       // Обновления бота принимаются только от Telegram по секретному пути выше, а не отсюда
-      if (pathname.startsWith('/api/telegram/')) return new Response('not found', { status: 404 });
+      if (/^\/api\/telegram(\/|$)/i.test(pathname)) return new Response('not found', { status: 404 });
       const headers = new Headers();
       for (const h of PASS_HEADERS) {
         const v = request.headers.get(h);
