@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStats, dayOf } from './admin.ts';
+import { buildStats, dayOf, haikuRubOf, neuronsOf } from './admin.ts';
 import type { AdminUserRow } from './types.ts';
 
 const NOW = Date.UTC(2026, 10, 22, 12);
@@ -27,5 +27,15 @@ describe('админка: нейросеть', () => {
     expect(a?.ai.today.tokensIn).toBe(1000);
     expect(a?.ai.week.tokensIn).toBe(3000);
     expect(stats.list.find((u) => u.email === 'b@b.ru')?.ai.week.tokensIn).toBe(500);
+  });
+
+  it('оценивает нейроны, долю бесплатного дня и цену на Haiku', () => {
+    // Фраза со скриншота: 8 398 токенов на входе, 215 на выходе, одно голосовое ≈ 46 + 8 + 12 нейронов
+    expect(neuronsOf({ tokensIn: 8398, tokensOut: 215, voice: 1 })).toBe(66);
+    // На Haiku: (8398 × 0,10 + 215 × 0,50) / 1e6 $ × 80 ≈ 7,6 копейки
+    expect(haikuRubOf({ tokensIn: 8398, tokensOut: 215 })).toBeCloseTo(0.0758, 3);
+    const stats = buildStats({ now: NOW, admins: [], users: [], activity: [], records: [], ai: [{ day: dayOf(NOW), userId: 'a', phrases: 1, calls: 2, tokensIn: 8398, tokensOut: 215, voice: 1 }] });
+    expect(stats.ai.freeUsedPct).toBeCloseTo(0.66, 2);
+    expect(stats.ai.perPhrase?.haikuRub).toBeCloseTo(0.0758, 3);
   });
 });
