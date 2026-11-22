@@ -4,12 +4,27 @@
  */
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { oauthApprove, oauthRequest } from '../auth/api';
+import { AuthError, oauthApprove, oauthRequest } from '../auth/api';
 import { useAuth } from '../auth/store';
 import { Button, Panel, rowClass } from '../ui';
 import { AccountPanel } from './AccountPanel';
 
 type Info = { client: string; redirectHost: string };
+
+/**
+ * Куда уйдёт доступ, решает адрес возврата, а не название: название клиент присылает сам и может назваться
+ * «ChatGPT». Поэтому главное на экране — домен, а для незнакомых доменов — предупреждение.
+ */
+const KNOWN = ['claude.ai', 'claude.com', 'anthropic.com', 'chatgpt.com', 'openai.com', 'cursor.com', 'cursor.sh', 'localhost', '127.0.0.1'];
+const isKnown = (host: string) => KNOWN.some((k) => host === k || host.endsWith(`.${k}`) || host.startsWith(`${k}:`));
+/** Страницу встроили в чужой сайт (кликджекинг) — разрешать доступ отсюда нельзя. */
+const framed = (() => {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
+  }
+})();
 
 export function ConnectScreen() {
   const [params] = useSearchParams();
@@ -43,9 +58,9 @@ export function ConnectScreen() {
       (r) => {
         window.location.href = r.redirect;
       },
-      () => {
+      (e: unknown) => {
         setBusy(false);
-        setError('Запрос устарел. Вернитесь в нейросеть и подключите PIXEL PLANNER заново.');
+        setError(e instanceof AuthError && e.message ? e.message : 'Запрос устарел. Вернитесь в нейросеть и подключите PIXEL PLANNER заново.');
       },
     );
   };
@@ -55,7 +70,11 @@ export function ConnectScreen() {
       <h1 className="glow pageTitle" style={{ color: 'var(--c-habit)' }}>
         Подключение нейросети
       </h1>
-      {!id ? (
+      {framed ? (
+        <Panel title="Откройте отдельно" icon="alert" accent="var(--c-warn)">
+          <p style={{ margin: 0 }}>Эта страница открыта внутри другого сайта. Разрешать доступ отсюда небезопасно — откройте ссылку в отдельной вкладке.</p>
+        </Panel>
+      ) : !id ? (
         <Panel title="Нет запроса" icon="alert" accent="var(--c-warn)">
           <p style={{ margin: 0 }}>Эта страница открывается сама, когда нейросеть просит доступ к PIXEL PLANNER.</p>
         </Panel>
@@ -73,10 +92,17 @@ export function ConnectScreen() {
       ) : !info ? (
         <p>Загружаем запрос…</p>
       ) : (
-        <Panel title={`Разрешить доступ: ${info.client}?`} icon="lock" accent="var(--c-habit)">
-          <p style={{ marginTop: 0, overflowWrap: 'anywhere' }}>
-            <b>{info.client}</b> ({info.redirectHost}) просит доступ к аккаунту <b>{session.user.email.endsWith('@telegram.invalid') ? 'из Telegram' : session.user.email}</b>
+        <Panel title="Разрешить доступ?" icon="lock" accent={isKnown(info.redirectHost) ? 'var(--c-habit)' : 'var(--c-warn)'}>
+          <p style={{ marginTop: 0, marginBottom: 4 }}>Доступ получит сайт</p>
+          <p style={{ marginTop: 0, fontSize: '1.4em', fontWeight: 700, overflowWrap: 'anywhere', color: isKnown(info.redirectHost) ? 'var(--c-habit)' : 'var(--c-warn)' }}>{info.redirectHost}</p>
+          <p style={{ overflowWrap: 'anywhere' }}>
+            Называет себя «{info.client}» — это название он прислал сам. Аккаунт: <b>{session.user.email.endsWith('@telegram.invalid') ? 'из Telegram' : session.user.email}</b>
           </p>
+          {!isKnown(info.redirectHost) && (
+            <p style={{ color: 'var(--c-warn)' }}>
+              ⚠ Это не адрес известной нейросети (claude.ai, chatgpt.com, Cursor). Если вы не подключали этот сайт сами только что — нажмите «Отказать»: так могут украсть доступ к вашим данным.
+            </p>
+          )}
           <p>Нейросеть сможет:</p>
           <ul>
             <li>читать задачи, привычки, финансы и питание;</li>
