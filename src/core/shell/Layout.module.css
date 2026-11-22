@@ -92,6 +92,25 @@
   font-size: max(calc(13px * var(--fs-scale)), var(--fs-min));
   text-transform: uppercase;
 }
+/* Невысокий экран компьютера (ноутбук ~800 px): все разделы боковой панели должны помещаться без прокрутки */
+@media (max-height: 920px) {
+  .side {
+    gap: var(--gap-2);
+    padding-block: var(--gap-3);
+  }
+  .nav .link,
+  .sideFooter .link {
+    min-height: 34px;
+    padding-block: 4px;
+  }
+  .nav,
+  .group {
+    gap: 0;
+  }
+  .groupTitle {
+    margin-top: var(--gap-2);
+  }
+}
 .main {
   min-width: 0;
   padding: var(--gap-6);

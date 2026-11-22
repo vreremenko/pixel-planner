@@ -1,4 +1,4 @@
-/* Что показывать в меню и на «Сводке» с учётом выключенных разделов и выбора пунктов нижнего меню. */
+/* Что показывать в меню и на «Сводке»: разделы сборки и пункты нижнего меню. */
 import { useMemo } from 'react';
 import type { ModuleManifest, ModuleNavItem } from '../module';
 import { useAuth } from '../auth/store';
@@ -16,10 +16,12 @@ export const MOBILE_SLOTS = 2;
 /** Показать ли админку. Настоящая проверка прав на сервере, здесь только пункт меню. */
 export const useIsAdmin = (): boolean => useAuth((s) => Boolean(s.session?.user.admin));
 
-/** Включённые разделы этой сборки. */
+/**
+ * Разделы этой сборки. Все работают всегда: выключатель убран (аудит 2026-11-22) — новичку он ничего не давал,
+ * а пустой раздел и так не мешает. Старое значение modulesOff в настройках больше ни на что не влияет.
+ */
 export function useModules(): readonly ModuleManifest[] {
-  const off = useSettings((s) => s.settings.modulesOff);
-  return useMemo(() => MODULES.filter((m) => !off.includes(m.id)), [off]);
+  return MODULES;
 }
 
 /** Ссылки нижнего меню телефона: «Сводка» и выбранные разделы (до MOBILE_SLOTS); кнопку помощника и «Разделы» добавляет Layout. */

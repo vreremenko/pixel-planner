@@ -9,6 +9,7 @@ import { daysLabel, scheduleFor } from '../domain/logic';
 import { useToday } from '../../../core/shell/useToday';
 import type { Program } from '../domain/types';
 import { startWorkout } from '../services/workouts';
+import { GymSettings } from './GymSettings';
 import s from './Gym.module.css';
 
 const dateLabel = (t: number) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' });
@@ -126,6 +127,7 @@ export function GymHome() {
             </ul>
           )}
         </Panel>
+        <GymSettings />
       </div>
     </>
   );
