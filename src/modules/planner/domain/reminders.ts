@@ -1,6 +1,6 @@
 import { addDays, dateOf, minutesOf, rangeDates, timeOf, toInstant } from '../../../core/domain/dates';
 import { remindersOf } from './reminderSpecs';
-import { isScheduled } from './streaks';
+import { isDue } from './streaks';
 import type { LocalDate, LocalTime, Settings } from '../../../core/domain/types';
 import type { Habit, Occurrence, ReminderSpec, Task } from './types';
 
@@ -106,7 +106,7 @@ export function planReminders(input: ReminderInput): PlannedReminder[] {
   for (const h of input.habits) {
     if (h.deletedAt || h.archived || !h.reminderTime) continue;
     for (const d of dates) {
-      if (!isScheduled(h.schedule, d) || input.habitDone.has(`${h.id}:${d}`)) continue;
+      if (!isDue(h, d) || input.habitDone.has(`${h.id}:${d}`)) continue;
       push({
         key: `habit:${h.id}:${d}`,
         kind: 'habit',

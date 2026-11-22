@@ -120,6 +120,29 @@
   gap: var(--gap-2);
   margin-left: auto;
 }
+.pauseNote {
+  margin-top: 2px;
+  font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
+  color: var(--c-habit);
+}
+.linkBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.pauseRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+}
+/* День паузы в календаре: штриховка — «не ждали», а не «пропущено» */
+.paused {
+  background: repeating-linear-gradient(135deg, transparent 0 4px, var(--c-panel-3) 4px 6px);
+}
 .rest {
   font-size: max(calc(16px * var(--fs-scale)), var(--fs-min));
   color: var(--c-text-muted);

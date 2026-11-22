@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { Checkbox, PixelIcon, cx } from '../../../core/ui';
 import { useToday } from '../../../core/shell/useToday';
 import { useHabitLogs, useHabits } from '../data/hooks';
-import { isScheduled } from '../domain/streaks';
+import { isDue } from '../domain/streaks';
 import { formatValue } from '../../../core/domain/numbers';
 import { isCountHabit } from '../domain/types';
 import { toggleHabit } from '../services/habits';
@@ -15,7 +15,7 @@ export function HabitsWidget() {
   const habits = useHabits();
   const logs = useHabitLogs();
 
-  const today = useMemo(() => (habits ?? []).filter((h) => !h.archived && isScheduled(h.schedule, todayDate)), [habits, todayDate]);
+  const today = useMemo(() => (habits ?? []).filter((h) => !h.archived && isDue(h, todayDate)), [habits, todayDate]);
   const values = useMemo(() => new Map((logs ?? []).filter((l) => l.date === todayDate).map((l) => [l.habitId, l.value ?? 1])), [logs, todayDate]);
 
   if (!habits || !logs) return null;

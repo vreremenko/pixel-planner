@@ -2,12 +2,14 @@ import { useState } from 'react';
 import s from './Habits.module.css';
 import { Button, Field, Modal, MultiToggle, PixelIcon, Segmented, TextInput, toast } from '../../../core/ui';
 import { HABIT_ICONS } from '../../../core/ui/icons';
-import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
+import { WEEKDAYS_SHORT, today } from '../../../core/domain/dates';
 import { isCountHabit, type Habit, type HabitTracking, type Weekday } from '../domain/types';
-import { createHabit, deleteHabit, setArchived, updateHabit, type HabitDraft } from '../services/habits';
+import { createHabit, deleteHabit, pauseHabit, setArchived, updateHabit, type HabitDraft } from '../services/habits';
+import { currentPause } from '../domain/streaks';
 import { fs } from '../../../core/ui/fs';
 
 const WD = WEEKDAYS_SHORT.map((label, i) => ({ value: i as Weekday, label }));
+const PAUSES: { label: string; days?: number }[] = [{ label: '3 дня', days: 3 }, { label: 'Неделя', days: 7 }, { label: '2 недели', days: 14 }, { label: 'Без срока' }];
 
 interface Props {
   habit: Habit | null; // null => новая
@@ -125,6 +127,29 @@ export function HabitEditor({ habit, onClose }: Props) {
           </div>
         )}
         <TextInput label="Напоминание (необязательно)" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        {habit && !habit.archived && !currentPause(habit, today()) && (
+          <Field label="Пауза">
+            <p style={{ margin: '0 0 8px', color: 'var(--c-text-dim)', fontSize: fs(17) }}>
+              Отпуск, болезнь, перерыв: привычка не ждёт отметок и не напоминает, а серия не сгорает.
+            </p>
+            <div className={s.pauseRow}>
+              {PAUSES.map((p) => (
+                <Button
+                  key={p.label}
+                  small
+                  onClick={() =>
+                    void pauseHabit(habit, today(), p.days).then(() => {
+                      toast(`«${habit.name}» на паузе`, 'pause', 'var(--c-habit)');
+                      onClose();
+                    })
+                  }
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+          </Field>
+        )}
         <button type="submit" hidden />
       </form>
     </Modal>

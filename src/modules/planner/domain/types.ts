@@ -132,6 +132,17 @@ export interface Habit extends SyncMeta {
   reminderTime?: LocalTime;
   archived: boolean;
   order: number;
+  /**
+   * Паузы («отпуск», болезнь): в эти дни привычка не ждёт отметки, не напоминает и серию не рвёт.
+   * Нет поля — пауз не было.
+   */
+  pauses?: HabitPause[];
+}
+
+/** Пауза привычки: с `from` по `to` включительно; без `to` — пока не вернут. */
+export interface HabitPause {
+  from: LocalDate;
+  to?: LocalDate;
 }
 
 /** id = `${habitId}:${date}` */

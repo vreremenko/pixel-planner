@@ -12,7 +12,7 @@ import type { FoodEntry } from './food/domain/types';
 import type { BodyEntry } from './gym/domain/body';
 import type { Workout, WorkoutSet } from './gym/domain/types';
 import { buildOccurrences } from './planner/domain/recurrence';
-import { isScheduled } from './planner/domain/streaks';
+import { isDue } from './planner/domain/streaks';
 import type { Habit, HabitLog, OccurrenceOverride, RecurringSeries, Task } from './planner/domain/types';
 
 export const WEEKLY_KIND = 'weekly';
@@ -63,7 +63,7 @@ export function digestText(data: DigestData, end: LocalDate): string {
     let hit = 0;
     for (const h of habits) {
       for (const d of rangeDates(start, end)) {
-        if (!isScheduled(h.schedule, d)) continue;
+        if (!isDue(h, d)) continue;
         planned++;
         if (doneSet.has(`${h.id}:${d}`)) hit++;
       }

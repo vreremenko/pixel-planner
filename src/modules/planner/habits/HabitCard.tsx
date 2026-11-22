@@ -4,9 +4,9 @@ import { Button, Checkbox, Panel, PixelIcon, cx } from '../../../core/ui';
 import { type LocalDate } from '../../../core/domain/types';
 import { isCountHabit, type Habit } from '../domain/types';
 import { formatValue, parseValue } from '../../../core/domain/numbers';
-import { addDays, endOfMonth, parseLocalDate, startOfMonth, weekday, WEEKDAYS_SHORT } from '../../../core/domain/dates';
-import { habitStreak, isScheduled } from '../domain/streaks';
-import { setHabitValue, toggleHabit } from '../services/habits';
+import { addDays, endOfMonth, formatDateShort, parseLocalDate, startOfMonth, weekday, WEEKDAYS_SHORT } from '../../../core/domain/dates';
+import { currentPause, habitStreak, isDue, isPaused } from '../domain/streaks';
+import { resumeHabit, setHabitValue, toggleHabit } from '../services/habits';
 import { dateOf } from '../../../core/domain/dates';
 import { scheduleText } from './habitText';
 import { collapseKey, useCollapsed } from '../../../core/stores/collapsed';
@@ -75,7 +75,16 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
   const collapsed = useCollapsed((st) => st.collapsed[key] === true);
   const toggleCollapsed = useCollapsed((st) => st.toggle);
   const streak = habitStreak(habit, done, todayDate);
-  const scheduledToday = isScheduled(habit.schedule, todayDate);
+  const scheduledToday = isDue(habit, todayDate);
+  const pausedToday = isPaused(habit, todayDate);
+  const pause = currentPause(habit, todayDate);
+  const pauseText = pause
+    ? pause.from > todayDate
+      ? `Пауза с ${formatDateShort(pause.from)}`
+      : pause.to
+        ? `Пауза по ${formatDateShort(pause.to)}`
+        : 'Пауза без срока'
+    : null;
   const doneToday = done.has(todayDate);
   const created = dateOf(new Date(habit.createdAt));
 
@@ -102,6 +111,14 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
             {scheduleText(habit)}
             {habit.reminderTime && ` · 🔔 ${habit.reminderTime}`}
           </div>
+          {pauseText && (
+            <div className={s.pauseNote}>
+              {pauseText} ·{' '}
+              <button type="button" className={s.linkBtn} onClick={() => void resumeHabit(habit, todayDate)}>
+                Вернуть
+              </button>
+            </div>
+          )}
         </div>
         <div className={s.todayRow}>
           {count ? (
@@ -109,7 +126,7 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
           ) : scheduledToday || doneToday ? (
             <Checkbox checked={doneToday} onChange={(v) => void toggleHabit(habit, todayDate, v)} label={`Выполнено сегодня: ${habit.name}`} color="var(--c-habit)" />
           ) : (
-            <span className={s.rest}>отдых</span>
+            <span className={s.rest}>{pausedToday ? 'пауза' : 'отдых'}</span>
           )}
           <Button small variant="ghost" icon="edit" label="Изменить" onClick={onEdit} />
         </div>
@@ -151,16 +168,17 @@ export function HabitCard({ habit, done, values, month, todayDate, onEdit, onOpe
           {cells.map((d, i) => {
             if (!d) return <div key={`b${i}`} className={cx(s.cell, s.blank)} />;
             const isDone = done.has(d);
-            const sched = isScheduled(habit.schedule, d);
+            const sched = isDue(habit, d);
             const future = d > todayDate;
             const miss = sched && !isDone && d < todayDate && d >= created;
-            const state = isDone ? 'выполнено' : future ? 'впереди' : miss ? 'пропущено' : sched ? 'не отмечено' : 'выходной';
+            const paused = isPaused(habit, d);
+            const state = isDone ? 'выполнено' : paused ? 'пауза' : future ? 'впереди' : miss ? 'пропущено' : sched ? 'не отмечено' : 'выходной';
             return (
               <button
                 key={d}
                 type="button"
                 disabled={future}
-                className={cx(s.cell, !sched && s.off, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
+                className={cx(s.cell, !sched && s.off, paused && !isDone && s.paused, isDone && s.done, miss && s.miss, d === todayDate && s.today)}
                 aria-label={`${parseLocalDate(d).day}: ${state}${count && values.has(d) ? `, ${formatValue(values.get(d) ?? 0)} ${count.unit}` : ''}`}
                 aria-pressed={isDone}
                 title={count && values.has(d) ? `${formatValue(values.get(d) ?? 0)} ${count.unit}` : undefined}

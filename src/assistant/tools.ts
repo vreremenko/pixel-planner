@@ -18,7 +18,7 @@ import { bestFood, kcalFromMacros, portionOf, searchFoods, sumEntries } from '..
 import { MEALS, type FoodEntry, type FoodItem, type FoodRef, type Macros, type Meal } from '../modules/food/domain/types';
 import { buildOccurrences, overrideId } from '../modules/planner/domain/recurrence';
 import { normalizeReminders, remindersOf } from '../modules/planner/domain/reminderSpecs';
-import { isScheduled } from '../modules/planner/domain/streaks';
+import { isDue } from '../modules/planner/domain/streaks';
 import { REMINDER_OFFSETS, isCountHabit, type ReminderOffset, type ReminderSpec, type Habit, type HabitLog, type OccurrenceOverride, type Priority, type RecurringSeries, type Task } from '../modules/planner/domain/types';
 import type { AccountData } from './data';
 import { ONLY_ON_REQUEST, TIME_RE, ToolError, date, dateSchema, meta, norm, num, optText, pick, text, type Tool, type ToolContext } from './toolkit';
@@ -67,7 +67,7 @@ function habitLines(data: AccountData, d: LocalDate): string[] {
   const logs = new Map(data.all<HabitLog>('habitLogs').filter((l) => l.date === d).map((l) => [l.habitId, l]));
   return data
     .all<Habit>('habits')
-    .filter((h) => !h.archived && isScheduled(h.schedule, d))
+    .filter((h) => !h.archived && isDue(h, d))
     .sort((a, b) => a.order - b.order)
     .map((h) => {
       const log = logs.get(h.id);
