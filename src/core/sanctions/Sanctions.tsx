@@ -5,53 +5,34 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/store';
 import { Button, Modal } from '../ui';
+import fartUrl from './fart.wav';
 
 const SEEN_KEY = 'pp-sanctions-seen';
-let ctx: AudioContext | null = null;
 
-/** Синтез: низкий «бррр» с дрожанием высоты и шумом, ~0,7 секунды. */
+/**
+ * Звук — запись (файл прислал автор), а не синтез. Играем через Web Audio: политика безопасности сайта не пускает
+ * <audio>, а загрузка файла с нашего же адреса разрешена. Файл грузим один раз.
+ */
+let ctx: AudioContext | null = null;
+let buffer: Promise<AudioBuffer | null> | null = null;
+
 function fart(): void {
   try {
     ctx ??= new AudioContext();
-    const t = ctx.currentTime + 0.01;
-    const len = 0.55 + Math.random() * 0.35;
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.35, t + 0.04);
-    out.gain.setValueAtTime(0.3, t + len * 0.7);
-    out.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 420;
-    filter.Q.value = 6;
-    filter.connect(out);
-    out.connect(ctx.destination);
-
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    const base = 70 + Math.random() * 30;
-    osc.frequency.setValueAtTime(base, t);
-    osc.frequency.linearRampToValueAtTime(base * 0.75, t + len);
-    // Дрожание — то самое «бррр»
-    const wobble = ctx.createOscillator();
-    wobble.frequency.value = 18 + Math.random() * 10;
-    const depth = ctx.createGain();
-    depth.gain.value = base * 0.45;
-    wobble.connect(depth).connect(osc.frequency);
-    osc.connect(filter);
-
-    // Немного шума для фактуры
-    const noise = ctx.createBufferSource();
-    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * len), ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.25;
-    noise.buffer = buf;
-    noise.connect(filter);
-
-    for (const node of [osc, wobble, noise]) {
-      node.start(t);
-      node.stop(t + len);
-    }
+    const c = ctx;
+    buffer ??= fetch(fartUrl)
+      .then((r) => r.arrayBuffer())
+      .then((data) => c.decodeAudioData(data))
+      .catch(() => null);
+    void buffer.then((b) => {
+      if (!b) return;
+      const src = c.createBufferSource();
+      src.buffer = b;
+      // Чуть разная высота — каждый раз звучит по-своему
+      src.playbackRate.value = 0.85 + Math.random() * 0.3;
+      src.connect(c.destination);
+      src.start();
+    });
   } catch {
     // Без звука санкции не действуют — и ладно
   }
