@@ -13,8 +13,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PIXEL PLANNER</title>
     <script>
-      // Режим «Для мамы» включаем до первой отрисовки, чтобы не мигала тёмная тема
+      // Режим «Для мамы» и пиксельный шрифт включаем до первой отрисовки, чтобы ничего не мигало
       try {
+        if (localStorage.getItem('pp-font') === 'pixel' && localStorage.getItem('pp-mode') !== 'mom') {
+          document.documentElement.setAttribute('data-font', 'pixel');
+        }
         if (localStorage.getItem('pp-mode') === 'mom') {
           document.documentElement.setAttribute('data-mode', 'mom');
           document.querySelector('meta[name="theme-color"]').setAttribute('content', '#fbf1e8');

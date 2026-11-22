@@ -21,8 +21,9 @@
   z-index: 9998;
   background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
 }
-.crt h1,
-.crt .glow {
+/* Цветной сдвиг у заголовков — только с пиксельным шрифтом: обычный от него расплывается */
+html[data-font='pixel'] .crt h1,
+html[data-font='pixel'] .crt .glow {
   text-shadow:
     2px 0 0 color-mix(in srgb, currentColor 35%, transparent),
     -2px 0 0 color-mix(in srgb, var(--c-warn) 25%, transparent);

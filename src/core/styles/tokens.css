@@ -44,10 +44,12 @@
   --c-heat-3: #36c96a;
   --c-heat-4: #4dff7a;
 
-  /* Шрифты */
-  --font-title: 'Monocraft', monospace;
-  --font-body: 'Monocraft', monospace;
-  --font-digits: 'Monocraft', monospace;
+  /* Шрифты: по умолчанию системный шрифт телефона (San Francisco на iPhone, Roboto на Android) —
+     самый привычный и читаемый; пиксельный Monocraft включается в настройках (html[data-font='pixel']) */
+  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-title: var(--font-sans);
+  --font-body: var(--font-sans);
+  --font-digits: var(--font-sans);
 
   /* Пиксельная сетка */
   --px: 4px;
@@ -57,18 +59,20 @@
   --gap-4: 16px;
   --gap-6: 24px;
 
-  /* Масштаб текста: 1 и 0 — обычная тема без изменений; режим «Для мамы» увеличивает (см. mom.css) */
-  --fs-scale: 1;
-  --fs-scale-lg: 1;
-  --fs-min: 0px;
+  /* Масштаб текста. Размеры в компонентах рассчитаны на пиксельный шрифт, у которого крупные знаки:
+     обычному шрифту нужно на десятую больше и не мельче 13px. Режим «Для мамы» увеличивает ещё (см. mom.css) */
+  --fs-scale: 1.1;
+  --fs-scale-lg: 1.05;
+  --fs-min: 13px;
 
   /* Затемнение под окнами */
   --c-overlay: rgba(7, 6, 18, 0.8);
   --c-overlay-stripe: rgba(255, 255, 255, 0.03);
 
-  --fs-title: 24px;
-  --fs-title-sm: 18px;
-  --fs-body: 16px;
+  /* Основной текст 17px — как в iPhone; подписи не мельче 14px */
+  --fs-title: 26px;
+  --fs-title-sm: 19px;
+  --fs-body: 17px;
   --fs-small: 14px;
 
   /* Тени-смещения (без размытия) */
@@ -76,4 +80,18 @@
 
   --nav-w: 220px;
   --bottom-nav-h: 64px;
+}
+
+/* Пиксельный шрифт — по желанию, в настройках «Оформление» */
+html[data-font='pixel'] {
+  --font-title: 'Monocraft', monospace;
+  --font-body: 'Monocraft', monospace;
+  --font-digits: 'Monocraft', monospace;
+  --fs-scale: 1;
+  --fs-scale-lg: 1;
+  --fs-min: 0px;
+  --fs-title: 24px;
+  --fs-title-sm: 18px;
+  --fs-body: 16px;
+  --fs-small: 14px;
 }

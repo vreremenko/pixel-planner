@@ -95,19 +95,41 @@ export function frequentFoods(entries: readonly FoodEntry[], meal: Meal, limit =
 
 const norm = (s: string) => s.toLowerCase().replaceAll('ё', 'е');
 
-/** Поиск по словам в любом порядке; названия, начинающиеся с запроса, — выше. */
-export function searchFoods<T extends { name: string; brand?: string }>(list: readonly T[], query: string, limit = 30): T[] {
+/** Падежное окончание: «яйца», «гречку», «курицей» находят «Яйцо», «Гречка», «Курица». Короткие слова не трогаем. */
+const ENDING = /(ами|ями|ого|его|ому|ему|ыми|ими|ов|ев|ей|ой|ий|ый|ая|яя|ое|ее|ую|юю|ом|ем|ам|ям|ах|ях|а|я|о|е|ы|и|у|ю|ь|й)$/;
+export function stem(word: string): string {
+  if (word.length < 4) return word;
+  const s = word.replace(ENDING, '');
+  return s.length >= 3 ? s : word;
+}
+
+const matcher = (query: string) => {
   const q = norm(query.trim());
+  const stems = q.split(/\s+/).filter(Boolean).map(stem);
+  return { q, stems, hit: (x: { name: string; brand?: string }) => stems.every((w) => norm(`${x.name} ${x.brand ?? ''}`).includes(w)) };
+};
+
+/** Поиск по словам в любом порядке и в любом падеже; названия, начинающиеся с запроса, — выше. */
+export function searchFoods<T extends { name: string; brand?: string }>(list: readonly T[], query: string, limit = 30): T[] {
+  const { q, hit } = matcher(query);
   if (!q) return [];
-  const words = q.split(/\s+/);
   const rank = (x: T) => (norm(x.name).startsWith(q) ? 0 : 1);
   return list
-    .filter((x) => {
-      const hay = norm(`${x.name} ${x.brand ?? ''}`);
-      return words.every((w) => hay.includes(w));
-    })
+    .filter(hit)
     .sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length)
     .slice(0, limit);
+}
+
+/**
+ * Лучшее совпадение для «съел 2 яйца»: название начинается с первого слова запроса, а дальше — порядок списка
+ * (свои продукты, потом справочник, где самое обычное идёт первым: «Яйцо куриное варёное», а не перепелиное).
+ */
+export function bestFood<T extends { name: string; brand?: string }>(list: readonly T[], query: string): T | undefined {
+  const { stems, hit } = matcher(query);
+  const first = stems[0];
+  if (!first) return undefined;
+  const found = list.filter(hit);
+  return found.find((x) => norm(x.name).startsWith(first)) ?? found[0];
 }
 
 /** «Б17 Ж5 У2» для строки списка. */

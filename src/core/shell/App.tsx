@@ -50,6 +50,7 @@ const globals = MODULES.flatMap((m) => m.globals ?? []);
 export function App() {
   const crt = useSettings((s) => s.settings.crtEffect);
   const mom = useSettings((s) => s.settings.momMode);
+  const pixelFont = useSettings((s) => s.settings.pixelFont);
   const loaded = useSettings((s) => s.loaded);
   useEffect(() => {
     // Сканлайны не сочетаются со светлой темой
@@ -57,8 +58,8 @@ export function App() {
   }, [crt, mom]);
   useEffect(() => {
     // До загрузки настроек ничего не трогаем: тему уже выставил скрипт в index.html
-    if (loaded) applyMode(mom);
-  }, [mom, loaded]);
+    if (loaded) applyMode(mom, pixelFont);
+  }, [mom, pixelFont, loaded]);
   useEffect(() => startNotifications(), []);
   useEffect(() => startAuth(), []);
   useEffect(() => startSync(), []);
