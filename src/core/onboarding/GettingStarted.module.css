@@ -1,0 +1,39 @@
+.progress {
+  margin: 0 0 8px;
+  color: var(--c-text-dim);
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  min-height: 44px;
+  padding: 6px 4px;
+  color: var(--c-text);
+  text-decoration: none;
+}
+.item:hover {
+  background: var(--c-panel-3);
+}
+.done {
+  color: var(--c-text-muted);
+  text-decoration: line-through;
+}
+.mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--c-gold);
+  color: var(--c-gold);
+}
+.grow {
+  flex: 1;
+}

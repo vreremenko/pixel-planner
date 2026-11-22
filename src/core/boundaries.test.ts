@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
-const REGISTRIES = new Set(['modules/index', 'modules/tables', 'modules/reminders']);
+const REGISTRIES = new Set(['modules/index', 'modules/tables', 'modules/reminders', 'modules/starter']);
 
 function files(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>

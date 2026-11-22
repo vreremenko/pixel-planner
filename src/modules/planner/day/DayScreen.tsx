@@ -178,6 +178,8 @@ export function DayScreen() {
             <br />
             <span className={s.hintKeys}>Нажмите N или напишите задачу в поле внизу.</span>
             <span className={s.hintTouch}>Напишите задачу в поле внизу.</span>
+            <br />
+            Например: «Позвонить маме в 19:00». Или нажмите щит и скажите голосом.
           </p>
         </div>
       )}

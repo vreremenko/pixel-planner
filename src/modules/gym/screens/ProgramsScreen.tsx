@@ -1,4 +1,6 @@
 /* Программа: дни тренировок со списком упражнений и целевыми подходами. */
+import { STARTER_PROGRAMS } from '../domain/starter';
+import { saveProgram } from '../services/programs';
 import { useState } from 'react';
 import { Button, ConfirmDialog, Panel, toast } from '../../../core/ui';
 import { useExercises } from '../data/exercises';
@@ -28,9 +30,24 @@ export function ProgramsScreen() {
       </div>
       <div className={s.stack}>
         {programs.length === 0 && (
-          <p className={s.dim}>
-            Программа — это дни тренировок, например «Грудь», «Спина», «Ноги». Каждому дню можно назначить дни недели — тогда «Сводка» покажет, что сегодня по плану, а вес подставится из прошлого раза.
-          </p>
+          <>
+            <p className={s.dim}>
+              Программа — это дни тренировок, например «Грудь», «Спина», «Ноги». Каждому дню можно назначить дни недели — тогда «Сводка» покажет, что сегодня по плану, а вес подставится из прошлого раза.
+            </p>
+            <Panel title="Взять готовую" icon="star" accent="var(--c-gym)">
+              <p className={s.dim} style={{ marginTop: 0 }}>
+                Всё тело три раза в неделю (пн, ср, пт) — для начала хватит. Упражнения и подходы потом поменяете.
+              </p>
+              {STARTER_PROGRAMS.map((p) => (
+                <div key={p.key} style={{ marginBottom: 12 }}>
+                  <Button icon="plus" onClick={() => void saveProgram({ name: p.name, items: p.items, days: [0, 2, 4] })}>
+                    {p.label}
+                  </Button>
+                  <div className={s.dim} style={{ marginTop: 8 }}>{p.hint}</div>
+                </div>
+              ))}
+            </Panel>
+          </>
         )}
         {programs.map((p, i) => (
           <Panel

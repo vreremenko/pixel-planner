@@ -1,0 +1,44 @@
+.steps {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.dot {
+  width: 24px;
+  height: 6px;
+  background: var(--c-panel-3);
+}
+.dotOn {
+  background: var(--c-gold);
+}
+.areas {
+  display: grid;
+  gap: var(--gap-2);
+}
+.area {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-panel-2, var(--c-panel));
+  border: 2px solid var(--c-border);
+  font: inherit;
+  cursor: pointer;
+}
+.areaOn {
+  border-color: var(--c-gold);
+  box-shadow: inset 4px 0 0 var(--c-gold);
+}
+.dim {
+  color: var(--c-text-dim);
+}
+.tip {
+  display: flex;
+  gap: var(--gap-3);
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 2px dashed var(--c-border);
+  margin-bottom: 12px;
+}
