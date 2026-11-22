@@ -421,7 +421,7 @@ describe('поиск продуктов', () => {
     expect(down.offCache?.size).toBe(0);
 
     const d = mk({ offFetch: ok });
-    for (let i = 0; i < 30; i++) expect((await handle(req('GET', 'food/search', { query: { q: `еда ${String(i)}` }, ip: '1.1.1.1' }), d)).status).toBe(200);
+    for (let i = 0; i < 20; i++) expect((await handle(req('GET', 'food/search', { query: { q: `еда ${String(i)}` }, ip: '1.1.1.1' }), d)).status).toBe(200);
     expect((await handle(req('GET', 'food/search', { query: { q: 'ещё еда' }, ip: '1.1.1.1' }), d)).status).toBe(429);
     expect((await handle(req('GET', 'food/search', { query: { q: 'ещё еда' }, ip: '2.2.2.2' }), d)).status).toBe(200);
   });
@@ -586,6 +586,24 @@ describe('письма с кодами', () => {
     // Теперь почта подтверждена — ключ можно
     const login = json(await post(d, 'auth/login', { email: 'victim@b.ru', password: NEW }));
     expect((await post(d, 'auth/keys', { name: 'k' }, String(login.token))).status).toBe(201);
+  });
+
+  it('чужой ящик не завалить: не больше 10 писем в сутки; перебор кода и пароля ограничен', async () => {
+    const { d, mails, lastCode } = setup();
+    const token = await register(d, 'a@b.ru');
+    for (let i = 0; i < 15; i++) {
+      now += 61_000;
+      await post(d, 'auth/verify/send', {}, token);
+    }
+    expect(mails.length).toBe(10);
+    // 20 неверных кодов в сутки — дальше «слишком много попыток» даже с верным кодом
+    const good = lastCode();
+    const wrong = good === '111111' ? '222222' : '111111';
+    for (let i = 0; i < 20; i++) await post(d, 'auth/verify', { code: wrong }, token);
+    expect((await post(d, 'auth/verify', { code: good }, token)).status).toBe(429);
+    // Подбор текущего пароля по украденной сессии
+    for (let i = 0; i < 10; i++) await post(d, 'auth/password', { oldPassword: 'не тот пароль 1', newPassword: NEW }, token);
+    expect((await post(d, 'auth/password', { oldPassword: PASSWORD, newPassword: NEW }, token)).status).toBe(429);
   });
 
   it('код подтверждения не подходит для сброса, а чужая почта отвечает так же', async () => {

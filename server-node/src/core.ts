@@ -137,7 +137,13 @@ const ASSISTANT_OFF_TIMEOUT_MS = 4_000;
 const OFF_CACHE_MS = 86_400_000;
 const OFF_CACHE_MAX = 500;
 const OFF_WINDOW_MS = 60_000;
-const OFF_MAX_PER_IP = 30;
+const OFF_MAX_PER_IP = 20;
+/** Сутки: не больше 10 писем на адрес, 20 неверных кодов подтверждения на аккаунт; 10 неверных паролей за 15 минут при смене пароля и удалении. */
+const DAY_LIMIT_MS = 86_400_000;
+const MAIL_MAX_PER_DAY = 10;
+const VERIFY_FAILS_PER_DAY = 20;
+const PASSWORD_CHECK_FAILS = 10;
+const PASSWORD_CHECK_WINDOW_MS = 15 * 60_000;
 const OFF_QUERY_MAX = 80;
 /** Продукт по штрихкоду (EAN-8, EAN-13, UPC). */
 const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product/';
@@ -420,6 +426,10 @@ async function issueCode(d: Deps, user: { id: string; email: string }, kind: Cod
   if (isTelegramOnly(user.email)) return true;
   const old = await d.store.codeGet(user.id, kind);
   if (old && now - old.sentAt < CODE_RESEND_MS) return false;
+  // Чужой ящик не завалить письмами: на адрес не больше десяти в сутки
+  const limiter = d.limiter ?? defaultLimiter;
+  if (limiter.count(`mail:${user.email}`, DAY_LIMIT_MS, now) >= MAIL_MAX_PER_DAY) return false;
+  limiter.add(`mail:${user.email}`, now);
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   await d.store.codeSet({ userId: user.id, kind, codeHash: codeHash(user.id, kind, code), expiresAt: now + CODE_TTL_MS, sentAt: now, attempts: 0 });
   const { subject, lead } = CODE_MAIL[kind];
@@ -940,7 +950,13 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
   // POST /api/auth/verify {code}
   if (action === 'verify' && parts.length === 2 && req.method === 'POST') {
     const b = readJson(req.body) as { code?: unknown };
-    if (!(await checkCode(d, userId, 'verify', b.code, now))) throw bad(400, 'bad_code');
+    // Перебор кода чужой почты: кроме 5 попыток на код — не больше 20 неверных в сутки на аккаунт
+    const failKey = `verify:fail:${userId}`;
+    if (limiter.count(failKey, DAY_LIMIT_MS, now) >= VERIFY_FAILS_PER_DAY) throw bad(429, 'too_many_attempts');
+    if (!(await checkCode(d, userId, 'verify', b.code, now))) {
+      limiter.add(failKey, now);
+      throw bad(400, 'bad_code');
+    }
     await d.store.userSetVerified(userId, now);
     await d.store.codeDelete(userId, 'verify');
     return json({ ok: true });
@@ -1014,7 +1030,13 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const b = readJson(req.body) as { oldPassword?: unknown; newPassword?: unknown };
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
-    if (typeof b.oldPassword !== 'string' || !(await verifyPassword(b.oldPassword.slice(0, PASSWORD_MAX), user.passHash))) throw bad(401, 'bad_credentials');
+    // Укравший сессию не должен подбирать текущий пароль
+    const pwKey = `pwcheck:${userId}`;
+    if (limiter.count(pwKey, PASSWORD_CHECK_WINDOW_MS, now) >= PASSWORD_CHECK_FAILS) throw bad(429, 'too_many_attempts');
+    if (typeof b.oldPassword !== 'string' || !(await verifyPassword(b.oldPassword.slice(0, PASSWORD_MAX), user.passHash))) {
+      limiter.add(pwKey, now);
+      throw bad(401, 'bad_credentials');
+    }
     if (typeof b.newPassword !== 'string' || !isValidPassword(b.newPassword)) throw bad(400, 'weak_password');
     await d.store.userSetPassword(userId, await hashPassword(b.newPassword));
     await d.store.sessionsDeleteOthers(userId, tokenHash(token));
@@ -1027,8 +1049,13 @@ async function handleAuth(req: HttpReq, d: Deps, parts: string[]): Promise<HttpR
     const user = await d.store.userById(userId);
     if (!user) throw bad(401, 'unauthorized');
     // У аккаунта из Telegram пароля нет: достаточно явного подтверждения
+    const pwKey = `pwcheck:${userId}`;
+    if (limiter.count(pwKey, PASSWORD_CHECK_WINDOW_MS, now) >= PASSWORD_CHECK_FAILS) throw bad(429, 'too_many_attempts');
     const allowed = isTelegramOnly(user.email) && !user.passHash ? b.confirm === true : typeof b.password === 'string' && (await verifyPassword(b.password.slice(0, PASSWORD_MAX), user.passHash));
-    if (!allowed) throw bad(401, 'bad_credentials');
+    if (!allowed) {
+      limiter.add(pwKey, now);
+      throw bad(401, 'bad_credentials');
+    }
     await d.store.userDelete(userId);
     return json({ ok: true });
   }

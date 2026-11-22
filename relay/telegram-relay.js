@@ -16,13 +16,23 @@ const AI_MAX_BODY = 3_000_000;
 
 /** Какие заголовки приложения передаём серверу; остальное (куки, чужие служебные) отбрасываем. */
 const PASS_HEADERS = ['authorization', 'content-type', 'origin', 'access-control-request-method', 'access-control-request-headers'];
+/** Сравнение ключа за одинаковое время: по времени ответа нельзя подбирать его по символу. */
+function sameKey(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export default {
   async fetch(request, env) {
     const { pathname, search } = new URL(request.url);
     if (pathname === '/ping') return new Response('ok');
     // Без секретов путь /in/undefined совпал бы с «ключом»: пока они не заданы, посредник закрыт
     if (!env.RELAY_KEY || !env.SERVER_URL) return new Response('not configured', { status: 503 });
-    if (pathname === `/in/${env.RELAY_KEY}` && request.method === 'POST') {
+    const [, head = '', key = '', ...rest] = pathname.split('/');
+    const keyOk = sameKey(key, env.RELAY_KEY);
+    if (head === 'in' && keyOk && rest.length === 0 && request.method === 'POST') {
       const res = await fetch(`${env.SERVER_URL}/api/telegram/update`, {
         method: 'POST',
         // Обновление бота помечаем своим заголовком: ветка /api/ ниже его не ставит никогда, поэтому подделать
@@ -32,7 +42,7 @@ export default {
       });
       return new Response(null, { status: res.ok ? 200 : 502 });
     }
-    if (pathname === `/ai/${env.RELAY_KEY}` && request.method === 'POST') {
+    if (head === 'ai' && keyOk && rest.length === 0 && request.method === 'POST') {
       if (!env.AI) return Response.json({ error: 'ai not bound' }, { status: 503 });
       const text = await request.text();
       if (text.length > AI_MAX_BODY) return Response.json({ error: 'too large' }, { status: 413 });
@@ -72,14 +82,14 @@ export default {
       });
       return new Response(res.body, { status: res.status, headers: res.headers });
     }
-    const out = `/out/${env.RELAY_KEY}/`;
+    const tail = rest.join('/');
     // Файл из Telegram (голосовое) — только чтение
-    if (pathname.startsWith(`${out}file/bot`) && request.method === 'GET') {
-      return fetch(`https://api.telegram.org/${pathname.slice(out.length)}`);
+    if (head === 'out' && keyOk && tail.startsWith('file/bot') && request.method === 'GET') {
+      return fetch(`https://api.telegram.org/${tail}`);
     }
     // Только вызовы Bot API (/bot<токен>/<метод>): посредник не должен быть проходом к остальному api.telegram.org
-    if (pathname.startsWith(`${out}bot`)) {
-      return fetch(`https://api.telegram.org/${pathname.slice(out.length)}${search}`, { method: request.method, headers: { 'content-type': request.headers.get('content-type') ?? 'application/json' }, body: request.body });
+    if (head === 'out' && keyOk && tail.startsWith('bot')) {
+      return fetch(`https://api.telegram.org/${tail}${search}`, { method: request.method, headers: { 'content-type': request.headers.get('content-type') ?? 'application/json' }, body: request.body });
     }
     return new Response('not found', { status: 404 });
   },
