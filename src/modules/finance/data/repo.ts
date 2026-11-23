@@ -90,4 +90,9 @@ export const prefsRepo = {
   put: async (p: Omit<FinPrefs, keyof SyncMeta>) => {
     await tables.prefs.put({ ...p, id: 'prefs', createdAt: 0, updatedAt: Date.now() });
   },
+  /** Поменять часть настроек, не трогая остальные (режим дохода, выплаты и т. п.). */
+  patch: async (patch: Partial<Omit<FinPrefs, keyof SyncMeta>>) => {
+    const { id: _id, createdAt: _c, updatedAt: _u, deletedAt: _d, ...rest } = await prefsRepo.get();
+    await prefsRepo.put({ ...rest, ...patch });
+  },
 };

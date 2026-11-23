@@ -8,7 +8,7 @@ import s from './Finance.module.css';
 
 export function TipBar({ today, view, txs, categories, savePercent }: { today: LocalDate; view: PlanView; txs: Tx[]; categories: Category[]; savePercent: number | undefined }) {
   const list = useMemo(
-    () => tips({ today, money: view.money, living: view.living, dues: view.dues, covered: view.plan.rate === 0, txs, categories, savePercent: savePercent ?? DEFAULT_SAVE_PERCENT }),
+    () => tips({ today, money: view.money, living: view.living, dues: view.dues, covered: view.plan.rate === 0, txs, categories, savePercent: savePercent ?? DEFAULT_SAVE_PERCENT, mode: view.mode }),
     [today, view, txs, categories, savePercent],
   );
   const [index, setIndex] = useState(0);

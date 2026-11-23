@@ -1,6 +1,6 @@
-/* Настройки плана: рабочие дни, откладывание, советы; вход в «Категории». */
+/* Настройки плана: как приходят деньги, рабочие дни, откладывание, советы; вход в «Категории». */
 import { useState } from 'react';
-import { Button, Field, Modal, MultiToggle, SelectInput, TextInput, toast } from '../../../core/ui';
+import { Button, Field, Modal, MultiToggle, Segmented, SelectInput, TextInput, toast } from '../../../core/ui';
 import { ToggleRow } from '../../../core/settings/ToggleRow';
 import { WEEKDAYS_SHORT } from '../../../core/domain/dates';
 import type { Weekday } from '../../../core/domain/types';
@@ -8,19 +8,21 @@ import { prefsRepo } from '../data/repo';
 import { CategoriesModal } from './CategoriesModal';
 import { DEFAULT_SAVE_PERCENT } from '../domain/tips';
 import { defaultSaveAccount, savingAccounts } from '../domain/save';
-import { ALL_DAYS, type Account, type Category, type FinPrefs } from '../domain/types';
+import { ALL_DAYS, INCOME_MODES, type Account, type Category, type FinPrefs, type IncomeMode } from '../domain/types';
 import s from './Finance.module.css';
 
 const DAYS = ALL_DAYS.map((d) => ({ value: d, label: WEEKDAYS_SHORT[d] ?? '' }));
 
 export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs: FinPrefs; accounts: Account[]; categories: Category[]; onClose: () => void }) {
   const jars = savingAccounts(accounts).map((a) => ({ value: a.id, label: a.name }));
+  const [mode, setMode] = useState<IncomeMode>(prefs.incomeMode ?? 'daily');
+  const [shift, setShift] = useState(prefs.shiftWeekend !== false);
   const [work, setWork] = useState<readonly Weekday[]>(prefs.workDays ?? ALL_DAYS);
   const [percent, setPercent] = useState(prefs.savePercent === undefined ? '' : String(prefs.savePercent));
   const [showTips, setShowTips] = useState(!prefs.tipsOff);
   const [saveOn, setSaveOn] = useState(!!prefs.saveOn);
   const [saveTo, setSaveTo] = useState(defaultSaveAccount(accounts, prefs) ?? jars[0]?.value ?? '');
-  const form = JSON.stringify([[...work].sort(), percent, showTips, saveOn, saveTo]);
+  const form = JSON.stringify([mode, shift, [...work].sort(), percent, showTips, saveOn, saveTo]);
   // Снимок полей при открытии: по нему видно, что есть несохранённые правки.
   const [opened] = useState(form);
   const [asking, setAsking] = useState(false);
@@ -37,7 +39,9 @@ export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs
       toast('Отметьте хотя бы один рабочий день', 'alert', 'var(--c-warn)');
       return;
     }
-    await prefsRepo.put({ workDays: [...work], ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }), ...(saveOn ? { saveOn: true } : {}), ...(saveTo ? { saveAccountId: saveTo } : {}) });
+    // Всё, что эта форма не редактирует (выплаты и т. п.), сохраняем как было
+    const { id: _id, createdAt: _c, updatedAt: _u, deletedAt: _d, workDays: _w, savePercent: _p, tipsOff: _t, saveOn: _o, saveAccountId: _a, incomeMode: _m, shiftWeekend: _s, ...keep } = prefs;
+    await prefsRepo.put({ ...keep, incomeMode: mode, ...(shift ? {} : { shiftWeekend: false }), workDays: [...work], ...(p === undefined ? {} : { savePercent: p }), ...(showTips ? {} : { tipsOff: true }), ...(saveOn ? { saveOn: true } : {}), ...(saveTo ? { saveAccountId: saveTo } : {}) });
     onClose();
   };
 
@@ -48,9 +52,18 @@ export function PlanPrefsModal({ prefs, accounts, categories, onClose }: { prefs
         <Button variant="primary" onClick={() => void save()}>Сохранить</Button>
       </>
     }>
-      <Field label="Рабочие дни">
-        <MultiToggle values={work} options={DAYS} onChange={setWork} label="Рабочие дни" />
+      <Field label="Как вы получаете деньги">
+        <Segmented value={mode} options={INCOME_MODES.map((m) => ({ value: m.value, label: m.value === 'salary' ? 'Зарплата' : m.value === 'daily' ? 'Каждый день' : 'Когда как' }))} onChange={setMode} label="Как вы получаете деньги" accent="var(--c-fin)" />
+        <p className={s.hint}>{INCOME_MODES.find((m) => m.value === mode)?.hint}. Данные не теряются: можно переключаться, цифры пересчитаются.</p>
       </Field>
+      {mode === 'salary' && (
+        <ToggleRow label="Выплата на выходной — в пятницу" hint="Зарплата, выпавшая на субботу или воскресенье, обычно приходит в пятницу. Выключите, если у вас иначе." checked={shift} onChange={setShift} color="var(--c-fin)" />
+      )}
+      {mode === 'daily' && (
+        <Field label="Рабочие дни">
+          <MultiToggle values={work} options={DAYS} onChange={setWork} label="Рабочие дни" />
+        </Field>
+      )}
       <ToggleRow label="Показывать советы" hint="Строка над вкладками. Нажмите на неё, чтобы остановить текст, и ещё раз, чтобы увидеть другой совет." checked={showTips} onChange={setShowTips} color="var(--c-fin)" />
       <TextInput label="Откладывать с дохода, %" inputMode="decimal" placeholder={String(DEFAULT_SAVE_PERCENT)} value={percent} onChange={(e) => setPercent(e.target.value)} />
       <p className={s.hint}>Столько откладывать с дохода. Если откладывание ниже выключено, совет покажет эту долю от свежего дохода, когда на платежи хватает. 0 отключает совет.</p>

@@ -1,11 +1,12 @@
 /* Финансы: план на день, операции и статистика. */
 import { useState } from 'react';
-import { Button, Panel, Segmented } from '../../../core/ui';
+import { Button, Segmented } from '../../../core/ui';
 import { TopbarActions } from '../../../core/shell/TopbarActions';
 import { useToday } from '../../../core/shell/useToday';
 import { useAccounts, useCategories, usePayments, usePlan, usePrefs, useTxs } from '../data/hooks';
 import type { Tx, TxKind } from '../domain/types';
-import { AccountForm } from './AccountsModal';
+import { IncomeSetup } from './IncomeSetup';
+import { setIncomeMode } from '../services/income';
 import { PlanPrefsModal } from './PlanPrefsModal';
 import { PlanTab } from './PlanTab';
 import { StatsTab } from './StatsTab';
@@ -35,6 +36,7 @@ export function FinanceScreen() {
   const [settings, setSettings] = useState(false);
   if (!accounts || !categories || !txs || !payments || !prefs || !view) return null;
   const live = accounts.filter((a) => !a.archived);
+  const needsMode = prefs.incomeMode === undefined && txs.length === 0 && payments.length === 0;
 
   return (
     <>
@@ -49,12 +51,11 @@ export function FinanceScreen() {
         </TopbarActions>
       </div>
       {live.length === 0 ? (
-        <Panel title="Первый счёт" icon="coin" accent="var(--c-fin)">
-          <p className={s.hint}>Укажите, сколько денег сейчас на карте или в наличных. От этой суммы считается план.</p>
-          <AccountForm account={null} onDone={() => undefined} />
-        </Panel>
+        <IncomeSetup needAccount today={today} onDone={() => undefined} />
       ) : (
         <>
+          {/* Новичок, который ещё не выбрал, как получает деньги (старые пользователи остаются в режиме «каждый день») */}
+          {needsMode && <IncomeSetup needAccount={false} today={today} onDone={() => undefined} onSkip={() => void setIncomeMode('daily')} />}
           {!prefs.tipsOff && <TipBar today={today} view={view} txs={txs} categories={categories} savePercent={prefs.saveOn ? 0 : prefs.savePercent} />}
           <Segmented value={tab} options={TABS} onChange={setTab} label="Вкладки финансов" accent="var(--c-fin)" />
           <div className={s.actions}>
@@ -66,7 +67,7 @@ export function FinanceScreen() {
             </Button>
             {live.length > 1 && <Button onClick={() => setEntry({ kind: 'transfer', tx: null })}>Перевод</Button>}
           </div>
-          {tab === 'plan' && <PlanTab today={today} view={view} accounts={accounts} payments={payments} txs={txs} />}
+          {tab === 'plan' && <PlanTab today={today} view={view} accounts={accounts} payments={payments} txs={txs} paydays={prefs.paydays ?? []} />}
           {tab === 'list' && <TxList month={month} onMonth={setMonth} txs={txs} accounts={accounts} categories={categories} onOpen={(t) => setEntry({ kind: t.kind, tx: t })} />}
           {tab === 'stats' && <StatsTab month={month} onMonth={setMonth} txs={txs} categories={categories} />}
         </>

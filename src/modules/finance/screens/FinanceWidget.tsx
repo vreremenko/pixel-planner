@@ -20,7 +20,7 @@ export function FinanceWidget() {
   const next = view.dues[0];
   return (
     <>
-      <PlanHeadline plan={view.plan} hasDues={view.dues.length > 0} />
+      <PlanHeadline view={view} />
       {next ? (
         <p className={s.hint}>
           Ближайший: {next.name}, {formatDateShort(next.date)}, {rub(next.amount)}
