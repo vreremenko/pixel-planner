@@ -31,7 +31,7 @@ interface Props {
 
 export function TaskItem({ item, id, onToggle, onEdit, onToggleItem, onTagClick, activeTags = [], dragDisabled = false, onSwipeDelete, swipeRight }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: dragDisabled });
-  // Пальцем задачу тащат долгим нажатием на любое место строки, мышью и с клавиатуры — за ручку
+  // Ручка видна везде. Пальцем задачу тащат долгим нажатием на ручку или любое место строки, мышью и с клавиатуры — за ручку
   const { onTouchStart, ...gripListeners } = (listeners ?? {}) as Record<string, ((e: TouchEvent) => void) | undefined>;
   const data =
     item.kind === 'task'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortDay, type Sortable } from './daySort';
+import { DAY_SORTS, sortDay, sortLabel, type Sortable } from './daySort';
 
 const item = (name: string, o: Partial<Sortable> = {}) => ({ name, view: { order: 0, priority: 'medium' as const, done: false, ...o } });
 const names = (mode: Parameters<typeof sortDay>[1], list: ReturnType<typeof item>[]) => sortDay(list, mode, (x) => x.view).map((x) => x.name);
@@ -38,5 +38,12 @@ describe('порядок задач дня', () => {
     const copy = [...list];
     sortDay(list, 'time', (x) => x.view);
     expect(list).toEqual(copy);
+  });
+
+  it('«Вручную» нет в меню: после перетаскивания не отмечен ни один пункт, подпись — «Свой порядок»', () => {
+    expect(DAY_SORTS.map((o) => o.value)).toEqual(['time', 'pending', 'priority']);
+    expect(DAY_SORTS.some((o) => o.value === ('manual' as string))).toBe(false);
+    expect(sortLabel('manual')).toBe('Свой порядок');
+    expect(sortLabel('time')).toBe('По времени');
   });
 });

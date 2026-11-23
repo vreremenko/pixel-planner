@@ -8,7 +8,7 @@ import { useDay } from '../data/hooks';
 import { toggleOccurrence, toggleTask } from '../services/tasks';
 import { useUi } from '../stores/ui';
 import { useDaySort } from '../stores/daySort';
-import { DAY_SORTS, sortDay } from '../domain/daySort';
+import { DAY_SORTS, sortDay, sortLabel } from '../domain/daySort';
 import type { Occurrence, Task } from '../domain/types';
 import s from './Widgets.module.css';
 
@@ -83,8 +83,8 @@ export function TodayWidget() {
         </Button>
         <Menu
           label="Сортировка задач"
-          text={DAY_SORTS.find((o) => o.value === sortMode)?.label}
-          icon="bars"
+          text={sortLabel(sortMode)}
+          icon="sort"
           items={DAY_SORTS.map((o) => ({ label: o.label, checked: sortMode === o.value, onSelect: () => setSortMode(o.value) }))}
         />
       </div>

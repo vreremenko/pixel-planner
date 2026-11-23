@@ -139,8 +139,8 @@
 .grip {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 28px;
+  width: 28px;
+  height: 40px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -199,12 +199,6 @@
 .time {
   font-family: var(--font-digits);
   color: var(--c-task);
-}
-/* На телефоне ручки нет: перетаскивание — долгим нажатием на задачу; кнопка переноса остаётся */
-@media (max-width: 767px) {
-  .grip {
-    display: none;
-  }
 }
 /* Быстрый ввод: закреплён внизу экрана поверх содержимого. Геометрия повторяет колонку контента
    (левая панель навигации, отступы и максимальная ширина как у main). */

@@ -67,14 +67,24 @@ export function DayScreen() {
   const [askDelete, setAskDelete] = useState<DayItem | null>(null);
   const [trackOpen, setTrackOpen] = useState(false);
 
+  // Порядок, который только что расставили руками: держим на экране, пока он записывается в базу (иначе список на миг прыгнет обратно)
+  const [pinned, setPinned] = useState<string[] | null>(null);
+
   const sorted = useMemo<DayItem[]>(() => {
     if (!data) return [];
     const items: DayItem[] = [
       ...data.tasks.map((task) => ({ kind: 'task' as const, task })),
       ...data.occurrences.map((occ) => ({ kind: 'occ' as const, occ })),
     ];
+    if (pinned) {
+      const at = (it: DayItem) => {
+        const i = pinned.indexOf(itemId(it));
+        return i === -1 ? pinned.length : i;
+      };
+      return sortDay(items, 'time', sortView).sort((a, b) => at(a) - at(b));
+    }
     return sortDay(items, sortMode, sortView);
-  }, [data, sortMode]);
+  }, [data, sortMode, pinned]);
 
   // Локальный порядок для мгновенного отклика при перетаскивании
   const [items, setItems] = useState<DayItem[]>(sorted);
@@ -89,7 +99,7 @@ export function DayScreen() {
   // Мышью — за ручку, пальцем — долгим нажатием на задачу (ручки на телефоне нет)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -100,8 +110,10 @@ export function DayScreen() {
     const to = items.findIndex((x) => itemId(x) === over.id);
     const next = arrayMove(items, from, to);
     setItems(next);
-    // Расставили сами — порядок запоминается, а список переходит в «Вручную», иначе сортировка вернула бы всё обратно
-    void reorderDay(next).then(() => setSortMode('manual'));
+    // Расставили сами: порядок запоминается, а в меню сортировки не отмечен ни один пункт
+    setPinned(next.map(itemId));
+    setSortMode('manual');
+    void reorderDay(next).finally(() => setPinned(null));
   };
 
   useHotkeys(
@@ -157,7 +169,7 @@ export function DayScreen() {
           <div className={s.tools}>
             <Menu
               label="Сортировка задач"
-              icon="bars"
+              icon="sort"
               items={DAY_SORTS.map((o) => ({ label: o.label, checked: sortMode === o.value, onSelect: () => setSortMode(o.value) }))}
             />
             <Button variant="ghost" icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />

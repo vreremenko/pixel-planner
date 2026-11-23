@@ -4,12 +4,18 @@
  */
 export type DaySort = 'time' | 'manual' | 'priority' | 'pending';
 
-export const DAY_SORTS: { value: DaySort; label: string }[] = [
+/**
+ * Пункты меню сортировки. «Вручную» в меню нет: оно включается само, когда задачу перетащили, —
+ * тогда ни один пункт не отмечен; выбрали пункт — список снова отсортирован.
+ */
+export const DAY_SORTS: { value: Exclude<DaySort, 'manual'>; label: string }[] = [
   { value: 'time', label: 'По времени' },
   { value: 'pending', label: 'Сначала несделанные' },
   { value: 'priority', label: 'По важности' },
-  { value: 'manual', label: 'Вручную' },
 ];
+
+/** Подпись текущего порядка (для кнопки на сводке). */
+export const sortLabel = (mode: DaySort): string => DAY_SORTS.find((o) => o.value === mode)?.label ?? 'Свой порядок';
 
 export const isDaySort = (v: unknown): v is DaySort => DAY_SORTS.some((s) => s.value === v);
 
