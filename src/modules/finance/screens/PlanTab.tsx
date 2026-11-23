@@ -126,7 +126,7 @@ export function PlanTab({ today, view, accounts, payments, txs, paydays }: Props
                 <span className={s.grow}>
                   {p.name}
                   <br />
-                  <span className={s.dim}>{p.repeat === 'once' ? 'Оплачен или срок прошёл' : 'Следующий срок позже месяца'}</span>
+                  <span className={s.dim}>{p.repeat !== 'once' ? 'Следующий срок позже месяца' : p.date > today ? `Срок ${formatDateShort(p.date)}: в плане появится за месяц до срока` : 'Оплачен или срок прошёл'}</span>
                 </span>
                 <span className={s.amount}>{rub(p.amount)}</span>
               </button>
