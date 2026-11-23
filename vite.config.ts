@@ -26,7 +26,8 @@ function csp(): Plugin {
         const api = [process.env.VITE_API_BASE, process.env.VITE_API_FALLBACK].filter(Boolean).map((u) => new URL(u ?? '').origin).join(' ');
         const policy = [
           "default-src 'none'",
-          `script-src 'self' ${inline.join(' ')}`,
+          // 'wasm-unsafe-eval' — только компиляция WebAssembly (распознаватель штрихкодов), выполнять строки как код он не разрешает
+          `script-src 'self' 'wasm-unsafe-eval' ${inline.join(' ')}`,
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob:",
           "font-src 'self' data:",

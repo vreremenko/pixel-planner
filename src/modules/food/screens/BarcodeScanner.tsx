@@ -10,6 +10,12 @@ import s from './Food.module.css';
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'] as const;
 const CODE_RE = /^\d{8,14}$/;
 const SCAN_EVERY_MS = 250;
+/**
+ * Сколько раз подряд распознаватель должен выдать один и тот же код. Одиночное чтение бывает ложным: у 8-значных
+ * кодов и у разрезанной половины 13-значного контрольная цифра сходится примерно в одном случае из десяти,
+ * и вместо нужного продукта находился чужой (или никакой). Полноценный EAN-13 надёжнее, ему хватает двух чтений.
+ */
+const CONFIRMATIONS = (code: string) => (code.length === 13 ? 2 : 3);
 
 interface Detector {
   detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]>;
@@ -143,6 +149,7 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
         if (!alive()) return stop();
         setReady(true);
         let busy = false;
+        const seen = { code: '', times: 0 };
         timer = setInterval(() => {
           const v = video.current;
           if (busy || done.current || !v || v.readyState < 2) return;
@@ -150,8 +157,14 @@ export function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => 
           detector
             .detect(v)
             .then((codes) => {
-              const code = codes.map((c) => c.rawValue.trim()).find((c) => CODE_RE.test(c));
-              if (code && !done.current) {
+              const read = codes.map((c) => c.rawValue.trim()).filter((c) => CODE_RE.test(c));
+              // Предпочитаем длинный код: короткий в кадре с длинным — почти всегда ложное чтение его части
+              const code = read.sort((a, b) => b.length - a.length)[0];
+              if (code) {
+                seen.times = seen.code === code ? seen.times + 1 : 1;
+                seen.code = code;
+              }
+              if (code && seen.times >= CONFIRMATIONS(code) && !done.current) {
                 done.current = true;
                 if ('vibrate' in navigator) navigator.vibrate(60);
                 stop();
