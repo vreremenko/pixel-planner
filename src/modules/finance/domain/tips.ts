@@ -7,7 +7,7 @@ import type { LocalDate } from '../../../core/domain/types';
 import type { Due } from './plan';
 import { rub, rubUp } from './money';
 import { GENERAL_TIPS } from './tipsList';
-import type { Category, Kopecks, Tx } from './types';
+import type { Category, IncomeMode, Kopecks, Tx } from './types';
 
 export const DEFAULT_SAVE_PERCENT = 10;
 /** Столько дней после дохода держится совет отложить с него. */
@@ -27,6 +27,8 @@ export interface TipInput {
   txs: readonly Tx[];
   categories: readonly Pick<Category, 'id' | 'name'>[];
   savePercent: number;
+  /** Как человек получает деньги; нет — «каждый день». */
+  mode?: IncomeMode;
 }
 
 function daysText(n: number): string {
@@ -90,9 +92,15 @@ function generalFrom(today: LocalDate): string[] {
 }
 
 export function tips(input: TipInput): string[] {
-  const { today, living, dues } = input;
+  const { today, living, dues, mode = 'daily' } = input;
   const overdue = dues.filter((d) => d.date < today).map((d) => `«${d.name}»: срок прошёл, ${rub(d.amount)}.`);
-  const unset = living === 0 ? 'Обычные траты пока не в плане, поэтому цель занижена. Записывайте расходы: хватит недели.' : null;
+  // В зарплатном режиме лимит от обычных трат не зависит, подсказка не нужна
+  const unset =
+    living !== 0 || mode === 'salary'
+      ? null
+      : mode === 'irregular'
+        ? 'Пока неизвестно, сколько вы обычно тратите, поэтому «денег хватит на…» считается без обычных трат. Записывайте расходы: хватит недели.'
+        : 'Пока неизвестно, сколько вы обычно тратите, поэтому дневная цель получается меньше нужной. Записывайте расходы: хватит недели.';
   const personal = [...overdue, unset, shortage(input), saveFromIncome(input), growth(input)].filter((t) => t !== null);
   return [...personal, ...generalFrom(today)];
 }

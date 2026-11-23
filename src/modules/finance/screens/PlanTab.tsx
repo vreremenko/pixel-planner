@@ -5,12 +5,15 @@ import { formatDateShort } from '../../../core/domain/dates';
 import type { LocalDate } from '../../../core/domain/types';
 import type { PlanView } from '../data/hooks';
 import { rub, rubUp } from '../domain/money';
+import { coveredByMoney, type Expected } from '../domain/income';
 import type { Due } from '../domain/plan';
 import { savedInMonth } from '../domain/save';
-import type { Account, Payment, Tx } from '../domain/types';
+import type { Account, Payday, Payment, Tx } from '../domain/types';
 import { AccountsModal } from './AccountsModal';
 import { GoalsPanel } from './GoalsPanel';
 import { PayModal } from './PayModal';
+import { PaydayEditor } from './PaydayEditor';
+import { ReceiveModal } from './ReceiveModal';
 import { PaymentEditor } from './PaymentEditor';
 import { PlanHeadline } from './PlanHeadline';
 import s from './Finance.module.css';
@@ -21,22 +24,29 @@ interface Props {
   accounts: Account[];
   payments: Payment[];
   txs: Tx[];
+  paydays: Payday[];
 }
 
-export function PlanTab({ today, view, accounts, payments, txs }: Props) {
+export function PlanTab({ today, view, accounts, payments, txs, paydays }: Props) {
   const { plan, dues, balance, money, living } = view;
   const [paying, setPaying] = useState<Due | null>(null);
   const [editing, setEditing] = useState<Payment | 'new' | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [receiving, setReceiving] = useState<Expected | null>(null);
+  const [editingPayday, setEditingPayday] = useState<Payday | 'new' | null>(null);
+  // Подпись «хватает» в дневном режиме считает темп заработка, в остальных — деньги на счетах
+  const covered = view.mode === 'daily' ? plan.covered : coveredByMoney(dues, money);
+  // Ближайшая неполученная выплата по каждому расписанию
+  const nextPaydays = paydays.flatMap((p) => view.expected.find((e) => e.paydayId === p.id) ?? []).sort((a, b) => a.when.localeCompare(b.when));
   const live = accounts.filter((a) => !a.archived);
   const later = payments.filter((p) => !dues.some((d) => d.paymentId === p.id));
 
   return (
     <div className={s.stack}>
       <Panel title="План на сегодня" icon="target" accent="var(--c-fin)">
-        <PlanHeadline plan={plan} hasDues={dues.length > 0} />
-        {plan.shortNow > 0 && <p className={s.warn}>Срок уже наступил, не хватает {rub(plan.shortNow)}.</p>}
-        {dues.length > 0 && (
+        <PlanHeadline view={view} />
+        {view.mode === 'daily' && plan.shortNow > 0 && <p className={s.warn}>Срок уже наступил, не хватает {rub(plan.shortNow)}.</p>}
+        {view.mode === 'daily' && dues.length > 0 && (
           <div className={s.metrics}>
             <div className={s.metric}>
               <span className={s.dim}>С завтра в день</span>
@@ -44,8 +54,45 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
             </div>
           </div>
         )}
-        {dues.length > 0 && <p className={s.hint}>{living > 0 ? `Обычно вы тратите около ${rubUp(living)} в день, это уже в плане.` : 'Обычные траты пока не в плане: нужна неделя записей.'}</p>}
+        {view.mode === 'salary' && view.salary.tomorrow !== null && view.salary.state === 'ok' && (
+          <div className={s.metrics}>
+            <div className={s.metric}>
+              <span className={s.dim}>Завтра можно</span>
+              <b>{rub(Math.floor(view.salary.tomorrow / 100) * 100)}</b>
+            </div>
+          </div>
+        )}
+        {view.mode !== 'irregular' && (dues.length > 0 || view.mode === 'salary') && (
+          <p className={s.hint}>{living > 0 ? `Обычно вы тратите около ${rubUp(living)} в день.` : 'Сколько вы обычно тратите, станет ясно через неделю записей.'}</p>
+        )}
       </Panel>
+      {view.mode === 'salary' && (
+        <Panel title="Доходы" icon="coin" accent="var(--c-fin)" actions={<Button small icon="plus" label="Добавить выплату" onClick={() => setEditingPayday('new')} />}>
+          {nextPaydays.length === 0 && <p className={s.hint}>Зарплата, аванс, пенсия: когда и сколько приходит.</p>}
+          <ul className={s.list}>
+            {nextPaydays.map((e) => (
+              <li key={`${e.paydayId}:${e.date}`} className={s.row}>
+                <div className={s.line}>
+                  <button type="button" className={s.rowBtn} onClick={() => setEditingPayday(paydays.find((p) => p.id === e.paydayId) ?? null)}>
+                    <span className={s.grow}>
+                      {e.name}
+                      <br />
+                      <span className={e.when <= today ? s.warn : s.dim}>
+                        {formatDateShort(e.when)}
+                        {e.when < today ? ', ждём' : e.when === today ? ', сегодня' : ''}
+                      </span>
+                    </span>
+                    <span className={s.amount}>{rub(e.amount)}</span>
+                  </button>
+                  <Button small onClick={() => setReceiving(e)}>
+                    Пришла
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
       <Panel title="Платежи" icon="calendar" accent="var(--c-fin)" actions={<Button small icon="plus" label="Добавить платёж" onClick={() => setEditing('new')} />}>
         {dues.length === 0 && later.length === 0 && <p className={s.hint}>Квартира, подписки, кредит: всё, что нужно оплатить к дате.</p>}
         <ul className={s.list}>
@@ -64,7 +111,7 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
                   <span className={s.amount}>
                     {rub(d.amount)}
                     <br />
-                    <span className={plan.covered.has(d) ? s.good : s.dim}>{plan.covered.has(d) ? 'хватает' : 'копим'}</span>
+                    <span className={covered.has(d) ? s.good : s.bad}>{covered.has(d) ? 'хватает' : 'не хватает'}</span>
                   </span>
                 </button>
                 <Button small onClick={() => setPaying(d)}>
@@ -111,6 +158,8 @@ export function PlanTab({ today, view, accounts, payments, txs }: Props) {
         <p className={s.hint}>В плане {rub(money)}</p>
       </Panel>
       {paying && <PayModal due={paying} today={today} accounts={live} payment={payments.find((p) => p.id === paying.paymentId)} onClose={() => setPaying(null)} />}
+      {receiving && <ReceiveModal expected={receiving} today={today} accounts={live} onClose={() => setReceiving(null)} />}
+      {editingPayday && <PaydayEditor payday={editingPayday === 'new' ? null : editingPayday} today={today} onClose={() => setEditingPayday(null)} />}
       {editing && <PaymentEditor payment={editing === 'new' ? null : editing} today={today} onClose={() => setEditing(null)} />}
       {accountsOpen && <AccountsModal accounts={accounts} balance={balance} onClose={() => setAccountsOpen(false)} />}
     </div>

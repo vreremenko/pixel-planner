@@ -18,3 +18,11 @@ export function rub(k: Kopecks): string {
 
 /** Дневная цель: копейки здесь только мешают, округляем вверх до рубля. */
 export const rubUp = (k: Kopecks): string => rub(Math.ceil(k / 100) * 100);
+
+/** «1 день», «3 дня», «11 дней». */
+export function daysText(n: number): string {
+  const tens = n % 100;
+  const ones = n % 10;
+  const word = tens >= 11 && tens <= 14 ? 'дней' : ones === 1 ? 'день' : ones >= 2 && ones <= 4 ? 'дня' : 'дней';
+  return `${String(n)} ${word}`;
+}

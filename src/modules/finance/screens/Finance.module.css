@@ -232,3 +232,31 @@
 .tipMore {
   color: var(--c-text-dim);
 }
+
+/* Выбор режима дохода в мастере */
+.modes {
+  display: grid;
+  gap: var(--gap-2);
+  margin-bottom: var(--gap-3);
+}
+.mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-panel-2, var(--c-panel));
+  border: 2px solid var(--c-border);
+  font: inherit;
+  cursor: pointer;
+}
+.modeOn {
+  border-color: var(--c-fin);
+  box-shadow: inset 4px 0 0 var(--c-fin);
+}
+.paydayBox {
+  margin-bottom: var(--gap-3);
+  padding: var(--gap-3);
+  border: 2px dashed var(--c-border);
+}

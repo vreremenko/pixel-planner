@@ -6,12 +6,14 @@
  */
 import { addDays, formatDateDay, weekday } from '../core/domain/dates';
 import type { LocalDate } from '../core/domain/types';
-import { balances, dayPlan, livingTypical, openDues } from '../modules/finance/domain/plan';
+import { openDues } from '../modules/finance/domain/plan';
+import { buildPlanView } from '../modules/finance/domain/view';
+import { daysText } from '../modules/finance/domain/money';
 import { goalView, movedToday } from '../modules/finance/domain/goals';
 import { defaultSaveAccount, saveAmount, savingAccounts } from '../modules/finance/domain/save';
 import { DEFAULT_SAVE_PERCENT } from '../modules/finance/domain/tips';
 import { rub } from '../modules/finance/domain/money';
-import { ALL_DAYS, type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
+import { type Account, type Category, type FinPrefs, type Goal, type Payment, type Tx } from '../modules/finance/domain/types';
 import { CATALOG } from '../modules/food/domain/catalog';
 import { METRICS, METRIC_IDS, bodyId, formatDelta, summaries, type BodyEntry, type BodyValues } from '../modules/gym/domain/body';
 import { bestFood, kcalFromMacros, portionOf, searchFoods, sumEntries } from '../modules/food/domain/logic';
@@ -26,6 +28,7 @@ import { GYM_TOOLS } from './gymTools';
 import { HABIT_TOOLS } from './habitTools';
 import { CATEGORY_TOOLS, allCategories } from './categoryTools';
 import { SUMMARY_TOOLS } from './summaryTools';
+import { INCOME_TOOLS } from './incomeTools';
 
 export { ToolError, type Tool, type ToolContext } from './toolkit';
 
@@ -99,20 +102,34 @@ function savingTarget(data: AccountData, name: string | undefined): Account {
 function financePlan(data: AccountData, ctx: ToolContext) {
   const accounts = data.all<Account>('fin_accounts').filter((a) => !a.archived);
   const txs = data.all<Tx>('fin_tx');
-  const prefs = data.get<FinPrefs>('fin_prefs', 'prefs');
-  const inPlan = new Set(accounts.filter((a) => a.inPlan).map((a) => a.id));
-  const balance = balances(accounts, txs);
-  const money = [...inPlan].reduce((a, id) => a + (balance.get(id) ?? 0), 0);
-  const living = livingTypical(txs, ctx.today) ?? 0;
-  const work = prefs?.workDays ?? ALL_DAYS;
-  const dues = openDues(data.all<Payment>('fin_payments'), txs, ctx.today);
-  const todayTx = txs.filter((t) => t.date === ctx.today && inPlan.has(t.accountId));
-  const netIn = txs.filter((t) => t.date === ctx.today && t.kind === 'transfer').reduce((a, t) => a + (inPlan.has(t.toAccountId ?? '') ? t.amount : 0) - (inPlan.has(t.accountId) ? t.amount : 0), 0);
-  return { accounts, txs, balance, money, dues, work, plan: dayPlan({ today: ctx.today, money, living, work, dues, todayTx, netIn }) };
+  const view = buildPlanView(ctx.today, accounts, txs, data.all<Payment>('fin_payments'), data.get<FinPrefs>('fin_prefs', 'prefs') ?? {});
+  return { accounts, txs, ...view };
 }
 
+/** Деньги вниз до рубля: лимит не должен обещать лишнего. */
+const rubDown = (k: number) => rub(Math.floor(k / 100) * 100);
+
+/** Главное число финансов — под режим дохода, теми же словами, что в приложении. */
 function planLine(data: AccountData, ctx: ToolContext): string[] {
-  const { plan, dues, money } = financePlan(data, ctx);
+  const v = financePlan(data, ctx);
+  const { plan, dues, money, mode } = v;
+  if (mode === 'salary') {
+    const p = v.salary;
+    const wait = p.waiting.length ? [`Ждём выплату: ${p.waiting.map((e) => `«${e.name}» от ${e.date}`).join(', ')} — пока не пришла, не считается.`] : [];
+    if (p.state === 'noPayday') return [`Режим: зарплата. Деньги: ${rub(money)}. Выплат на будущее нет — добавьте зарплату или аванс (add_payday).`, ...wait];
+    const head =
+      p.state === 'short'
+        ? `До «${p.next?.name ?? 'зарплаты'}» денег не хватает: ${rub(-p.free)}${p.short ? ` (к ${p.short.due.date} на «${p.short.due.name}» не хватает ${rub(p.short.need)})` : ''}.`
+        : `Можно тратить сегодня ${rubDown(Math.max(0, p.left))} (потрачено ${rub(p.spent)} из ${rubDown(p.limit)}${p.left < 0 ? ', перерасход — завтра лимит ниже' : ''}).`;
+    const next = p.next ? `До «${p.next.name}» ${p.next.when} — ${daysText(p.daysLeft)}, свободно ${rubDown(Math.max(0, p.free))}${p.tomorrow !== null ? `, завтра можно ${rubDown(p.tomorrow)}` : ''}.` : '';
+    const after = p.afterSum > 0 ? [`После зарплаты уйдёт ${rub(p.afterSum)}: ${p.after.map((d) => d.name).join(', ')}.`] : [];
+    return [head, next, ...after, ...wait, `Деньги в плане: ${rub(money)}.`].filter(Boolean);
+  }
+  if (mode === 'irregular') {
+    const p = v.irregular;
+    const days = p.runway === null ? 'больше 3 месяцев' : p.runway === 0 ? 'меньше суток' : daysText(p.runway);
+    return [`Режим: когда как. Денег хватит при обычных тратах на ${days}${p.breaksOn ? ` (не хватит на «${p.breaksOn.name}», ${p.breaksOn.date})` : ''}.`, p.needMonth > 0 ? `Чтобы закрыть месяц, нужно получить ${rub(Math.ceil(p.needMonth / 100) * 100)}.` : 'На ближайший месяц денег хватает.', `Деньги в плане: ${rub(money)}.`];
+  }
   if (dues.length === 0) return [`Деньги в плане: ${rub(money)}. Платежей с датами нет.`];
   const head = plan.dayOff ? 'Сегодня выходной' : plan.left > 0 ? `Сегодня осталось заработать ${rub(Math.ceil(plan.left / 100) * 100)} из ${rub(Math.ceil(plan.target / 100) * 100)}` : 'Цель дня закрыта';
   const next = dues.slice(0, 3).map((d) => `${d.name} ${rub(d.amount)} до ${d.date}${plan.covered.has(d) ? ' (хватает)' : ''}`);
@@ -898,4 +915,4 @@ const BODY_TOOLS: readonly Tool[] = [
   },
 ];
 
-export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...CATEGORY_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS, ...SUMMARY_TOOLS];
+export const TOOLS: readonly Tool[] = [...BASE_TOOLS, ...EDIT_TOOLS, ...HABIT_TOOLS, ...CATEGORY_TOOLS, ...INCOME_TOOLS, ...BODY_TOOLS, ...GYM_TOOLS, ...SUMMARY_TOOLS];

@@ -38,6 +38,8 @@ export interface Tx extends SyncMeta {
   dueDate?: LocalDate;
   /** Перевод в копилку, созданный при записи этого дохода. */
   fromTxId?: string;
+  /** Доход закрывает ожидаемое поступление (зарплату, аванс): dueDate — его плановая дата. */
+  paydayId?: string;
 }
 
 export type Repeat = 'once' | 'week' | 'month' | 'year';
@@ -72,7 +74,33 @@ export interface Goal extends SyncMeta {
   paused?: boolean;
 }
 
+/** Как человек получает деньги: от этого зависит главный экран финансов. */
+export type IncomeMode = 'daily' | 'salary' | 'irregular';
+
+export const INCOME_MODES: readonly { value: IncomeMode; label: string; hint: string }[] = [
+  { value: 'salary', label: 'Зарплата или аванс', hint: 'деньги приходят в известные дни: 5-го и 20-го, раз в месяц, по пятницам' },
+  { value: 'daily', label: 'Каждый день или смены', hint: 'зарабатываю понемногу каждый рабочий день' },
+  { value: 'irregular', label: 'Когда как', hint: 'фриланс, подработки: когда придут деньги — неизвестно' },
+];
+
+/** Ожидаемое поступление по расписанию: зарплата, аванс, пенсия, стипендия. Повтор и даты — как у платежа. */
+export interface Payday {
+  id: string;
+  name: string;
+  amount: Kopecks;
+  repeat: Repeat;
+  /** Первая дата; от неё считаются повторы. */
+  date: LocalDate;
+  /** Пропущенные даты (в этот раз денег не будет). */
+  skipped: LocalDate[];
+}
+
 export interface FinPrefs extends SyncMeta {
+  /** Нет поля — «каждый день»: так считали до появления режимов, и у старых пользователей ничего не меняется. */
+  incomeMode?: IncomeMode;
+  paydays?: Payday[];
+  /** Выплата выпала на выходной — ждать её в пятницу. Нет поля — да; false — выключено. */
+  shiftWeekend?: boolean;
   workDays?: Weekday[];
   /** Какой процент дохода советовать откладывать; 0 — не советовать. */
   savePercent?: number;

@@ -25,7 +25,7 @@ import type { UndoRecord } from '../../src/assistant/data.ts';
 /** Модели по порядку: лучшая по проверке на русских фразах, затем запасная. */
 export const AI_MODELS = ['@cf/zai-org/glm-4.7-flash', '@cf/openai/gpt-oss-20b'] as const;
 /** Действия, доступные из бота. */
-const BOT_TOOLS = ['get_day', 'get_week', 'list_backlog', 'add_task', 'complete_task', 'mark_habit', 'pause_habit', 'add_transaction', 'add_transfer', 'finance_overview', 'find_food', 'log_food', 'log_measurement', 'get_measurements', 'log_workout', 'week_summary'];
+const BOT_TOOLS = ['get_day', 'get_week', 'list_backlog', 'add_task', 'complete_task', 'mark_habit', 'pause_habit', 'add_transaction', 'add_transfer', 'set_income_mode', 'add_payday', 'receive_payday', 'skip_payday', 'list_paydays', 'finance_overview', 'find_food', 'log_food', 'log_measurement', 'get_measurements', 'log_workout', 'week_summary'];
 const MAX_ROUNDS = 4;
 /** Сколько записей (добавлений и отметок) можно сделать по одной фразе. */
 const MAX_WRITES = 5;
