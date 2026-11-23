@@ -3,6 +3,7 @@
   position: relative;
   top: -18px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -14,6 +15,13 @@
   border: 0;
   cursor: pointer;
   animation: breathe 3.2s steps(4) infinite;
+}
+.shieldLabel {
+  margin-top: 2px;
+  color: var(--c-gold);
+  font-family: var(--font-title);
+  font-size: max(calc(12px * var(--fs-scale)), var(--fs-min));
+  line-height: 1;
 }
 .shield:active,
 .fab:active {

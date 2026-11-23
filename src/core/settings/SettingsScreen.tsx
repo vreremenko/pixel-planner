@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Button, Panel, TextInput, inputClass, toast } from '../ui';
+import { Button, Panel, Segmented, TextInput, inputClass, toast } from '../ui';
 import { useSettings } from '../stores/settings';
 import { permission, requestPermission } from '../notifications/notify';
 import { tick } from '../notifications/scheduler';
@@ -366,11 +366,19 @@ function NotificationsPanel() {
   );
 }
 
+type Tab = 'alerts' | 'look' | 'about';
+const TABS: readonly { value: Tab; label: string }[] = [
+  { value: 'alerts', label: 'Уведомления' },
+  { value: 'look', label: 'Вид и звук' },
+  { value: 'about', label: 'О приложении' },
+];
+
 export function SettingsScreen() {
   const panels = useModules().flatMap((m) => (m.settingsPanel ? [m.settingsPanel] : []));
   const { settings, update } = useSettings();
   const install = useInstallPrompt();
   const [showLog, setShowLog] = useState(false);
+  const [tab, setTab] = useState<Tab>('alerts');
   // На телефоне клавиатурных сокращений нет — список только мешает
   const [touchOnly] = useState(() => matchMedia('(hover: none) and (pointer: coarse)').matches);
   return (
@@ -378,109 +386,128 @@ export function SettingsScreen() {
       <h1 className="glow pageTitle" style={{ marginBottom: 16 }}>
         Настройки
       </h1>
+      <div style={{ marginBottom: 20 }}>
+        <Segmented
+          value={tab}
+          options={TABS}
+          onChange={setTab}
+          label="Разделы настроек"
+          accent="var(--c-gold)"
+        />
+      </div>
       <div style={{ display: 'grid', gap: 24 }}>
-        {panels.map((P, i) => (
-          <Suspense key={i} fallback={null}>
-            <P />
-          </Suspense>
-        ))}
-        <NotificationsPanel />
-        <FeedbackPanel />
-        <Panel title="Звук" icon="sound" accent="var(--c-task)">
-          <ToggleRow
-            label="8-битные звуки"
-            hint="При выполнении задач и привычек"
-            checked={settings.soundEnabled}
-            onChange={(v) => {
-              void update({ soundEnabled: v });
-              if (v) play('complete', true);
-            }}
-          />
-        </Panel>
-        <Panel title="Оформление" icon="sun" accent="var(--c-warn)">
-          {!settings.momMode && (
-            <>
+        {tab === 'alerts' && <NotificationsPanel />}
+        {tab === 'look' && (
+          <>
+            {panels.map((P, i) => (
+              <Suspense key={i} fallback={null}>
+                <P />
+              </Suspense>
+            ))}
+            <Panel title="Звук" icon="sound" accent="var(--c-task)">
               <ToggleRow
-                label="Пиксельный шрифт"
-                hint="Как в 8-битных играх. Выключен — обычный, самый читаемый шрифт."
-                checked={settings.retro}
-                // Полоски фиксируем как есть: раньше они включались вместе со шрифтом, теперь — отдельно
-                onChange={(v) => void update({ retro: v, crtLines: settings.crtLines ?? settings.retro })}
+                label="8-битные звуки"
+                hint="При выполнении задач и привычек"
+                checked={settings.soundEnabled}
+                onChange={(v) => {
+                  void update({ soundEnabled: v });
+                  if (v) play('complete', true);
+                }}
               />
+            </Panel>
+            <Panel title="Оформление" icon="sun" accent="var(--c-warn)">
+              {!settings.momMode && (
+                <>
+                  <ToggleRow
+                    label="Пиксельный шрифт"
+                    hint="Как в 8-битных играх. Выключен — обычный, самый читаемый шрифт."
+                    checked={settings.retro}
+                    // Полоски фиксируем как есть: раньше они включались вместе со шрифтом, теперь — отдельно
+                    onChange={(v) =>
+                      void update({ retro: v, crtLines: settings.crtLines ?? settings.retro })
+                    }
+                  />
+                  <ToggleRow
+                    label="Полоски старого монитора"
+                    hint="Лёгкие горизонтальные полосы и мерцание, как на ламповом экране."
+                    checked={settings.crtLines ?? settings.retro}
+                    onChange={(v) => void update({ crtLines: v })}
+                  />
+                </>
+              )}
               <ToggleRow
-                label="Полоски старого монитора"
-                hint="Лёгкие горизонтальные полосы и мерцание, как на ламповом экране."
-                checked={settings.crtLines ?? settings.retro}
-                onChange={(v) => void update({ crtLines: v })}
+                label="Режим «Для мамы»"
+                hint="Светлая тёплая тема и крупный текст. Выключите — всё вернётся как было."
+                checked={settings.momMode}
+                onChange={(v) => void update({ momMode: v })}
               />
-            </>
-          )}
-          <ToggleRow
-            label="Режим «Для мамы»"
-            hint="Светлая тёплая тема и крупный текст. Выключите — всё вернётся как было."
-            checked={settings.momMode}
-            onChange={(v) => void update({ momMode: v })}
-          />
-        </Panel>
-        {!inTelegram() && (
-          <Panel title="Установка" icon="download" accent="var(--c-backlog)">
-            {install.updateReady && (
-              <p style={{ marginTop: 0 }}>
-                <Button variant="gold" icon="upload" onClick={install.applyUpdate}>
-                  Обновить приложение
-                </Button>
-              </p>
-            )}
-            {install.installed ? (
-              <p style={{ margin: 0 }}>Приложение установлено и работает офлайн.</p>
-            ) : install.canInstall ? (
-              <Button icon="download" onClick={() => void install.prompt()}>
-                Установить приложение
-              </Button>
-            ) : (
-              <p style={{ margin: 0, color: 'var(--c-text-dim)' }}>
-                Установите через меню браузера: «Установить приложение» (Chrome/Edge) или
-                «Поделиться → На экран „Домой“» (Safari). После установки приложение работает
-                офлайн.
-              </p>
-            )}
-          </Panel>
+            </Panel>
+          </>
         )}
-        <Panel title="О приложении" icon="star" accent="var(--c-gold)">
-          <p style={{ marginTop: 0 }}>
-            PIXEL PLANNER, версия{' '}
-            <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-gold)' }}>
-              {APP_VERSION}
-            </b>
-          </p>
-          <Button icon="book" onClick={() => setShowLog(true)}>
-            Что нового
-          </Button>
-        </Panel>
-        {!touchOnly && (
-          <Panel title="Клавиши" icon="menu" accent="var(--c-text-dim)">
-            <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
-              <li>
-                <b>N</b> — новая задача (на экране привычек — новая привычка)
-              </li>
-              <li>
-                <b>← / →</b> — предыдущий / следующий день (месяц в привычках)
-              </li>
-              <li>
-                <b>T</b> — вернуться к сегодня
-              </li>
-              <li>
-                <b>/</b> — поиск в бэклоге
-              </li>
-              <li>
-                <b>Esc</b> — закрыть окно
-              </li>
-              <li>
-                Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до
-                ручки, Пробел, стрелки, Пробел.
-              </li>
-            </ul>
-          </Panel>
+        {tab === 'about' && (
+          <>
+            <FeedbackPanel />
+            {!inTelegram() && (
+              <Panel title="Установка" icon="download" accent="var(--c-backlog)">
+                {install.updateReady && (
+                  <p style={{ marginTop: 0 }}>
+                    <Button variant="gold" icon="upload" onClick={install.applyUpdate}>
+                      Обновить приложение
+                    </Button>
+                  </p>
+                )}
+                {install.installed ? (
+                  <p style={{ margin: 0 }}>Приложение установлено и работает офлайн.</p>
+                ) : install.canInstall ? (
+                  <Button icon="download" onClick={() => void install.prompt()}>
+                    Установить приложение
+                  </Button>
+                ) : (
+                  <p style={{ margin: 0, color: 'var(--c-text-dim)' }}>
+                    Установите через меню браузера: «Установить приложение» (Chrome/Edge) или
+                    «Поделиться → На экран „Домой“» (Safari). После установки приложение работает
+                    офлайн.
+                  </p>
+                )}
+              </Panel>
+            )}
+            <Panel title="О приложении" icon="star" accent="var(--c-gold)">
+              <p style={{ marginTop: 0 }}>
+                PIXEL PLANNER, версия{' '}
+                <b className="digits" style={{ fontSize: fs(22), color: 'var(--c-gold)' }}>
+                  {APP_VERSION}
+                </b>
+              </p>
+              <Button icon="book" onClick={() => setShowLog(true)}>
+                Что нового
+              </Button>
+            </Panel>
+            {!touchOnly && (
+              <Panel title="Клавиши" icon="menu" accent="var(--c-text-dim)">
+                <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--c-text-dim)' }}>
+                  <li>
+                    <b>N</b> — новая задача (на экране привычек — новая привычка)
+                  </li>
+                  <li>
+                    <b>← / →</b> — предыдущий / следующий день (месяц в привычках)
+                  </li>
+                  <li>
+                    <b>T</b> — вернуться к сегодня
+                  </li>
+                  <li>
+                    <b>/</b> — поиск в бэклоге
+                  </li>
+                  <li>
+                    <b>Esc</b> — закрыть окно
+                  </li>
+                  <li>
+                    Перетаскивание задач — мышью, пальцем (долгое нажатие) или клавиатурой: Tab до
+                    ручки, Пробел, стрелки, Пробел.
+                  </li>
+                </ul>
+              </Panel>
+            )}
+          </>
         )}
       </div>
       {showLog && (

@@ -5,7 +5,7 @@ import { useAuth } from '../auth/store';
 import { useSettings } from '../stores/settings';
 import { MODULES } from '../../modules';
 
-export const HOME: ModuleNavItem = { to: '/', label: 'Сводка', short: 'Сводка', icon: 'home', accent: 'var(--c-gold)' };
+export const HOME: ModuleNavItem = { to: '/', label: 'Сегодня', short: 'Сегодня', icon: 'home', accent: 'var(--c-gold)' };
 export const ACCOUNT: ModuleNavItem = { to: '/account', label: 'Личный кабинет', short: 'Кабинет', icon: 'user', accent: 'var(--c-habit)' };
 export const ADMIN: ModuleNavItem = { to: '/admin', label: 'Админка', short: 'Админка', icon: 'shield', accent: 'var(--c-gold)' };
 export const SETTINGS: ModuleNavItem = { to: '/settings', label: 'Настройки', short: 'Опции', icon: 'gear', accent: 'var(--c-text-dim)' };

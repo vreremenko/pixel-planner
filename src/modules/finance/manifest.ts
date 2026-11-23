@@ -8,6 +8,7 @@ export const financeModule: ModuleManifest = {
   accent: 'var(--c-fin)',
   nav: [{ to: '/finance', label: 'Финансы', short: 'Финансы', icon: 'coin', accent: 'var(--c-fin)' }],
   routes: [{ path: 'finance', Component: lazyScreen(() => import('./screens/FinanceScreen'), (m) => m.FinanceScreen) }],
+  loadToday: () => import('./todayFeed').then((m) => m.loadToday),
   widgets: [
     {
       id: 'finance',
