@@ -16,6 +16,8 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
   const [picked, setPicked] = useState<Picked | null>(null);
   const [editor, setEditor] = useState<{ kind: 'product' | 'dish'; item?: FoodItem } | null>(null);
   const [scanning, setScanning] = useState(false);
+  // Считанный код, которого нет в базе: показываем цифры и даём выбрать, а не открываем пустую карточку сами
+  const [unknown, setUnknown] = useState<string | null>(null);
   // Код со сканера ищем в Open Food Facts: нашли — сразу к граммовке, нет — вводим КБЖУ с упаковки
   const onCode = useCallback((code: string) => {
     setScanning(false);
@@ -24,10 +26,7 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
     lookupBarcode(code, ctrl.signal).then(
       (food) => {
         if (food) setPicked(food);
-        else {
-          toast('Этого штрихкода нет в Open Food Facts — введите КБЖУ с упаковки', 'alert', 'var(--c-warn)');
-          setEditor({ kind: 'product' });
-        }
+        else setUnknown(code);
       },
       () => toast('Поиск по штрихкоду сейчас недоступен — попробуйте позже', 'alert', 'var(--c-warn)'),
     );
@@ -76,6 +75,40 @@ export function AddFoodModal({ date, meal, onClose }: { date: LocalDate; meal: M
           </p>
         </>
       )}
+      <Modal
+        open={unknown !== null}
+        onClose={() => setUnknown(null)}
+        title="Штрихкод не найден"
+        accent="var(--c-warn)"
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setUnknown(null);
+                setScanning(true);
+              }}
+            >
+              Сканировать снова
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setUnknown(null);
+                setEditor({ kind: 'product' });
+              }}
+            >
+              Ввести вручную
+            </Button>
+          </>
+        }
+      >
+        <p style={{ marginTop: 0 }}>
+          Считано: <b className="digits">{unknown}</b>. Такого кода нет в Open Food Facts.
+        </p>
+        <p className={s.hint} style={{ marginBottom: 0 }}>
+          Сверьте цифры с теми, что напечатаны под штрихкодом: если отличаются, сканируйте ещё раз. Если совпадают, продукта просто нет в базе — введите КБЖУ с упаковки.
+        </p>
+      </Modal>
       {scanning && <BarcodeScanner onCode={onCode} onClose={() => setScanning(false)} />}
       {editor?.kind === 'product' && <ProductEditor item={editor.item} onClose={() => setEditor(null)} onSaved={setPicked} />}
       {editor?.kind === 'dish' && <DishEditor item={editor.item} date={date} meal={meal} onClose={() => setEditor(null)} onSaved={setPicked} />}
