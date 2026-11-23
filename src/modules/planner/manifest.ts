@@ -10,7 +10,7 @@ export const plannerModule: ModuleManifest = {
     { to: '/day', label: 'День', short: 'День', icon: 'calendar', accent: 'var(--c-task)' },
     { to: '/backlog', label: 'Бэклог', short: 'Бэклог', icon: 'bag', accent: 'var(--c-backlog)' },
     { to: '/habits', label: 'Привычки', short: 'Привычки', icon: 'star', accent: 'var(--c-habit)' },
-    { to: '/stats', label: 'Статистика', short: 'Стат.', icon: 'bars', accent: 'var(--c-gold)' },
+    { to: '/stats', label: 'Прогресс', short: 'Прогресс', icon: 'bars', accent: 'var(--c-gold)' },
   ],
   routes: [
     { path: 'day', Component: lazyScreen(() => import('./day/DayScreen'), (m) => m.DayScreen) },
@@ -22,7 +22,7 @@ export const plannerModule: ModuleManifest = {
   widgets: [
     {
       id: 'today',
-      title: 'Сегодня',
+      title: 'Задачи',
       icon: 'calendar',
       accent: 'var(--c-task)',
       to: '/day',
@@ -37,5 +37,6 @@ export const plannerModule: ModuleManifest = {
       Component: lazyScreen(() => import('./widgets/HabitsWidget'), (m) => m.HabitsWidget),
     },
   ],
+  loadToday: () => import('./todayFeed').then((m) => m.loadToday),
   globals: [lazyScreen(() => import('./day/TaskEditor'), (m) => m.TaskEditor)],
 };

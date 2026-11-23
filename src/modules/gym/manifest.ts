@@ -23,6 +23,7 @@ export const gymModule: ModuleManifest = {
   widgets: [
     { id: 'gym', title: 'Тренировки', icon: 'dumbbell', accent: 'var(--c-gym)', to: '/gym', Component: lazyScreen(() => import('./screens/GymWidget'), (m) => m.GymWidget) },
   ],
+  loadToday: () => import('./todayFeed').then((m) => m.loadToday),
   // Без отложенной загрузки: панель маленькая, а подгружаясь позже, она сдвигала «Настройки» уже после открытия
   globals: [lazyScreen(() => import('./screens/RestTimerBar'), (m) => m.RestTimerBar), lazyScreen(() => import('./screens/AutoFinish'), (m) => m.AutoFinish)],
 };

@@ -104,7 +104,9 @@ export function ShieldIcon({ size = 56, tone = 'idle' }: { size?: number; tone?:
 export function ShieldMic({ onClick, floating = false }: { onClick: () => void; floating?: boolean }) {
   return (
     <button type="button" className={floating ? s.fab : s.shield} onClick={onClick} aria-label="Помощник">
-      <ShieldIcon size={75} />
+      <ShieldIcon size={floating ? 75 : 62} />
+      {/* В нижнем меню у каждой кнопки есть подпись — у щита тоже: так понятно, что это помощник, а не декор */}
+      {!floating && <span className={s.shieldLabel}>Помощник</span>}
     </button>
   );
 }

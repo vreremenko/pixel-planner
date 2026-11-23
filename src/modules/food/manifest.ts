@@ -18,5 +18,6 @@ export const foodModule: ModuleManifest = {
       Component: lazyScreen(() => import('./screens/FoodWidget'), (m) => m.FoodWidget),
     },
   ],
+  loadToday: () => import('./todayFeed').then((m) => m.loadToday),
   globals: [lazyScreen(() => import('./screens/AdaptiveGoal'), (m) => m.AdaptiveGoal)],
 };
