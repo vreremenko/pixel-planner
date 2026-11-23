@@ -19,6 +19,8 @@ import { useToday } from '../../../core/shell/useToday';
 import { useHotkeys } from '../../../core/shell/hotkeys';
 import { useDockHeight } from '../../../core/shell/useDockHeight';
 import { useDay } from '../data/hooks';
+import { DAY_SORTS, sortDay } from '../domain/daySort';
+import { useDaySort } from '../stores/daySort';
 import { diffDays, formatDateDay } from '../../../core/domain/dates';
 import { hasAllTags, tagCounts } from '../domain/tags';
 import { ProgressBar } from '../../../core/charts/ProgressBar';
@@ -42,7 +44,10 @@ import { TrackModal } from './TrackModal';
 
 const itemId = (it: DayItem) => (it.kind === 'task' ? it.task.id : it.occ.key);
 const itemOrder = (it: DayItem) => (it.kind === 'task' ? it.task.order : it.occ.order);
-const itemTime = (it: DayItem) => (it.kind === 'task' ? it.task.time : it.occ.time) ?? '99:99';
+const itemTime = (it: DayItem) => (it.kind === 'task' ? it.task.time : it.occ.time);
+const itemPriority = (it: DayItem) => (it.kind === 'task' ? it.task.priority : it.occ.priority);
+/** Что нужно сортировке про элемент дня. */
+const sortView = (it: DayItem) => ({ time: itemTime(it), order: itemOrder(it), priority: itemPriority(it), done: isDone(it) });
 const itemTags = (it: DayItem) => (it.kind === 'task' ? it.task.tags : it.occ.tags);
 const isDone = (it: DayItem) => (it.kind === 'task' ? it.task.done : it.occ.status === 'done');
 
@@ -57,6 +62,7 @@ export function DayScreen() {
   const todayDate = useToday();
   const { date, shiftDate, setDate, goToday, openEditor, calendarOpen, setCalendarOpen, tagFilter, toggleTag, clearTags } = useUi();
   const data = useDay(date, todayDate);
+  const { mode: sortMode, setMode: setSortMode } = useDaySort();
   // Что удаляем смахиванием: ждёт подтверждения
   const [askDelete, setAskDelete] = useState<DayItem | null>(null);
   const [trackOpen, setTrackOpen] = useState(false);
@@ -67,8 +73,8 @@ export function DayScreen() {
       ...data.tasks.map((task) => ({ kind: 'task' as const, task })),
       ...data.occurrences.map((occ) => ({ kind: 'occ' as const, occ })),
     ];
-    return items.sort((a, b) => itemOrder(a) - itemOrder(b) || itemTime(a).localeCompare(itemTime(b)));
-  }, [data]);
+    return sortDay(items, sortMode, sortView);
+  }, [data, sortMode]);
 
   // Локальный порядок для мгновенного отклика при перетаскивании
   const [items, setItems] = useState<DayItem[]>(sorted);
@@ -94,7 +100,8 @@ export function DayScreen() {
     const to = items.findIndex((x) => itemId(x) === over.id);
     const next = arrayMove(items, from, to);
     setItems(next);
-    void reorderDay(next);
+    // Расставили сами — порядок запоминается, а список переходит в «Вручную», иначе сортировка вернула бы всё обратно
+    void reorderDay(next).then(() => setSortMode('manual'));
   };
 
   useHotkeys(
@@ -148,6 +155,11 @@ export function DayScreen() {
         <Button icon="right" label="Следующий день (→)" onClick={() => shiftDate(1)} />
         <TopbarActions>
           <div className={s.tools}>
+            <Menu
+              label="Сортировка задач"
+              icon="bars"
+              items={DAY_SORTS.map((o) => ({ label: o.label, checked: sortMode === o.value, onSelect: () => setSortMode(o.value) }))}
+            />
             <Button variant="ghost" icon="calendar" label="Календарь" onClick={() => setCalendarOpen(true)} />
             <Button variant="ghost" icon="hourglass" label="Трек дня" onClick={() => setTrackOpen(true)} />
             <Menu label="Действия с днём" items={menu} />

@@ -1,12 +1,14 @@
 /* Карточка «Сегодня» на сводке: прогресс дня и ближайшие невыполненные задачи с отметкой. */
 import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { Button, Checkbox, cx } from '../../../core/ui';
+import { Button, Checkbox, Menu, cx } from '../../../core/ui';
 import { ProgressBar } from '../../../core/charts/ProgressBar';
 import { useToday } from '../../../core/shell/useToday';
 import { useDay } from '../data/hooks';
 import { toggleOccurrence, toggleTask } from '../services/tasks';
 import { useUi } from '../stores/ui';
+import { useDaySort } from '../stores/daySort';
+import { DAY_SORTS, sortDay } from '../domain/daySort';
 import type { Occurrence, Task } from '../domain/types';
 import s from './Widgets.module.css';
 
@@ -16,20 +18,30 @@ const SHOWN = 5;
 const title = (it: Item) => (it.kind === 'task' ? it.task.title : it.occ.title);
 const time = (it: Item) => (it.kind === 'task' ? it.task.time : it.occ.time);
 const isDone = (it: Item) => (it.kind === 'task' ? it.task.done : it.occ.status === 'done');
-const order = (it: Item) => (it.kind === 'task' ? it.task.order : it.occ.order);
+const sortView = (it: Item) => ({
+  time: time(it),
+  order: it.kind === 'task' ? it.task.order : it.occ.order,
+  priority: it.kind === 'task' ? it.task.priority : it.occ.priority,
+  done: isDone(it),
+});
 
 export function TodayWidget() {
   const todayDate = useToday();
   const data = useDay(todayDate, todayDate);
   const openEditor = useUi((u) => u.openEditor);
+  const { mode: sortMode, setMode: setSortMode } = useDaySort();
 
   const items = useMemo<Item[]>(() => {
     if (!data) return [];
-    return [
-      ...data.tasks.map((task) => ({ kind: 'task' as const, task })),
-      ...data.occurrences.filter((o) => o.status !== 'skipped').map((occ) => ({ kind: 'occ' as const, occ })),
-    ].sort((a, b) => (time(a) ?? '99:99').localeCompare(time(b) ?? '99:99') || order(a) - order(b));
-  }, [data]);
+    return sortDay(
+      [
+        ...data.tasks.map((task) => ({ kind: 'task' as const, task })),
+        ...data.occurrences.filter((o) => o.status !== 'skipped').map((occ) => ({ kind: 'occ' as const, occ })),
+      ],
+      sortMode,
+      sortView,
+    );
+  }, [data, sortMode]);
 
   if (!data) return null;
   const done = items.filter(isDone).length;
@@ -69,6 +81,12 @@ export function TodayWidget() {
         <Button small icon="plus" onClick={() => openEditor({ kind: 'new', date: todayDate })}>
           Задача
         </Button>
+        <Menu
+          label="Сортировка задач"
+          text={DAY_SORTS.find((o) => o.value === sortMode)?.label}
+          icon="bars"
+          items={DAY_SORTS.map((o) => ({ label: o.label, checked: sortMode === o.value, onSelect: () => setSortMode(o.value) }))}
+        />
       </div>
     </>
   );
